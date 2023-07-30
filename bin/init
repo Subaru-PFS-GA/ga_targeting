@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# Verify if file is being sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "The init script must be sourced!"
+    exit
+fi
+
+echo "Sourcing .bashrc"
+source ~/.bashrc
+
+# Parse arguments
+
+PFS_TARGETING_ENV="default"
+
+while (( "$#" )); do
+    case "$1" in
+      -e|--env)
+        PFS_TARGETING_ENV="$2"
+        shift 2
+        ;;
+      --) # end argument parsing
+        shift
+        break
+        ;;
+      *) # preserve all other arguments
+        PARAMS="$PARAMS $1"
+        shift
+        ;;
+    esac
+done
+
+# Source environment configs
+if [[ -f "./configs/envs/$PFS_TARGETING_ENV.sh" ]]; then
+    echo "Sourcing environment file $PFS_TARGETING_ENV"
+    source "./configs/envs/$PFS_TARGETING_ENV.sh"
+else
+    ech "Environment file for $PFS_TARGETING_ENV not found. "
+    exit 1
+fi
+
+echo "Activating conda environment $PFS_TARGETING_CONDAENV"
+source "$PFS_TARGETING_CONDAPATH/bin/activate" "$PFS_TARGETING_CONDAENV"
+
+# Configure git to clear the output of jupyter notebooks before commit.
+
+echo "Configuring git repo"
+git config --local filter.ipynb_stripout.clean "$(which python) $(git rev-parse --show-toplevel)/bin/ipynb_stripout"
+git config --local filter.ipynb_stripout.smudge cat
+git config --local filter.ipynb_stripout.required true
+
+# PFS related settings
+export PYTHONPATH="$PFS_ISOCHRONES:$PFS_TARGETING_ROOT/python:$PFSSPEC_ROOT:$PFS_TARGETING_PYTHONPATH"
+
+# Other settings
+
+# PySynPhot data directories
+export PYSYN_CDBS=$PFS_SPEC_DATA/cdbs
+
+# Work around issues with saving weights when running on multiple threads
+export HDF5_USE_FILE_LOCKING=FALSE
+
+# Disable tensorflow deprecation warnings
+export TF_CPP_MIN_LOG_LEVEL=3
+
+# Enable more cores for numexpr (for single process operation only!)
+# export NUMEXPR_MAX_THREADS=32
+
+# Limit number of threads (for multiprocess computation only!)
+# export NUMEXPR_MAX_THREADS=12
+# export OMP_NUM_THREADS=12
+
+cd $PFS_TARGETING_ROOT
+
+# Generating .env file for vscode python debugging
+cat > .env <<EOF
+CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
+
+PFSSPEC_DATA="$PFSSPEC_DATA"
+CMDFIT_DATA="$CMDFIT_DATA"
+
+PFS_TARGETING_ROOT="$PFS_TARGETING_ROOT"
+PFS_TARGETING_DATA="$PFS_TARGETING_DATA"
+PFS_TARGETING_TEMP="$PFS_TARGETING_TEMP"
+
+PYTHONPATH="$PYTHONPATH"
+EOF
+
+echo "Configured environment for PFS development."
+echo "Data directory is $PFS_TARGETING_DATA"
+
+pushd . > /dev/null
+

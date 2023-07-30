@@ -1,0 +1,72 @@
+from ..util import *
+from .magnitude import Magnitude
+
+class Photometry():
+    def __init__(self, name=None, orig=None):
+        if not isinstance(orig, Photometry):
+            self.__name = name
+            self.__magnitudes = {}
+            self.__colors = []
+        else:
+            self.__name = name or orig.__name
+            self.__magnitudes = safe_deep_copy(orig.__magnitudes)
+            self.__colors = safe_deep_copy(orig.__colors)
+
+    # TODO: move to instruments
+    def SDSS():
+        p = Photometry('sdss')
+        p.append_magnitude(Magnitude('u'))
+        p.append_magnitude(Magnitude('g'))
+        p.append_magnitude(Magnitude('r'))
+        p.append_magnitude(Magnitude('i'))
+        p.append_magnitude(Magnitude('z'))
+        return p
+
+    def CFHT():
+        p = Photometry('cfht')
+        p.append_magnitude(Magnitude('u'))
+        p.append_magnitude(Magnitude('g'))
+        p.append_magnitude(Magnitude('r'))
+        p.append_magnitude(Magnitude('i'))
+        p.append_magnitude(Magnitude('z'))
+        return p
+
+    def PS1():
+        p = Photometry('ps1')
+        p.append_magnitude(Magnitude('g'))
+        p.append_magnitude(Magnitude('r'))
+        p.append_magnitude(Magnitude('i'))
+        p.append_magnitude(Magnitude('z'))
+        p.append_magnitude(Magnitude('y'))
+        p.append_magnitude(Magnitude('w'))
+        p.append_magnitude(Magnitude('n'))
+        return p
+
+    def copy(self):
+        return Photometry(orig=self)
+
+    def __get_name(self) -> str:
+        return self.__name
+    
+    def __set_name(self, value: str):
+        self.__name = value
+
+    name = property(__get_name, __set_name)
+
+    def __get_magnitudes(self):
+        return ReadOnlyDict(self.__magnitudes)
+
+    magnitudes = property(__get_magnitudes)
+
+    def append_magnitude(self, magnitude: Magnitude):
+        self.__magnitudes[magnitude.filter] = magnitude
+        magnitude._set_photometry(self)
+
+    def __get_colors(self):
+        # TODO: make it a dict
+        return ReadOnlyList(self.__colors)
+
+    colors = property(__get_colors)
+
+    def append_color(self, color):
+        self.__colors.append(color)

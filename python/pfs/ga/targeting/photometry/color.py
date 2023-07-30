@@ -1,0 +1,35 @@
+from ..util import *
+from .photometry import Photometry
+from .magnitude import Magnitude
+
+class Color():
+    def __init__(self, magnitudes, orig=None):
+        if not isinstance(orig, Color):
+            self.__magnitudes = magnitudes
+        else:
+            self.__magnitudes = magnitudes or safe_deep_copy(orig.magnitudes)
+            
+        self.__photometry = self.__magnitudes[0].photometry
+
+        self._validate()
+
+    def _validate(self):
+        if len(self.__magnitudes) != 2:
+            raise ValueError('Exactly two magnitudes must be specified.')
+
+        p = None
+        for m in self.__magnitudes:
+            if p is None:
+                p = m.photometry
+            elif m.photometry != p:
+                    raise Exception('Photometric systems must match.')
+
+    def __get_magnitudes(self) -> Magnitude:
+        return ReadOnlyList(self.__magnitudes)
+
+    magnitudes = property(__get_magnitudes)
+
+    def __get_photometry(self) -> Photometry:
+        return self.__photometry
+
+    photometry = property(__get_photometry)
