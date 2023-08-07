@@ -74,7 +74,7 @@ cd $PFS_TARGETING_ROOT
 
 # Generating .env file for vscode python debugging
 cat > .env <<EOF
-CUDA_VISIBLE_DEVICES="$CUDA_VISIBLE_DEVICES"
+CUDA_VISIBLE_DEVICES=""     # Hide all GPUs from TensorFlow
 
 PFSSPEC_DATA="$PFSSPEC_DATA"
 CMDFIT_DATA="$CMDFIT_DATA"
