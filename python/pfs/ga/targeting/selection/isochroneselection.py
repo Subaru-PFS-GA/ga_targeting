@@ -7,7 +7,7 @@ from .selection import Selection
 
 class IsochroneSelection(Selection):
     def __init__(self, isochrone, axes, selection_axis, selection_direction, DM=20, error_sigma=None, orig=None):
-        super(IsochroneSelection, self).__init__(orig=orig)
+        super().__init__(orig=orig)
         
         if not isinstance(orig, IsochroneSelection):
             self.__isochrone = isochrone
@@ -30,40 +30,50 @@ class IsochroneSelection(Selection):
         if len(self.__axes) != 2:
             raise ValueError('Exactly two axes must be specified.')
 
-    def apply(self, catalog: Catalog, observed=None, selection_axis=None, selection_direction=None, mode=None, error_sigma=None, mask=None):        
+    def apply(self, catalog: Catalog, observed=None, selection_axis=None, selection_direction=None, mode=None, error_sigma=None, mask=None):
         observed = observed if observed is not None else catalog.observed
         selection_axis = selection_axis or self.__selection_axis
         selection_direction = selection_direction or self.__selection_direction
         error_sigma = error_sigma or self.__error_sigma
         
         # Calculate value pairs and add photometric error
-        iso = self.__isochrone.get_blurred_values(self.__axes, error_sigma)
+        (iso_x, iso_x_err), (iso_y, iso_y_err) = self.__isochrone.get_diagram_values(self.__axes, error_sigma)
 
         # Collect catalog magnitudes
-        x = catalog.get_diagram_values(self.__axes, observed=observed)
+        (cat_x, cat_x_err), (cat_y, cat_y_err) = catalog.get_diagram_values(self.__axes, observed=observed)
+
+        # TODO: optionally, take error from catalog
+        if error_sigma is not None:
+            if iso_x_err is not None:
+                iso_x = iso_x + error_sigma[0] * iso_x_err
+            if iso_y_err is not None:
+                iso_y = iso_y + error_sigma[1] * iso_y_err
 
         # Determine interpolation axis, which is the opposite as
         # the selection axis
         if selection_axis == 0:
-            a0, a1 = (1, 0)
+            pass
         elif selection_axis == 1:
-            a0, a1 = (0, 1)
+            # TODO: swap x and y values
+            raise NotImplementedError()
         else:
             raise ValueError('Invalid interpolation axis.')
-
+        
         # Interpolate
         if mode == 'extend':
             # Extend isochrone with a straight line
-            ip = interp1d(iso[a0], iso[a1], bounds_error=False, fill_value=(iso[a0][0], iso[a0][-1]))
+            fill_value = (iso_y[0], iso_y[-1])
         else:
             # Do not extend
-            ip = interp1d(iso[a0], iso[a1], bounds_error=False, fill_value=np.nan)
+            fill_value=np.nan
 
-        mask = mask if mask is not None else np.full_like(x[a0][0], True, dtype=bool)
+        ip = interp1d(iso_y, iso_x, bounds_error=False, fill_value=fill_value)
+
+        mask = mask if mask is not None else np.full_like(cat_x, True, dtype=bool)
         if selection_direction == '+':
-            mask &= (x[a1][0] >= ip(x[a0][0]))
+            mask &= (cat_x >= ip(cat_y))
         elif selection_direction == '-':
-            mask &= (x[a1][0] <= ip(x[a0][0]))
+            mask &= (cat_x <= ip(cat_y))
         else:
             raise ValueError('Invalid selection_direction, must be + or -')
 
