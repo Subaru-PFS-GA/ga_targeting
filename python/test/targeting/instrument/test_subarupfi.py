@@ -12,7 +12,7 @@ from pfs.ga.targeting.diagram import FOV
 
 class SubaruPFITest(TestBase):
     def test_find_associations(self):
-        b = Bench()
+        b = Bench(layout='full')
         obs = self.load_test_observation()
         ra, dec = obs.get_coords()
         mask = np.full_like(ra, True, dtype=bool)

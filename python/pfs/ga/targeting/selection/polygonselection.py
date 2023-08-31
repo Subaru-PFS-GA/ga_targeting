@@ -1,3 +1,4 @@
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches
 from shapely.geometry import Point, Polygon
@@ -57,7 +58,7 @@ class PolygonSelection(Selection):
     def apply(self, catalog: Catalog, observed=None, mask=None):
         observed = observed if observed is not None else catalog.observed
         (x, _), (y, _) = catalog.get_diagram_values(self.__axes, observed=observed, mask=mask)
-        mm = [ self.__shape.contains(Point(x, y)) for x, y in zip(x.flatten(), y.flatten()) ]
+        mm = [ self.__shape.contains(Point(x, y)) for x, y in zip(np.ravel(x), np.ravel(y)) ]
         return np.array(mm).reshape(x.shape)
 
     def plot(self, ax: plt.Axes, **kwargs):

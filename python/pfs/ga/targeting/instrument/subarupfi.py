@@ -37,7 +37,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         else:
             self.__projection = projection or orig.__projection
 
-        self.__bench = Bench()
+        self.__bench = Bench(layout='full')
 
     def __get_bench(self):
         return self.__bench
@@ -46,7 +46,7 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     def get_cobra_centers(self):
         centers = np.array([self.__bench.cobras.centers.real, self.__bench.cobras.centers.imag]).T
-        radec = self.__projection.pixel_to_world(centers)
+        radec, mask = self.__projection.pixel_to_world(centers)
 
         return centers, radec
 
