@@ -14,6 +14,12 @@ class SubaruHSC(Instrument):
             sky_sigma=0,
             zero=0))
         p.append_magnitude(Magnitude(
+            'r',
+            conversion=0.8e33,
+            sky=5e5,
+            sky_sigma=0,
+            zero=0))
+        p.append_magnitude(Magnitude(
             'i',
             conversion=0.8e33,
             sky=5e5,
@@ -28,28 +34,57 @@ class SubaruHSC(Instrument):
         return p
 
     @staticmethod
-    def text_observation_reader():
+    def text_observation_reader(mags=None, ext=None):
+        if mags is None:
+            mags = ['g', 'i', 'n']
+        
+        if ext is None:
+            ext = ['g', 'i', 'n']
+
         reader = TextObservationReader()
         reader.append_photometry(SubaruHSC.photometry())
         reader.column_mapping = {
             'ID': 'objid',
             'RA': 'RA',
             'Dec': 'Dec',
-            'ipsf': 'obs_hsc_i',
-            'gpsf': 'obs_hsc_g',
-            'npsf': 'obs_hsc_nb515',
-            'ipsferr': 'err_hsc_i',
-            'gpsferr': 'err_hsc_g',
-            'npsferr': 'err_hsc_nb515',
-            'a_g': 'ext_hsc_g',
-            'a_i': 'ext_hsc_i',
-            'a_n': 'ext_hsc_nb515',
         }
+        reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
+                # , 'ipsf', 'gpsf', 'npsf', 'ipsferr', 'gpsferr', 'npsferr',
+                #   'cli', 'clg', 'cln', 'a_g', 'a_i', 'a_n']
 
-        reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y', 'ipsf', 'gpsf', 'npsf', 'ipsferr', 'gpsferr', 'npsferr',
-                'cli', 'clg', 'cln', 'a_g', 'a_i', 'a_n']
+        for m in mags:
+            reader.column_mapping[f'{m}psf'] = f'obs_hsc_{m}'
+            reader.column_mapping[f'{m}psferr'] = f'err_hsc_{m}'
 
-        reader.filter = lambda df: df['cli'] < 0.1
+        for m in ext:
+            reader.column_mapping[f'a_{m}'] = f'ext_hsc_{m}'
+
+        # These have to be done is separate loops because column order matters!
+
+        for m in mags:
+            reader.column_names.append(f'{m}psf')
+
+        for m in mags:
+            reader.column_names.append(f'{m}psferr')
+
+        for m in mags:
+            reader.column_names.append(f'cl{m}')
+
+        for m in ext:
+            reader.column_names.append(f'a_{m}')
+
+        def filter(df):
+            ff = None
+            for m in mags:
+                if m != 'n':
+                    f = df[f'cl{m}'] < 0.1
+                    if ff is None:
+                        ff = f
+                    else:
+                        ff = ff | f
+            return ff
+
+        reader.filter = filter
         reader.kwargs = dict(delimiter=r'\s+', engine='python')
 
         return reader

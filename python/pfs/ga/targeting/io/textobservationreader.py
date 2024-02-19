@@ -7,7 +7,7 @@ from .observationreader import ObservationReader
 
 class TextObservationReader(ObservationReader):
     def __init__(self, orig=None):
-        super(TextObservationReader, self).__init__(orig=orig)
+        super().__init__(orig=orig)
 
         if not isinstance(orig, TextObservationReader):
             self.__filter = None
@@ -48,7 +48,7 @@ class TextObservationReader(ObservationReader):
             kwargs.update(self.__kwargs)
         names = names or self.__column_names
         
-        df = pd.read_csv(filename, names=names, **kwargs)
+        df = pd.read_csv(filename, names=names, index_col=False, **kwargs)
 
         # Rename columns according to the mapping
         df.rename(columns = self.column_mapping, inplace = True)
