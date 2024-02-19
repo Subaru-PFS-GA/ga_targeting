@@ -36,7 +36,7 @@ class SubaruHSC(Instrument):
     @staticmethod
     def text_observation_reader(mags=None, ext=None):
         if mags is None:
-            mags = ['g', 'i', 'n']
+            mags = ['i', 'g', 'nb515']
         
         if ext is None:
             ext = ['g', 'i', 'n']
@@ -49,35 +49,33 @@ class SubaruHSC(Instrument):
             'Dec': 'Dec',
         }
         reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
-                # , 'ipsf', 'gpsf', 'npsf', 'ipsferr', 'gpsferr', 'npsferr',
-                #   'cli', 'clg', 'cln', 'a_g', 'a_i', 'a_n']
 
         for m in mags:
-            reader.column_mapping[f'{m}psf'] = f'obs_hsc_{m}'
-            reader.column_mapping[f'{m}psferr'] = f'err_hsc_{m}'
+            reader.column_mapping[f'{m[0]}psf'] = f'obs_hsc_{m}'
+            reader.column_mapping[f'{m[0]}psferr'] = f'err_hsc_{m}'
 
         for m in ext:
-            reader.column_mapping[f'a_{m}'] = f'ext_hsc_{m}'
+            reader.column_mapping[f'a_{m[0]}'] = f'ext_hsc_{m}'
 
         # These have to be done is separate loops because column order matters!
 
         for m in mags:
-            reader.column_names.append(f'{m}psf')
+            reader.column_names.append(f'{m[0]}psf')
 
         for m in mags:
-            reader.column_names.append(f'{m}psferr')
+            reader.column_names.append(f'{m[0]}psferr')
 
         for m in mags:
-            reader.column_names.append(f'cl{m}')
+            reader.column_names.append(f'cl{m[0]}')
 
         for m in ext:
-            reader.column_names.append(f'a_{m}')
+            reader.column_names.append(f'a_{m[0]}')
 
         def filter(df):
             ff = None
             for m in mags:
                 if m != 'n':
-                    f = df[f'cl{m}'] < 0.1
+                    f = df[f'cl{m[0]}'] < 0.1
                     if ff is None:
                         ff = f
                     else:
