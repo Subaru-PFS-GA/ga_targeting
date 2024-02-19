@@ -91,7 +91,7 @@ class SpatialDiagram(Diagram):
         ctype, coords, mask, s, fov_mask, transform = self._get_coords(ax, 
             *coords, mask_fov=mask_fov, mask=mask, s=s, native_frame=native_frame, **kwargs)
         
-        l = super().scatter(ax, coords[..., 0], coords[..., 1], transform=transform, mask=mask, s=s, **kwargs)
+        l = super().scatter(ax, coords[..., 0], coords[..., 1], transform=transform, s=s, **kwargs)
         return l
 
     def plot_catalog(self, ax: plt.Axes, catalog, population_id=None, apply_categories=None, g=None,
@@ -123,6 +123,7 @@ class SpatialDiagram(Diagram):
             observed=None, mask_fov=False, mask=None, s=None, **kwargs):
 
         observed = observed if observed is not None else catalog.observed
-        ra, dec = catalog.get_coords()
+        ra, dec = catalog.get_coords(mask=mask)
 
-        return self.scatter(ax, ra, dec, mask_fov=mask_fov, mask=mask, s=s, native_frame='world', **kwargs)
+        # Do not pass on mask
+        return self.scatter(ax, ra, dec, mask_fov=mask_fov, mask=False, s=s, native_frame='world', **kwargs)

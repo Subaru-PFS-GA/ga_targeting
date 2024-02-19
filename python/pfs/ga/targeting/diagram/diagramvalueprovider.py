@@ -20,6 +20,10 @@ class DiagramValueProvider():
                 x.append(self.get_color(ax.color, observed=observed, mask=mask))
             elif isinstance(ax, MagnitudeAxis):
                 x.append(self.get_magnitude(ax.magnitude, observed=observed, mask=mask))
+            elif isinstance(ax, Color):
+                x.append(self.get_color(ax, observed=observed, mask=mask))
+            elif isinstance(ax, Magnitude):
+                x.append(self.get_magnitude(ax, observed=observed, mask=mask))
             else:
                 raise NotImplementedError()
         return x

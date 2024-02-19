@@ -70,9 +70,9 @@ class CMD(Diagram):
             observed=None, mask=None, s=None, **kwargs):
         
         observed = observed if observed is not None else catalog.observed
-        (x, _), (y, _) = catalog.get_diagram_values(self.axes, observed=observed)
+        (x, _), (y, _) = catalog.get_diagram_values(self.axes, observed=observed, mask=mask)
 
-        return self.scatter(ax, x, y, mask=mask, s=s, **kwargs)
+        return self.scatter(ax, x, y, s=s, **kwargs)
 
     def plot_probability_map(self, ax: plt.Axes, pmap, population_id=0, **kwargs):
         style = styles.histogram_imshow(**kwargs)
