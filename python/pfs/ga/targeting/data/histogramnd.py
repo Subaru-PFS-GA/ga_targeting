@@ -125,3 +125,19 @@ class HistogramND():
                 self.__edges = [xedges, yedges]
         else:
             raise NotImplementedError()
+
+    def save_items(self, g):
+        g.create_dataset('extents', data=self.__extents)
+        g.create_dataset('hist', data=self.__hist)
+        g.create_dataset('bins', data=self.__bins)
+        for i, e in enumerate(self.__edges):
+            g.create_dataset(f'edges_{i}', data=e)
+
+    def load_items(self, g):
+        self.__extents = g['extents'][:]
+        self.__hist = g['hist'][:]
+        self.__bins = g['bins'][:]
+
+        self.__edges = []
+        for i in range(self.__bins.shape[0]):
+            self.__edges.append(g[f'edges_{i}'][:])

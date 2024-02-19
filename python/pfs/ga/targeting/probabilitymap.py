@@ -7,6 +7,8 @@ from .util import *
 from .diagram import ColorAxis, MagnitudeAxis
 from .data import HistogramND, Simulation, Catalog
 
+import h5py
+
 class ProbabilityMap(HistogramND):
     def __init__(self, axes, orig=None):
         super().__init__(orig=orig)
@@ -22,6 +24,11 @@ class ProbabilityMap(HistogramND):
         return ReadOnlyList(self.__axes)
 
     axes = property(__get_axes)
+
+    def __get_population_weights(self):
+        return self.__population_weights
+    
+    population_weights = property(__get_population_weights)
 
     def from_simulation(self, sim: Simulation, population_weights=None, merge_list=None, observed=None, mask=None, extents=None, bins=None, bin_sizes=None, digits=None):
         """
@@ -199,3 +206,21 @@ class ProbabilityMap(HistogramND):
         lp_member[mask_member] = np.log(p.T)
 
         return lp_member, mask_member
+
+    def save(self, filename):
+        with h5py.File(filename, 'w') as f:
+            g = f.create_group('pmap')
+            self.save_items(g)
+
+    def save_items(self, g):
+        super().save_items(g)
+        g.create_dataset('population_weights', data=self.__population_weights)
+
+    def load(self, filename):
+        with h5py.File(filename, 'r') as f:
+            g = f['pmap']
+            self.load_items(g)
+
+    def load_items(self, g):
+        super().load_items(g)
+        self.__population_weights = g['population_weights'][:]
