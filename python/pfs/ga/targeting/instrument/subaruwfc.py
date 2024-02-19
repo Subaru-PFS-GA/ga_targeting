@@ -32,11 +32,15 @@ class SubaruWFC(Instrument, TelescopeProjection):
 
         fp_pos = CoordinateTransform(xyin=coords.T, mode="sky_pfi",
             za=0.0, inr=0.0,
-            cent=np.array([[ self.pointing.ra ], [ self.pointing.dec ]]), pa=self.pointing.posang,
+            cent=np.array([[ self.pointing.ra ], [ self.pointing.dec ]]),
+            pa=self.pointing.posang,
             time=self.pointing.time)
         
         xy = fp_pos[:2, :].T
-        r = fp_pos[3, :]
+        
+        # Old version of sky_pfi converted returned the radius, now we have to calculate it
+        # r = fp_pos[3, :]
+        r = np.sqrt(np.sum(xy ** 2, axis=-1))
 
         # Mask coordinates inside fov radius
         fov_mask = (r <= (498 / 2.0))

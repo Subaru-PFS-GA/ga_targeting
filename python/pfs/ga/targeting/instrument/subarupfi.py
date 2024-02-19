@@ -54,17 +54,30 @@ class SubaruPFI(Instrument, FiberAllocator):
         ctype, coords = normalize_coords(*coords)
         mask = mask if mask is not None else ()
 
-        xy, _ = self.__projection.world_to_pixel(coords[mask])
+        xy, fov_mask = self.__projection.world_to_pixel(coords[mask])
     
-        # Use kD-tree to find targets within R_max
         b = self.__bench
-        tree = KDTree(xy, leaf_size=2)
         centers = np.array([b.cobras.centers.real, b.cobras.centers.imag]).T
-        assoc = tree.query_radius(centers, b.cobras.rMax)
-        
-        # Filter out results that are within R_min
-        close = tree.query_radius(centers, b.cobras.rMin)
-        assoc = [ np.setdiff1d(a, c, assume_unique=True) for a, c in zip(assoc, close) ]
+
+        if fov_mask.sum() > 10:
+            # Use kD-tree to find targets within R_max and
+            # filter out results that are within R_min
+            tree = KDTree(xy[fov_mask], leaf_size=2)
+            outer = tree.query_radius(centers, b.cobras.rMax)
+            inner = tree.query_radius(centers, b.cobras.rMin)
+
+            assoc = [ np.setdiff1d(i, o, assume_unique=True) for i, o in zip(outer, inner) ]
+
+            # Assoc is now a list with size equal to the number of cobras.
+            # Each item in an integer array with the list of matching indexes into
+            # the coords[mask][fov_mask] array.
+
+            # Update associations to index into coords[mask] instead of coords[mask][fov_mask]
+            index = np.arange(coords[mask].shape[0], dtype=np.int64)[fov_mask]
+            assoc = [ index[a] for a in assoc ]
+        else:
+            # Do a 1-1 matching instead?
+            assoc = [ np.array([], dtype=np.int64) for i in range(len(b.cobras.centers))]
         
         return Associations(assoc)
     
@@ -123,9 +136,8 @@ class SubaruPFI(Instrument, FiberAllocator):
 
         if data is not None:
             style = styles.closed_circle(**kwargs)
-            vmin = vmin if vmin is not None else data[np.isfinite(data)].min()
-            vmax = vmax if vmax is not None else data[np.isfinite(data)].max()
-            color = cmap((data - vmin) / (vmax - vmin))
+            vmin, vmax = find_plot_limits(data, vmin=vmin, vmax=vmax)
+            color = get_plot_normalized_color(cmap, data, vmin=vmin, vmax=vmax)
         else:
             style = styles.open_circle(**kwargs)
             vmin, vmax = None, None
