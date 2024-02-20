@@ -101,6 +101,9 @@ class Isochrone(DiagramValueProvider):
             if name in isogrid.values:
                 self.__values[name] = np.array(iso_values[i][~iso_mask])
                 self.__magnitudes[name] = m
+
+    def has_magnitude(self, magnitude: Magnitude, observed=False):
+        return magnitude.get_name() in self.__values
         
     def get_magnitude(self, magnitude: Magnitude, DM=None, observed=False, mask=None):
         DM = DM or self.__DM or 0

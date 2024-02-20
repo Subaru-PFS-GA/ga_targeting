@@ -38,6 +38,26 @@ class Observation(Catalog):
 
     observed = property(__get_observed)
 
+    def has_magnitude(self, magnitude: Magnitude, observed=True, dered=True):
+        if observed:
+            if dered:
+                if magnitude.get_name('dered_') in self.__data:
+                    return True
+                if magnitude.get_name('obs_') in self.__data and magnitude.get_name('ext_') in self.__data:
+                    return True
+            else:
+                if magnitude.get_name('obs_') in self.__data:
+                    return True
+        else:
+            if dered:
+                if magnitude.get_name() in self.__data and magnitude.get_name('ext_'):
+                    return True
+            else:
+                if magnitude.get_name() in self.__data:
+                    return True
+                    
+        return False
+
     def get_magnitude(self, magnitude: Magnitude, observed=True, dered=True, mask=None):
         mask = mask if mask is not None else slice(None)
 

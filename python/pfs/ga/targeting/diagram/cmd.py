@@ -23,6 +23,18 @@ class CMD(Diagram):
     def plot_selection(self, ax: plt.Axes, selection, **kwargs):
         selection.plot(ax, **kwargs)
 
+    def can_plot(self, catalog, observed=None):
+        from ..isochrone import Isochrone
+
+        if isinstance(catalog, Observation):
+            observed = observed if observed is not None else catalog.observed
+            return catalog.has_diagram_values(self.axes, observed=observed)
+        elif isinstance(catalog, Simulation):
+            observed = observed if observed is not None else True
+            return catalog.has_diagram_values(self.axes, observed=observed)
+        elif isinstance(catalog, Isochrone):
+            return catalog.has_diagram_values(self.axes, observed=False)
+
     def plot_isochrone(self, ax: plt.Axes, isochrone, observed=False, error_sigma=None, **kwargs):
         style = styles.dashed_line(**kwargs)
 

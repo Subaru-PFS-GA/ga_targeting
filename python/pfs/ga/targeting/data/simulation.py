@@ -43,6 +43,16 @@ class Simulation(Catalog):
             return np.take_along_axis(a, idx, axis=-1)
         else:
             return a
+        
+    def has_magnitude(self, magnitude: Magnitude, observed=False, dered=True):
+        if observed:
+            if magnitude.get_name('obs_') in self.__data:
+                return True
+        else:
+            if magnitude.get_name() in self.__data:
+                return True
+                    
+        return False
 
     def get_magnitude(self, magnitude: Magnitude, observed=False, dered=True, mask=None):
         mask = mask if mask is not None else slice(None)
