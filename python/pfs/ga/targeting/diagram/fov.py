@@ -28,7 +28,7 @@ class FOV(SpatialDiagram):
     def plot_radial_profile(self, ax: plt.Axes, profile, R=1, **kwargs):
         # TODO: add default style
         ell = profile.get_ellipse(R)
-        return self.plot(ax, ell, **kwargs)
+        return self.plot(ax, ell, native_frame='world', **kwargs)
 
     def plot_instrument(self, ax: plt.Axes, instrument, **kwargs):
         instrument.plot_field_of_view(ax, )

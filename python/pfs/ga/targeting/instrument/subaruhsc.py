@@ -39,7 +39,7 @@ class SubaruHSC(Instrument):
             mags = ['i', 'g', 'nb515']
         
         if ext is None:
-            ext = ['g', 'i', 'n']
+            ext = ['g', 'i', 'nb515']
 
         reader = TextObservationReader()
         reader.append_photometry(SubaruHSC.photometry())

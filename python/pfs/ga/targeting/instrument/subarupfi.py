@@ -103,7 +103,7 @@ class SubaruPFI(Instrument, FiberAllocator):
             coords, mask = self.__projection.pixel_to_world(axy)
         elif native_frame == 'pixel':
             coords = axy
-            mask = np.full(axy.shape[:-1], True, dtype=np.bool)
+            mask = np.full(axy.shape[:-1], True, dtype=bool)
         
         return coords, mask
 

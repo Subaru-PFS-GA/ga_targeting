@@ -50,6 +50,10 @@ class SubaruWFC(Instrument, TelescopeProjection):
     def pixel_to_world(self, *coords, mask=None):
         ctype, coords = normalize_coords(*coords)
 
+        # Make sure coordinates are 2d
+        if coords.ndim < 2:
+            coords = coords[None, :]
+
         # TODO: use mask
         mask = mask if mask is not None else np.full_like(coords.T, True, dtype=bool)
 
@@ -70,7 +74,7 @@ class SubaruWFC(Instrument, TelescopeProjection):
         phi = np.linspace(0, 2 * np.pi, res)
         xy = 498 / 2.0 * np.stack([np.cos(phi), np.sin(phi)], axis=-1)
 
-        return xy, np.full(phi.shape, True, dtype=np.bool)
+        return xy, np.full(phi.shape, True, dtype=bool)
 
     def __get_outline_points_world(self, res=None):
         xy, mask = self.__get_outline_points_pixel(res=res)
