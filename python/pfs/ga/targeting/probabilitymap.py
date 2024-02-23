@@ -206,6 +206,21 @@ class ProbabilityMap(HistogramND):
         lp_member[mask_member] = np.log(p.T)
 
         return lp_member, mask_member
+    
+    def create_random_mask(self, catalog: Catalog, lp_member=None,
+                           population_weights=None, observed=None, mask=None):
+        """
+        Generate a random mask based on population membership probability
+        """
+
+        if lp_member is None:
+            lp_member, mask_member = self.lookup_lp_member(catalog, population_weights=population_weights, observed=observed, mask=mask)
+
+        p = np.exp(lp_member)
+        p = np.where(np.isnan(p), 0, p)
+        r = np.random.binomial(1, p) == 1
+
+        return r
 
     def save(self, filename):
         with h5py.File(filename, 'w') as f:
