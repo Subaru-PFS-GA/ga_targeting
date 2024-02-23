@@ -2,14 +2,14 @@ from .axis import Axis
 
 class ColorAxis(Axis):
     def __init__(self, color=None, limits=None, orig=None):
-        super(ColorAxis, self).__init__(limits=limits, orig=orig)
+        super().__init__(limits=limits, orig=orig)
 
         if not isinstance(orig, ColorAxis):
             self.__color = color
         else:
             self.__color = color or orig.__color
 
-        self.label = self.__color.magnitudes[0].get_name() + '-' + self.__color.magnitudes[1].get_name()
+        self.label = f'${self.__color.get_latex()}$'
 
         self._validate()
 

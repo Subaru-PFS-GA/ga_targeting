@@ -33,3 +33,6 @@ class Color():
         return self.__photometry
 
     photometry = property(__get_photometry)
+
+    def get_latex(self):
+        return f'{self.__photometry.latex} {self.__magnitudes[0].latex} - {self.__magnitudes[1].latex}'

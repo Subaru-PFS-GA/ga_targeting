@@ -2,14 +2,14 @@ from .axis import Axis
 
 class MagnitudeAxis(Axis):
     def __init__(self, magnitude=None, limits=None, orig=None):
-        super(MagnitudeAxis, self).__init__(limits=limits, orig=orig)
+        super().__init__(limits=limits, orig=orig)
 
         if not isinstance(orig, MagnitudeAxis):
             self.__magnitude = magnitude
         else:
             self.__magnitude = magnitude or orig.__magnitude
 
-        self.label = self.__magnitude.get_name()
+        self.label = f'${self.__magnitude.get_latex()}$'
         self.invert = True
 
         self._validate()

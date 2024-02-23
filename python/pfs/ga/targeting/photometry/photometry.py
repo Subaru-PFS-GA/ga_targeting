@@ -2,13 +2,15 @@ from ..util import *
 from .magnitude import Magnitude
 
 class Photometry():
-    def __init__(self, name=None, orig=None):
+    def __init__(self, name=None, latex=None, orig=None):
         if not isinstance(orig, Photometry):
             self.__name = name
+            self.__latex = latex
             self.__magnitudes = {}
             self.__colors = []
         else:
             self.__name = name or orig.__name
+            self.__latex = latex or orig.__latex
             self.__magnitudes = safe_deep_copy(orig.__magnitudes)
             self.__colors = safe_deep_copy(orig.__colors)
 
@@ -52,6 +54,22 @@ class Photometry():
         self.__name = value
 
     name = property(__get_name, __set_name)
+
+    def __get_latex(self) -> str:
+        """
+        Gets filter name with latex formatting.
+        """
+
+        return self.__latex
+    
+    def __set_latex(self, value: str):
+        """
+        Sets the filter name with latex formatting.
+        """
+
+        self.__latex = value
+
+    latex = property(__get_latex, __set_latex)
 
     def __get_magnitudes(self):
         return ReadOnlyDict(self.__magnitudes)

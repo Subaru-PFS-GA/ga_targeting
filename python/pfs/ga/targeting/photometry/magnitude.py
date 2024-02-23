@@ -1,7 +1,7 @@
 from ..util import *
 
 class Magnitude():
-    def __init__(self, filter=None, orig=None, **kwargs):
+    def __init__(self, filter=None, latex=None, orig=None, **kwargs):
         conversion = kwargs.pop('conversion', None)
         sky = kwargs.pop('sky', None)
         sky_sigma = kwargs.pop('sky_sigma', None)
@@ -11,6 +11,7 @@ class Magnitude():
         if not isinstance(orig, Magnitude):
             self.__photometry = None
             self.__filter: str = filter
+            self.__latex : str = latex
             self.__conversion: float = conversion or 1e6
             self.__sky: float = sky or 0
             self.__sky_sigma: float = sky_sigma or 0
@@ -19,6 +20,7 @@ class Magnitude():
         else:
             self.__photometry = orig.__photometry
             self.__filter: str = filter or safe_deep_copy(orig.__filter)
+            self.__latex : str = latex or orig.__latex
             self.__conversion: float = conversion or orig.__conversion
             self.__sky: float = sky or orig.__sky
             self.__sky_sigma: float = sky_sigma or orig.__sky_sigma
@@ -53,6 +55,22 @@ class Magnitude():
         self.__filter = value
 
     filter = property(__get_filter, __set_filter)
+
+    def __get_latex(self) -> str:
+        """
+        Gets filter name with latex formatting.
+        """
+
+        return self.__latex
+    
+    def __set_latex(self, value: str):
+        """
+        Sets the filter name with latex formatting.
+        """
+
+        self.__latex = value
+
+    latex = property(__get_latex, __set_latex)
 
     def __get_conversion(self) -> float:
         """
@@ -124,6 +142,9 @@ class Magnitude():
         if name_mappings is not None and name in name_mappings:
             name = name_mappings[name]
         return name
+    
+    def get_latex(self):
+        return f'{self.__photometry.latex} {self.__latex}'
 
     def mag_to_sigma(self, mag):
         """
