@@ -147,6 +147,9 @@ class SubaruPFI(Instrument, FiberAllocator):
             # TODO: we are cheating here and assume that the patrol region will appear as a cirle
             #       in the plots, regardless of the actual projection
 
+            # TODO: This projects cobras into FP coordinates so it won't work 
+            #       when we draw a FOV plot with some projection defines on the axis
+
             xy = (self.__bench.cobras.centers[i].real, self.__bench.cobras.centers[i].imag)
             rr = (self.__bench.cobras.centers[i].real + self.__bench.cobras.rMax[i], self.__bench.cobras.centers[i].imag)
             xy = diagram.project_coords(ax, xy, native_frame='pixel')

@@ -10,7 +10,7 @@ from .catalog import Catalog
 
 class Observation(Catalog):
     def __init__(self, name=None, orig=None):
-        super(Observation, self).__init__(name=name, orig=orig)
+        super().__init__(name=name, orig=orig)
 
         if not isinstance(orig, Observation):
             self.__data: pd.DataFrame = None
