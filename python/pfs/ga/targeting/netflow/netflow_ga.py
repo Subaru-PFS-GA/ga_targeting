@@ -106,6 +106,8 @@ class GA_Netflow:
                 self.pa = [0]
                 self.pmra = -0.119     #Pace et al. (2022)
                 self.pmdec = 0.072
+                self.pmraerr = 0.005
+                self.pmdecerr = 0.005
             elif(name.lower() == 'draco'):
                 self.ra0 = [259.2,260.9,260.1,260.0]
                 self.dec0 = [57.871,57.957,57.77,58.05]
@@ -114,6 +116,8 @@ class GA_Netflow:
                 self.dec = 57.9152777778
                 self.pmra = 0.046
                 self.pmdec = -0.188
+                self.pmraerr = 0.006
+                self.pmdecerr = 0.006
             elif (name.lower() == 'fornax'):
                 self.ra0 = [39.5,40.4,40.3,39.5,40.9,40.5,39.4,39.1]
                 self.dec0 = [-34.2,-34.1,-34.8,-34.9,-33.8,-35.1,-34.0,-35.2]
@@ -122,6 +126,8 @@ class GA_Netflow:
                 self.dec = -34.4492
                 self.pmra = 0.381
                 self.pmdec = -0.358
+                self.pmraerr = 0.001
+                self.pmdecerr = 0.002
             elif(name.lower() == 'sculptor'):
                 self.ra0 = [14.5,15.1,15.5,15.0,16.4,15.06,13.7,14.9]
                 self.dec0 = [-33.7,-33.4,-33.7,-34.1,-33.9,-33.0,-33.55,-34.5]
@@ -130,6 +136,8 @@ class GA_Netflow:
                 self.dec = -33.7089
                 self.pmra = 0.101
                 self.pmdec = -0.156
+                self.pmraerr = 0.003
+                self.pmdecerr = 0.002
             elif(name.lower() == 'bootes'):
                 self.ra0 = [210.5,209.6,210.1,210.1]
                 self.dec0 = [14.5,14.5,14.15,14.8]
@@ -138,6 +146,8 @@ class GA_Netflow:
                 self.dec = 14.5
                 self.pmra = -0.387
                 self.pmdec = -1.064
+                self.pmraerr = 0.122
+                self.pmdecerr = 0.098
             elif(name.lower() == 'ngc6822'):
                 self.ra0 = [296.235]
                 self.dec0 = [-14.789]
@@ -321,7 +331,10 @@ class GA_Netflow:
                 #pmmem = (catalog['priority'] < 9) & ~catalog['pmra'].mask & ~catalog['pmdec'].mask
                 #medianpmra = np.median(catalog['pmra'][pmmem])
                 #medianpmdec = np.median(catalog['pmdec'][pmmem])
-                nonmem = (catalog['code'] == 0) & (catalog['prob'] > 0) & (np.sqrt(((catalog['pmra']-galaxy.pmra)/catalog['pmra_error'])**2 + ((catalog['pmdec']-galaxy.pmdec)/catalog['pmdec_error'])**2) > 3) & (catalog['pmra_error'] >= 0.0) & (catalog['pmdec_error'] >= 0.0) & ~catalog['pmra'].mask & ~catalog['pmdec'].mask
+                nonmem = (catalog['code'] == 0) & (catalog['prob'] > 0) & \
+                    (np.sqrt((catalog['pmra']-galaxy.pmra)**2/(catalog['pmra_error']**2 + galaxy.pmraerr**2) +
+                             (catalog['pmdec']-galaxy.pmdec)**2/(catalog['pmdec_error']**2 + galaxy.pmdecerr**2)) > 3) & \
+                    (catalog['pmra_error'] >= 0.0) & (catalog['pmdec_error'] >= 0.0) & ~catalog['pmra'].mask & ~catalog['pmdec'].mask
                 catalog['priority'][nonmem] = 9
                         
             if showplot:    
