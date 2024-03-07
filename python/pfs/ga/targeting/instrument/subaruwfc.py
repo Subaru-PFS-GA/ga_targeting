@@ -24,17 +24,50 @@ class SubaruWFC(Instrument, TelescopeProjection):
         else:
             pass
 
-    def world_to_pixel(self, *coords, mask=None):
-        ctype, coords = normalize_coords(*coords)
+    def skycoord_to_fp_pos(self, pos, distance=None, epoch=None, mask=None):
+        mask = mask if mask is not None else np.s_[:]
 
-        # TODO: use mask
-        mask = mask if mask is not None else np.full(coords.shape[:-1], True, dtype=bool)
+        # Here we assume that the proper motion and equinox are set properly and
+        # that the frame is ICRS. Also assume that the proper motion is always defined
+        # in mas / yr and do not attempt to convert.
 
-        fp_pos = CoordinateTransform(xyin=coords.T, mode="sky_pfi",
-            za=0.0, inr=0.0,
-            cent=np.array([[ self.pointing.ra ], [ self.pointing.dec ]]),
-            pa=self.pointing.posang,
-            time=self.pointing.time)
+        # The center of input coordinates in the same unit as xyin.
+        cent = np.array([[ self.pointing.ra ], [ self.pointing.dec ]])
+                        
+        # Position angle in unit of degree for sky_pfi* transformation.
+        pa = self.pointing.posang.degree
+
+        # Input coordinates. Namely. (Ra, Dec) in unit of degree for sky with shape (2, N)
+        xyin = np.stack([ [ p.ra.degree, p.dec.degree ] for p in pos], dtype=np.float64)
+
+        # The proper motion of the targets used for sky_pfi transformation.
+        # The unit is mas/yr, the shape is (2, N)
+        try:
+            hasattr(pos[0], 'pm_dec')
+            pm = np.stack([ [ p.pm_ra_cosdec, p.pm_dec ] for p in pos])
+        except AttributeError:
+            pm = None
+
+        # The parallax of the cordinatess used for sky_pfi transformation.
+        # The unit is mas, the shape is (1, N)
+        if distance is not None:
+            parallax = np.stack([ [ d.parallax ] for d in distance])
+        else:
+            parallax = None
+
+        # Observation time UTC in format of %Y-%m-%d %H:%M:%S
+        # It should accept an astropy Time object
+        obs_time = self.pointing.obs_time
+
+        fp_pos = CoordinateTransform(xyin=xyin,
+                                    mode="sky_pfi",
+                                    # za=0.0, inr=0.0,     # These are overriden by function
+                                    cent=cent,
+                                    pa=pa,
+                                    pm=pm,
+                                    par=parallax,
+                                    time=obs_time,
+                                    epoch=epoch)
         
         xy = fp_pos[:2, :].T
         
@@ -45,7 +78,69 @@ class SubaruWFC(Instrument, TelescopeProjection):
         # Mask coordinates inside fov radius
         fov_mask = (r <= (498 / 2.0))
     
+        return xy, fov_mask
+
+    def world_to_fp_pos(self, ra, dec, pmra=None, pmdec=None, parallax=None, epoch=2015.5, mask=None):
+        # TODO: use mask
+        # mask = mask if mask is not None else np.full(ra.shape[:-1], True, dtype=bool)
+
+        # The center of input coordinates in the same unit as xyin.
+        cent = np.array([[ self.pointing.ra ], [ self.pointing.dec ]])
+                        
+        # Position angle in unit of degree for sky_pfi* transformation.
+        pa = self.pointing.posang
+
+        # Input coordinates. Namely. (Ra, Dec) in unit of degree for sky with shape (2, N)
+        _, coords = normalize_coords(ra, dec)
+        xyin = coords.T
+
+        # The proper motion of the targets used for sky_pfi transformation.
+        # The unit is mas/yr, the shape is (2, N)
+        if pmra is not None and pmdec is not None:
+            pm = np.stack([ pmra, pmdec ], axis=0)
+        else:
+            pm = None
+
+        # The parallax of the cordinatess used for sky_pfi transformation.
+        # The unit is mas, the shape is (1, N)
+        # if parallax is not None:
+        #     parallax = parallax[None, :]
+        # else:
+        #     parallax = None
+
+        # Observation time UTC in format of %Y-%m-%d %H:%M:%S
+        obs_time = self.pointing.obs_time.to_value('iso')
+
+        fp_pos = CoordinateTransform(xyin=xyin,
+                                     mode="sky_pfi",
+                                     # za=0.0, inr=0.0,     # These are overriden by function
+                                     cent=cent,
+                                     pa=pa,
+                                     pm=pm,
+                                     par=parallax,
+                                     time=obs_time,
+                                     epoch=epoch)
+                
+        xy = fp_pos[:2, :].T
+        
+        # Old version of sky_pfi converted returned the radius, now we have to calculate it
+        # r = fp_pos[3, :]
+        r = np.sqrt(np.sum(xy ** 2, axis=-1))
+
+        # Mask coordinates inside fov radius
+        fov_mask = (r <= (498 / 2.0))
+    
+        return xy, fov_mask
+
+    def world_to_pixel(self, *coords, mask=None):
+        # This is a simplified signature to be used for plotting only
+
+        ctype, coords = normalize_coords(*coords)
+
+        xy, fov_mask = self.world_to_fp_pos(coords[..., 0], coords[..., 1], mask=mask)
+    
         return denormalize_coords(ctype, xy), fov_mask
+
 
     def pixel_to_world(self, *coords, mask=None):
         ctype, coords = normalize_coords(*coords)
@@ -60,7 +155,7 @@ class SubaruWFC(Instrument, TelescopeProjection):
         sky_pos = CoordinateTransform(xyin=coords.T, mode="pfi_sky",
             za=0.0, inr=0.0,
             cent=np.array([self.pointing.ra, self.pointing.dec]), pa=self.pointing.posang,
-            time=self.pointing.time)
+            time=self.pointing.obs_time.to_string())
 
         radec = sky_pos[:2, :].T
         r = coords[..., 0]**2 + coords[..., 1]**2

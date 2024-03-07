@@ -12,14 +12,13 @@ class SubaruWfcTest(TestBase):
     def test_world_to_pixel(self):
         obs = self.load_test_observation()
         ra, dec = obs.get_coords()
-        p = Pointing(ra.mean(), dec.mean())
+        p = Pointing([ ra.mean(), dec.mean() ])
         t = SubaruWFC(p)
         
         (x, y), mask = t.world_to_pixel(ra, dec)
         self.assertIsNotNone(mask)
         self.assertEqual(ra.shape, x.shape)
         self.assertEqual(dec.shape, y.shape)
-
 
     def test_world_to_pixel_nans(self):
         pointing = Pointing(0, 0)
@@ -30,7 +29,7 @@ class SubaruWfcTest(TestBase):
         xy, fov_mask = wfc.world_to_pixel(radec)
 
     def test_pixel_to_world(self):
-        p = Pointing(10.0, 10.0)
+        p = Pointing([ 10.0, 10.0 ])
         t = SubaruWFC(p)
         
         [x, y] = np.random.uniform(-200.0, 200.0, size=(2, 1000))
@@ -40,11 +39,17 @@ class SubaruWfcTest(TestBase):
         self.assertEqual(ra.shape, x.shape)
         self.assertEqual(dec.shape, y.shape)
 
-    def test_get_outline_points(self):
-        p = Pointing(10.0, 10.0)
+    def test_get_outline_points_pixel(self):
+        p = Pointing([ 10.0, 10.0 ])
         t = SubaruWFC(p)
 
-        xy = t._SubaruWFC__get_outline_points()
+        xy = t._SubaruWFC__get_outline_points_pixel()
+
+    def test_get_outline_points_world(self):
+        p = Pointing([ 10.0, 10.0 ])
+        t = SubaruWFC(p)
+
+        xy = t._SubaruWFC__get_outline_points_world()
 
     def test_plot_field_of_view(self):
         obs = self.load_test_observation()

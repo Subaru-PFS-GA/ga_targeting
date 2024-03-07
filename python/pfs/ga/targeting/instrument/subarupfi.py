@@ -1,3 +1,4 @@
+from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
@@ -176,3 +177,156 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     def plot_corners(self, ax, **kwargs):
         pass
+
+    #region Netflow support functions
+
+    def nf_get_closest_dots(self):
+        """
+        For each cobra, return the list of focal plane black dot positions.
+        
+        Returns
+        =======
+        list : List of arrays of complex focal plane positions.
+        """
+        res = []
+        for cidx in range(len(self.__bench.cobras.centers)):
+            nb = self.__bench.getCobraNeighbors(cidx)
+            res.append(self.__bench.blackDots.centers[[cidx] + list(nb)])
+
+        return res
+    
+    def nf_get_visibility_and_elbow(self, fp_pos):
+        """
+        Calculate the visibility and the corresponding elbow position for each
+        target of a single visit from the focal plane positions in ˙tpos˙.
+
+        Parameters
+        ==========
+
+        tpos : numpy.ndarray
+            Complex focal plane positions of each target.
+
+        Returns
+        =======
+        dict : Dictionary of lists of (cobra ID, elbow position) pairs, keyed by target indices.
+        """
+
+        from ics.cobraOps.TargetGroup import TargetGroup
+        from ics.cobraOps.TargetSelector import TargetSelector
+
+        class DummyTargetSelector(TargetSelector):
+            def run(self):
+                return
+
+            def selectTargets(self):
+                return
+
+        tgroup = TargetGroup(fp_pos)
+        tselect = DummyTargetSelector(self.__bench, tgroup)
+        tselect.calculateAccessibleTargets()
+        tmp = tselect.accessibleTargetIndices   # shape: (cobras, targets), padded with -1
+        elb = tselect.accessibleTargetElbows    # shape: (cobras, targets), padded with 0+0j
+        res = defaultdict(list)
+
+        for cbr in range(tmp.shape[0]):
+            for i, tidx in enumerate(tmp[cbr, :]):
+                if tidx >= 0:
+                    res[tidx].append((cbr, elb[cbr, i]))
+
+        return res
+    
+    def nf_get_colliding_pairs(self, fp_pos, vis_elbow, dist):
+        """Return the list of target pairs that would cause fiber
+        collision when observed by two neighboring fibers.
+        
+        Parameters
+        ==========
+
+        fp_pos : array
+            Complex focal plane positions of the targets
+        vis_elbow: dict
+            Visibility, dict of (cobra ID, elbow position), keyed by target index.
+        dist:
+            Maximum distance causing a collision.
+
+        Returns
+        =======
+        set : pairs of target indices that would cause fiber top collisions.
+        """
+
+        # Collect targets associated with each cobra, for each visit
+        fp_pos = np.array(fp_pos)
+        ivis = defaultdict(list)
+        for tidx, thing in vis_elbow.items():
+            for (cidx, _) in thing:
+                ivis[cidx].append(tidx)
+
+        pairs = set()
+        for cidx, i1 in ivis.items():
+            # Determine target indices visible by this cobra and its neighbors
+            nb = self.__bench.getCobraNeighbors(cidx)
+            i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+            i2 = np.concatenate((i1, i2))
+            i2 = np.unique(i2).astype(int)
+            d = np.abs(np.subtract.outer(fp_pos[i1], fp_pos[i2]))
+            for m in range(d.shape[0]):
+                for n in range(d.shape[1]):
+                    if d[m][n] < dist:
+                        if i1[m] < i2[n]:               # Only store pairs once
+                            pairs.add((i1[m], i2[n]))
+        return pairs
+    
+    def nf_get_colliding_elbows(self, fp_pos, vis_elbow, dist):
+        """
+        For each target-cobra pair, and the corresponding elbow position,
+        return the list of other targets that are too close to the "upper arm" of
+        the cobra.
+        
+        Parameters
+        ==========
+
+        fp_pos : array
+            Complex focal plane positions of the targets
+        vis_elbow: dict
+            Visibility, dict of (cobra ID, elbow position), keyed by target index.
+        dist:
+            Maximum distance causing a collision.
+
+        Returns
+        =======
+        dict : Dictionary of list of targets too close to the cobra indexed by
+               all possible target-cobra pairs.
+        """
+
+        # vis contains the visible cobra indices and corresponding elbow positions
+        # by target index. Invert this and build dictionaries indexed by cobra
+        # indices that contain the lists of targets with corresponding elbow positions.
+        ivis = defaultdict(list)
+        epos = defaultdict(list)    # target_index, elbow position pairs keyed by cobra_index
+        for tidx, cidx_elbow in vis_elbow.items():
+            for (cidx, elbowpos) in cidx_elbow:
+                ivis[cidx].append(tidx)
+                epos[cidx].append((tidx, elbowpos))
+
+        res = defaultdict(list)
+        for cidx, tidx_elbow in epos.items():
+            # Determine target indices visible by neighbors of this cobra
+            nb = self.__bench.getCobraNeighbors(cidx)       # list of cobra_index
+            tmp = [ epos[j] for j in nb if j in epos ]      # all targets visible by neighboring cobras
+            if len(tmp) > 0:
+                i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+                i2 = np.unique(i2).astype(int)
+
+                # For each target visible by this cobra and the corresponding elbow
+                # position, find all targets which are too close to the "upper arm"
+                # of the cobra
+                for tidx, elbowpos in tidx_elbow:
+                    ebp = np.full(len(i2), elbowpos)
+                    tp = np.full(len(i2), fp_pos[tidx])
+                    ti2 = fp_pos[i2]
+                    d = self.__bench.distancesToLineSegments(ti2, tp, ebp)
+                    res[(cidx, tidx)] += list(i2[d < dist])
+
+        return res
+
+    #endregion

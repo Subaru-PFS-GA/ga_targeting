@@ -39,3 +39,8 @@ class SubaruPFITest(TestBase):
         self.save_fig(f)
 
         # TODO: test wrap-around
+
+    def test_nf_get_closest_dots(self):
+        pfi = SubaruPFI()
+        dots = pfi.nf_get_closest_dots()
+        self.assertEqual(2394, len(dots))
