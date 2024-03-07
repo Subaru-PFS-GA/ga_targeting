@@ -21,7 +21,6 @@ class TextObservationReader(ObservationReader):
     def __get_column_names(self):
         return self.__column_names
 
-
     def __set_column_names(self, value):
         self.__column_names = value
 
