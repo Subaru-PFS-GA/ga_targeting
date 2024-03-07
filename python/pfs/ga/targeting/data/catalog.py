@@ -1,27 +1,33 @@
 import logging
 import numpy as np
 import pandas as pd
+import astropy.units as u
+from astropy.coordinates import SkyCoord
 
+from ..util.args import *
 from ..util.coords import *
 from ..util import safe_deep_copy, ReadOnlyDict
 from ..photometry import Photometry, Color, Magnitude
 from ..diagram import ColorAxis, MagnitudeAxis, DiagramValueProvider
 
 class Catalog(DiagramValueProvider):
-    def __init__(self, name=None, orig=None):
+    def __init__(self, name=None, frame='icrs', equinox='J2000', orig=None):
         if not isinstance(orig, Catalog):
             self.__name = name
             self.__photometry = {}
+            self.__frame = frame
+            self.__equinox = equinox
         else:
             self.__name = name or orig.__name
             self.__photometry = safe_deep_copy(orig.__photometry)
+            self.__frame = frame or orig.__frame
+            self.__equinox = equinox or orig.__equinox
 
     def __len__(self):
         # TODO: return number of simulated stars per population
         raise NotImplementedError()
 
     def __get_name(self) -> str:
-        # TODO: return number of simulated times populations
         return self.__name
     
     def __set_name(self, value: str):
@@ -33,6 +39,22 @@ class Catalog(DiagramValueProvider):
         return ReadOnlyDict(self.__photometry)
 
     photometry = property(__get_photometry)
+
+    def __get_frame(self):
+        return self.__frame
+
+    def __set_frame(self, value):
+        self.__frame = value
+
+    frame = property(__get_frame, __set_frame)
+
+    def __get_equinox(self):
+        return self.__equinox
+    
+    def __set_equinox(self, value):
+        self.__equinox = value
+
+    equinox = property(__get_equinox, __set_equinox)
 
     def __get_observed(self):
         raise NotImplementedError()
@@ -75,4 +97,62 @@ class Catalog(DiagramValueProvider):
         else:
             return ra, dec
 
+    def get_skycoords(self, mask=None, frame=None, equinox=None, **kwargs):
+
+        # TODO: what if we have errors?
+
+        frame = frame or self.__frame
+        equinox = equinox or self.__equinox
+
+        ra, dec = self.get_coords(mask=mask)
+        coords = SkyCoord(ra, dec, unit=u.degree, frame=frame, equinox=equinox, **kwargs)
+        return coords
+    
+    def cone_search(self, pos, rad):
+        pos = normalize_pos(pos)
+        rad = normalize_angle(rad, u.arcmin)
+
+        coords = self.get_skycoords()
+        d = pos.separation(coords)
+        mask = (d.arcmin <= rad.arcmin)
+
+        return mask
+    
+    def random_sample(self, p):
+        n = len(self)
+        c = np.random.choice(np.arange(n), int(n * p), replace=False)
+        mask = np.full((n,), False)
+        mask[c] = True
+
+        return mask
+    
+    def cross_match(self, other, max_separation=1, mask=None, mask_other=None):
+        """
+        Cross match two catalogs.
         
+        Use built-in astropy functionality to perform the matching.
+        """
+
+        max_separation = normalize_angle(max_separation, u.arcsec, allow_none=True)
+
+        c1 = self.get_skycoords(mask=mask)
+        c2 = other.get_skycoords(mask=mask_other)
+
+        idx, separation, _ = c1.match_to_catalog_sky(c2)
+        
+        # Apply cut on separation
+        if max_separation is not None:
+            idx[separation > max_separation] = -1
+
+        return idx, separation
+    
+    def merge(self, other, idx, columns, mask=None, mask_other=None, other_prefix=None):
+        """
+        Merge two catalogs based on indices pointing to the other. This will
+        result in a left outer join type match.
+        """
+        
+        for c in columns:
+            self.data[c] = np.nan
+            self.data.loc[mask, c] = np.array(other.data[c][idx[mask]])
+

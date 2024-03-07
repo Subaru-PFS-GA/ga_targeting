@@ -1,6 +1,8 @@
 import numpy as np
 
 def normalize_coords(*coords):
+    """Normalized coordinates so that they are an array of (N, 2)"""
+
     if len(coords) == 1:
         if hasattr(coords[0], 'get_coords'):        # Catalog etc.
             return '', np.stack(coords[0].get_coords(), axis=-1)
@@ -22,6 +24,8 @@ def normalize_coords(*coords):
         raise ValueError('Coords must have 2 dimensions.')
 
 def denormalize_coords(ctype, *coords):
+    """Denormalizes coordinates from an array of (N, 2) into the format requested in `ctype`"""
+
     _, coords = normalize_coords(*coords)
 
     if ctype == '':

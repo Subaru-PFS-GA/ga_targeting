@@ -20,7 +20,7 @@ class Associations():
 
     def find_multiplets(self):
         """
-        Find targets which are associated with more than one fibers.
+        Find targets which are associated with more than one fiber.
         """
 
         all = np.concatenate(self.__assoc)

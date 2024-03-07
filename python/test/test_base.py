@@ -137,5 +137,5 @@ class TestBase(TestCase):
 
     def get_projection(self, obs):
         ra, dec = obs.get_coords()
-        p = WcsProjection(Pointing(ra.mean(), dec.mean(), time=datetime(2020, 1, 1, 12, 0, 0)), proj='TAN')
+        p = WcsProjection(Pointing([ ra.mean(), dec.mean() ], obs_time=datetime(2020, 1, 1, 12, 0, 0)), proj='TAN')
         return p

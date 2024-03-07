@@ -24,6 +24,10 @@ class FOV(SpatialDiagram):
 
     def _get_native_frame(self, native_frame=None):
         return native_frame if native_frame is not None else 'world'
+    
+    def apply(self, ax: plt.Axes):
+        super().apply(ax)
+        ax.xaxis.set_inverted(True)
 
     def plot_radial_profile(self, ax: plt.Axes, profile, R=1, **kwargs):
         # TODO: add default style

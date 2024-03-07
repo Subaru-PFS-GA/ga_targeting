@@ -24,3 +24,6 @@ class FP(SpatialDiagram):
     def _get_native_frame(self, native_frame=None):
         return native_frame if native_frame is not None else 'pixel'
     
+    def apply(self, ax):
+        super().apply(ax)
+        ax.set_aspect(1)

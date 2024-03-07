@@ -28,7 +28,6 @@ class SpatialDiagram(Diagram):
 
     def apply(self, ax):
         super().apply(ax)
-        ax.set_aspect(1)
 
     def project_coords(self, ax: plt.Axes, *coords, native_frame=None):
         ctype, coords = normalize_coords(*coords)

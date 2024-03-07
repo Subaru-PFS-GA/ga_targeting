@@ -9,8 +9,8 @@ from ..photometry import Photometry, Color, Magnitude
 from .catalog import Catalog
 
 class Observation(Catalog):
-    def __init__(self, name=None, orig=None):
-        super().__init__(name=name, orig=orig)
+    def __init__(self, name=None, frame='icrs', equinox='J2000', orig=None):
+        super().__init__(name=name, frame=frame, equinox=equinox, orig=orig)
 
         if not isinstance(orig, Observation):
             self.__data: pd.DataFrame = None
@@ -32,6 +32,16 @@ class Observation(Catalog):
         self.__data = data
 
     data = property(__get_data)
+
+    def get_data(self, mask=None, filter=None):
+        if mask is not None and filter is not None:
+            raise RuntimeError('Either `mask` or `filter` can be not None.')
+        elif mask is not None:
+            return self.__data[mask]
+        elif filter is not None:
+            return filter(self.__data)
+        else:
+            return self.__data
 
     def __get_observed(self):
         return True
@@ -102,17 +112,13 @@ class Observation(Catalog):
 
         return mag, err
 
-    def cross_match(self, other, mask=None, mask_other=None):
-        ra1, dec1 = self.get_coords(mask=mask)
-        c1 = SkyCoord(ra1 * u.deg, dec1 *u.deg)
-
-        ra2, dec2 = other.get_coords(mask=mask_other)
-        c2 = SkyCoord(ra2 * u.deg, dec2 *u.deg)
-
-        idx, d2d, d3d = c1.match_to_catalog_sky(c2)
-        
-        # idx: matching ids in `other`
-        # d2d: distance 2d (angle)
-        # d3d: distance 3d (?)
-
-        return idx, d2d.value
+    def append_columns(self, other, other_key, source_columns, target_columns=None):
+        """
+        Merge columns `source_columns` from `other` by joining the column of self 'objid'
+        on the column ˙other_key` of `other`. The key `other_key` is not copied.
+        """
+        this_columns = [ 'objid' ]
+        other_columns = [ other_key ] + source_columns
+        df = self.__data[this_columns].join(other[other_columns].set_index(other_key), on='objid', how='left')
+        for s, t in zip(source_columns, target_columns if target_columns is not None else source_columns):
+            self.__data[t] = df[s]

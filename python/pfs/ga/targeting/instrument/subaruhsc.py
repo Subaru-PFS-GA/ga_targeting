@@ -6,7 +6,7 @@ class SubaruHSC(Instrument):
 
     @staticmethod
     def photometry():
-        p = Photometry('hsc', latex='HSC')
+        p = Photometry('hsc', latex=r'\mathrm{HSC}\,')
         p.append_magnitude(Magnitude(
             'g',
             latex='g',
