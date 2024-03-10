@@ -34,11 +34,8 @@ class GurobiProblem(ILPProblem):
             for key, value in self.solver_options.items():
                 model.setParam(key, value)
 
-        # TODO: Why is it continuous?
-        self.__cost = model.addVar(name="cost", vtype=gbp.GRB.INTEGER)
+        self.__cost = model.addVar(name="cost", vtype=gbp.GRB.CONTINUOUS)
         self.__sum = gbp.quicksum
-
-        model.update()
         self.__model = model
 
     def add_variable(self, name, lo, hi):       
