@@ -62,7 +62,12 @@ class Netflow():
         self.__targets = None                       # DataFrame of targets
         self.__target_fp_pos = None                 # Target focal plane positions for each pointing
         
-        self.__assignments = None
+        self.__target_assignments = None
+        self.__cobra_assignments = None
+        self.__missed_targets = None
+        self.__partially_observed_targets = None
+
+    #region Property accessors
 
     def __get_name(self):
         return self.__name
@@ -82,10 +87,17 @@ class Netflow():
     
     target_classes = property(__get_target_classes)
 
-    def __get_assignments(self):
-        return self.__assignments
+    def __get_target_assignments(self):
+        return self.__target_assignments
     
-    assignments = property(__get_assignments)
+    target_assignments = property(__get_target_assignments)
+
+    def __get_cobra_assignments(self):
+        return self.__cobra_assignments
+    
+    cobra_assignments = property(__get_cobra_assignments)
+
+    #endregion
 
     def __get_netflow_option(self, key, default=None):
         if self.__netflow_options is not None and key in self.__netflow_options:
@@ -241,7 +253,7 @@ class Netflow():
                     raise RuntimeError(f'Config entry `{item}` is missing for cobra group `{name}`.')
                 
             groups = options['groups']
-            max_group = np.max(groups)
+            ngroups = np.max(groups) + 1
 
             min_targets = options['min_targets'] if 'min_targets' in options else None
             max_targets = options['max_targets'] if 'max_targets' in options else None
@@ -251,7 +263,7 @@ class Netflow():
 
             cobra_groups[name] = SimpleNamespace(
                 groups = groups,
-                max_group = max_group,
+                ngroups = ngroups,
                 target_classes = set(options['target_classes']),
                 min_targets = min_targets,
                 max_targets = max_targets,
@@ -438,15 +450,62 @@ class Netflow():
         # name = hex(self.__name_counter)
         # self.__name_counter += 1
         # return name
+    
+    def __init_problem(self):
+        self.__problem = self.__problem_type(self.__name, self.__solver_options)
+
+    def __add_cost(self, cost):
+        self.__problem.add_cost(cost)
+
+    def __init_variables(self):
+        self.__variables = SimpleNamespace(
+            all = dict(),
+
+            STC_o = defaultdict(list),       # Science target class outflows, key: (target_class)
+            STC_sink = dict(),               # Science target class sink, key: (target_class)
+            CTCv_o = defaultdict(list),      # Calibration target class visit outflows, key: (target_class, visit_idx)
+            CTCv_sink = dict(),              # Calibration target class sink, key: (target_class, visit_idx)
+            
+            T_i = dict(),                    # Target inflows (only science targets), key: (target_idx)
+            T_o = defaultdict(list),         # Target outflows (only science targets), key: (target_idx)
+            T_sink = dict(),                 # Target sinks (only science targets) key: (target_idx)
+
+            Tv_i = defaultdict(list),        # Target visit inflows, key: (target_idx, visit_idx)
+            Tv_o = defaultdict(list),        # Target visit outflows, key: (target_idx, visit_idx)
+            Cv_i = defaultdict(list),        # Cobra visit inflows, key: (cobra_idx, visit_idx)            
+
+            CG_i = defaultdict(list),        # Cobra group inflow variables, for each visit, key: (name, ivis, gidx)
+        )
 
     def __add_variable(self, name, lo=None, hi=None):
         v = self.__problem.add_variable(name, lo=lo, hi=hi)
         self.__variables.all[name] = v
         return v
+    
+    def __init_constraints(self):
+        self.__constraints = SimpleNamespace(
+            all = dict(),
 
-    def __add_cost(self, cost):
-        self.__cost.append(cost)
-        self.__problem.add_cost(cost)
+            STC_o_sum = dict(),             # Total number of science targets per target class, key: (target_class)
+            STC_o_max = dict(),             # Max number of science targets per target class, key: (target_class)
+
+            CTCv_o_sum = dict(),            # Total number of calibration targets per target class, key: (target_class, vidx)
+            CTCv_o_min = dict(),            # At least a required number of calibration target in each class (target), key: (target_class, visit_idx)
+
+            Tv_o_coll = dict(),             # Fiber (endpoint or elbow) collision constraints,
+                                            #      key: (tidx1, tidx2, visit_idx) if endpoint collisions
+                                            #      key: (cidx1, cidx2, visit_idx) if elbow collisions -- why?
+            Tv_o_forb = dict(),             # Forbidden pairs, key: (tidx1, tidx2, visit_idx)
+
+            CG_min = dict(),                # Cobra group minimum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
+            CG_max = dict(),                # Cobra group maximum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
+            Cv_i_sum = dict(),              # At most one target per cobra, key: (cobra_idx, visit_idx)
+            Cv_i_max = dict(),              # Hard upper limit on the number of assigned fibers, key (visit_idx)
+            Tv_i_Tv_o_sum = dict(),         # Target visit nodes must be balanced, key: (target_id, visit_idx)
+            T_i_T_o_sum = dict(),           # Inflow and outflow at every T node must be balanced, key: (target_id)
+            
+            Tv_i_sum = dict(),              # Science program time budget, key: (budget_idx)
+        )
 
     def __add_constraint(self, name, constraint):
         self.__constraints.all[name] = constraint
@@ -460,65 +519,43 @@ class Netflow():
         # Number of visits
         nvisits = len(self.__visits)
 
-        self.__problem = self.__problem_type(self.__name, self.__solver_options)
-
-        self.__variables = SimpleNamespace(
-            all = dict(),
-
-            CG_o = defaultdict(list),        # Cobra group outflows, key: (cobra_group_name, visit_idx, cobra_group)
-            CG_Tv_Cv = defaultdict(list),    # Tv_Cv variables relevant to each cobra group, for each visit
-
-            Cv_i = defaultdict(list),        # Cobra visit inflows, key: (cobra_idx, visit_idx)
-            CTCv_o = defaultdict(list),      # Calibration target class visit outflows, key: (target_class, visit_idx)
-            T_o = defaultdict(list),         # Target outflows (only science targets)
-            T_i = defaultdict(list),         # Target inflows (only science targets), key: (target_idx)
-            Tv_o = defaultdict(list),        # Target visit outflows, key: (target_idx, visit_idx)
-            Tv_i = defaultdict(list),        # Target visit inflows, key: (target_idx, visit_idx)
-            STC_o = defaultdict(list),       # Science Target outflows, key: (target_class)
-        )
-
-        self.__constraints = SimpleNamespace(
-            all = dict(),
-
-            Tv_o_coll = dict(),             # Fiber (endpoint or elbow) collision constraints,
-                                            #      key: (tidx1, tidx2, visit_idx) if endpoint collisions
-                                            #      key: (cidx1, cidx2, visit_idx) if elbow collisions -- why?
-            Tv_o_forb = dict(),             # Forbidden pairs, key: (tidx1, tidx2, visit_idx)
-
-            CG_Tv_Cv_min = dict(),          # Cobra group minimum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
-            CG_Tv_Cv_max = dict(),          # Cobra group maximum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
-            Cv_i_sum = dict(),              # At most one target per cobra, key: (cobra_idx, visit_idx)
-            Cv_i_max = dict(),              # Hard upper limit on the number of assigned fibers, key (visit_idx)
-            Tv_i_Tv_o_sum = dict(),         # Target visit nodes must be balanced, key: (target_id, visit_idx)
-            T_i_T_o_sum = dict(),           # Inflow and outflow at every T node must be balanced, key: (target_id)
-            CTCv_o_min = dict(),            # At least a required number of calibration target in each class (target), key: (target_class, visit_idx)
-            STC_o_sum = dict(),             # Max number of science targets per target class, kez: (target_class)
-            Tv_i_sum = dict(),              # Science program time budget, key: (budget_idx)
-        )
-
-        self.__cost = []
+        self.__init_problem()
+        self.__init_variables()
+        self.__init_constraints()
 
         logging.info("Creating network topology")
 
-        # Create science target variables that are independent of visit
+        # Create science target variables that are independent of visit because
+        # we want multiple visits of the same target
         self.__create_science_target_class_variables()
+
+        # Create science target variables, for each visit
+        # > STC_T
         self.__create_science_target_variables()
         
         # Create the variables for each visit
         for ivis in range(nvisits):
-            # Create cobra group sinks for each cobra group within each
-            # cobra group definition
-            self.__create_cobra_group_variables(ivis)
+            logging.debug(f'Processing exposure {ivis + 1}.')
 
-            # Create calibration target class sinks and define cost
-            # for each calibration target class
+            # Create calibration target class variables and define cost
+            # for each calibration target class. These are different for each visit
+            # because we don't necessarily need the same calibration targets at each visit.
+            # > CTCv_sink
+            logging.debug("Creating calibration target class variables.")
             self.__create_calib_target_class_variables(ivis)
 
-            logging.debug("Calculating visibilities")
-            logging.debug(f"  exposure {ivis + 1}")
+            logging.debug("Calculating visibilities.")
             vis_elbow = self.__positioner.nf_get_visibility_and_elbow(self.__target_fp_pos[ivis])
+
+            # > T_Tv, CTCv_Tv, Tv_Cv
+            logging.debug("Creating target and cobra visit variables.")
             self.__create_visit_variables(ivis, vis_elbow)
-            self.__create_collision_constraints(ivis, vis_elbow)
+
+            logging.debug("Creating cobra collision constraints.")
+            self.__create_cobra_collision_constraints(ivis, vis_elbow)
+
+            logging.debug("Adding cobra non-allocation cost terms.")
+            self.__add_cobra_non_allocation_cost(ivis)
 
             # Add constraints for forbidden pairs of targets
             if self.__forbidden_pairs is not None and len(self.__forbidden_pairs) > 0:
@@ -529,23 +566,24 @@ class Netflow():
 
         # TODO: group these up into functions?
 
-        # Every cobra can observe at most one target per visit    
-        self.__create_Cv_i_constraints()
+        # The maximum number of targets to be observed within a science target class
+        # It defaults to the total number of targets but can be overridden for each target class
+        # TODO: this could be configured in a more detailed manner
+        self.__create_science_target_class_constraints()
+
+        # Every calibration target class must be observed a minimum number of times
+        # every visit
+        self.__create_calibration_target_class_constraints()
+
+        # Inflow and outflow at every Tv node must be balanced
+        ##############
+        self.__create_science_target_constraints()
 
         # Inflow and outflow at every Tv node must be balanced
         self.__create_Tv_i_Tv_o_constraints()
 
-        # Inflow and outflow at every Tv node must be balanced
-        self.__create_T_i_T_o_constraints()
-            
-        # Every calibration target class must be observed a minimum number of times
-        # every visit
-        self.__create_CTCv_o_constraints()
-
-        # The maximum number of targets to be observed within a science target class
-        # It defaults to the total number of targets but can be overridden for each target class
-        # TODO: this could be configured in a more detailed manner
-        self.__create_STC_o_constraints()
+        # Every cobra can observe at most one target per visit    
+        self.__create_Cv_i_constraints()
 
         # Science targets inside a given program must not get more observation time
         # than allowed by the time budget
@@ -562,73 +600,102 @@ class Netflow():
         
     def __create_science_target_class_variables(self):
         # TODO: replace member `calib` with `prefix` to be consistent with targets
-        for tckey, target_class in self.__target_classes.items():
-            if not target_class.calib:
+        for target_class in self.__target_classes.keys():
+            if not self.__target_classes[target_class].calib:
                 # Science Target class node to sink
-                self.__create_STC_sink(tckey)
+                self.__create_STC_sink(target_class)
 
-    def __create_STC_sink(self, tckey):
-        f = self.__add_variable(self.__make_name("STC_sink", tckey), 0, None)
-        self.__variables.STC_o[tckey].append(f)
-        self.__add_cost(f * self.__target_classes[tckey].non_observation_cost)
+    def __create_STC_sink(self, target_class):
+        # Non-observed science target add to the cost with a coefficient defined
+        # for the particular science target class. Higher priority targets should add
+        # more to the cost to prefer targeting them.
+        f = self.__add_variable(self.__make_name("STC_sink", target_class), 0, None)
+        self.__variables.STC_sink[target_class] = f
+        self.__add_cost(f * self.__target_classes[target_class].non_observation_cost)
         
     def __create_science_target_variables(self):
+        # TODO: replace this with the logic to implement step-by-step targeting
+        force_already_observed = self.__get_netflow_option('forceAlreadyObserved', False)
+
         for tidx in range(len(self.__targets)):
             target_id = self.__target_cache.id[tidx]
             target_class = self.__target_cache.target_class[tidx]
             target_prefix = self.__target_cache.prefix[tidx]
-
+            target_penalty = self.__target_cache.penalty[tidx]
+            
             if target_prefix == 'sci':
                 # Science Target class node to target node
-                self.__create_STC_T(tidx, target_class, target_id)
+                self.__create_STC_T(tidx, target_class, target_id, target_penalty, force_already_observed)
 
                 # Science Target node to sink
-                self.__create_ST_sink(tidx, target_class, target_id)
+                self.__create_T_sink(tidx, target_class, target_id)
 
-    def __create_STC_T(self, tidx, target_class, target_id):
+    def __create_STC_T(self, tidx, target_class, target_id, target_penalty, force_already_observed):
         # TODO: This is a bit fishy here. If the target is marked as already observed
         #       by done_visits > 0, why is a new variable added at all?
-        lo = 1 if self.__target_cache.done_visits[tidx] > 0 else 0
+        #       It seems that this setting is trying to force observation of targets
+        #       that have already been observed but this might cause problems, for
+        #       example when there is a fiber collision.
 
-        f = self.__add_variable(self.__make_name("STC_T", target_class, target_id), lo, 1)
-        self.__variables.T_i[tidx].append(f)
+        # If the STC_T edge is forced to be 1, it will eventually force the observation of
+        # the particular target because the edges of T are always balanced.
+        # The problem is that we don't know at which visits and by what fiber which is also
+        # necessary to resume targeting.
+
+        # TODO: just remove this and replace with logic to implement step-by-step targeting
+        # if force_already_observed:
+        #     raise NotImplementedError()
+        #     lo = 1 if self.__target_cache.done_visits[tidx] > 0 else 0
+        # else:
+        #     lo = 0
+
+        f = self.__add_variable(self.__make_name("STC_T", target_class, target_id), 0, 1)
+        self.__variables.T_i[tidx] = f
         self.__variables.STC_o[target_class].append(f)
 
-    def __create_ST_sink(self, tidx, target_class, target_id):
+        # Cost of observing the science target
+        if target_penalty != 0:
+            self.__add_cost(f * target_penalty)
+
+    def __create_T_sink(self, tidx, target_class, target_id):
         # TODO: we could calculate a maximum for this, which is the total number of visits
 
         # TODO: this is wrong, a target is only partially observed if it doesn't have as
         #       many visits as required by observation time
 
-        # TODO: need to have a constraint somewhere which makes sure "ST_sink"
-        #       doesn't take values larger than 1
-        #       partial observation cost applies only when the number of visits is less
-        #       than required by the exposure time
+        # TODO: way to force the required number of observations only:
+        #       - set constraints on the T_i or the sink
+        #       - set a partial obs cost and a too many obs cost
+        #         -- but how to set the cost to zero when within the bounds?
+        # https://stackoverflow.com/questions/69904853/gurobipy-optimization-constraint-to-make-variable-value-to-be-greater-than-100
+        # https://support.gurobi.com/hc/en-us/articles/4414392016529-How-do-I-model-conditional-statements-in-Gurobi
 
-        raise NotImplementedError()
-
-        f = self.__add_variable(self.__make_name("ST_sink", target_id), 0, None)
-        self.__variables.T_o[tidx].append(f)
-        self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)   
+        f = self.__add_variable(self.__make_name("T_sink", target_id), 0, None)
+        self.__variables.T_sink[tidx] = f
+        self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)
             
-    def __create_cobra_group_variables(self, ivis):
-        # Cobra groups are defined by array with the same size as the number of cobras
-        # Each item of this array is a cobra group number
-        # There can be a minimum required number and maximum allowed number of targets
-        # in each cobra group. This is to set a lower limit of sky fibers in every sky location
-        # and instrument region.
+    # TODO: DELETE
+    # def __create_cobra_group_variables(self, ivis):
+    #     # Cobra groups are defined by array with the same size as the number of cobras
+    #     # Each item of this array is a cobra group number
+    #     # There can be a minimum required number and maximum allowed number of targets
+    #     # in each cobra group. This is to set a lower limit of sky fibers in every sky location
+    #     # and instrument region.
 
-        for name, options in self.__cobra_groups.items():
-            # Create a sink for each group and each visit
-            for cgidx in range(options.max_group + 1):
-                # Add overflow arcs to the sink
-                self.__create_CG_sink(ivis, cgidx, name, options)
+    #     for name, options in self.__cobra_groups.items():
+    #         # Create a sink for each group and each visit
+    #         for cgidx in range(options.ngroups):
+    #             # Add overflow arcs to the sink
+    #             self.__create_CG_sink(ivis, cgidx, name, options)
 
-    def __create_CG_sink(self, ivis, cgidx, name, options):
-        # Add overflow arcs to the sink
-        f = self.__add_variable(self.__make_name('CG_sink', name, cgidx, ivis), 0, None)
-        self.__variables.CG_o[(name, cgidx, ivis)].append(f)
-        self.__add_cost(f * options.non_observation_cost)
+    # def __create_CG_sink(self, ivis, cgidx, name, options):
+    #     # TODO: is it used for anything?
+    #     raise NotImplementedError()
+    
+    #     # Add overflow arcs to the sink
+    #     f = self.__add_variable(self.__make_name('CG_sink', name, cgidx, ivis), 0, None)
+    #     self.__variables.CG_o[(name, cgidx, ivis)].append(f)
+    #     self.__add_cost(f * options.non_observation_cost)
 
     def __create_calib_target_class_variables(self, ivis):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
@@ -639,7 +706,7 @@ class Netflow():
                 
     def __create_CTCv_sink(self, ivis, target_class, options):
         f = self.__add_variable(self.__make_name("CTCv_sink", target_class, ivis), 0, None)
-        self.__variables.CTCv_o[(target_class, ivis)].append(f)
+        self.__variables.CTCv_sink[(target_class, ivis)] = f
         self.__add_cost(f * options.non_observation_cost)
     
     def __create_visit_variables(self, ivis, vis_elbow):
@@ -660,18 +727,8 @@ class Netflow():
 
             for (cidx, _) in cidx_elbow:
                 # Target visit node to cobra visit node
-                self.__create_Tv_Cv(ivis, tidx, cidx, target_class, target_prefix)
-
-        # If requested, penalize non-allocated fibers
-        # Sum up the all Cv_i edges for the current visit and penalize its difference from
-        # the total number of cobras
-        fiber_non_allocation_cost = self.__get_netflow_option('fiberNonAllocationCost', 0)
-        if fiber_non_allocation_cost != 0:
-            # TODO: consider storing Cv_i organized by visit instead of cobra as well
-            relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == ivis ]
-            relevant_vars = [ item for sublist in relevant_vars for item in sublist ]
-            self.__add_cost(fiber_non_allocation_cost *
-                            (self.__positioner.bench.cobras.nCobras - self.__problem.sum(relevant_vars)))
+                # > Tv_o, Cv_i, CG_i
+                self.__create_Tv_Cv_CG(ivis, tidx, cidx, target_class, target_prefix)
 
     def __create_T_Tv(self, ivis, tidx, target_id):
         # Target node to target visit node
@@ -685,11 +742,11 @@ class Netflow():
         self.__variables.Tv_i[(tidx, ivis)].append(f)
         self.__variables.CTCv_o[(target_class, ivis)].append(f)
 
-        # TODO: Why do we penalize observing a particular calibration target?
+        # Cost of observing the calibration target
         if self.__target_cache.penalty[tidx] != 0:
             self.__add_cost(f * self.__target_cache.penalty[tidx])
 
-    def __create_Tv_Cv(self, ivis, tidx, cidx, target_class, target_prefix):
+    def __create_Tv_Cv_CG(self, ivis, tidx, cidx, target_class, target_prefix):
         f = self.__add_variable(self.__make_name("Tv_Cv", tidx, cidx, ivis), 0, 1)
         self.__variables.Cv_i[(cidx, ivis)].append(f)
         self.__variables.Tv_o[(tidx, ivis)].append((f, cidx))
@@ -697,9 +754,9 @@ class Netflow():
         # Save the variable to the list of each cobra group to which it's relevant
         for cg_name, options in self.__cobra_groups.items():
             if target_class in options.target_classes:
-                self.__variables.CG_Tv_Cv[(cg_name, ivis, options.groups[cidx])].append(f)
+                self.__variables.CG_i[(cg_name, ivis, options.groups[cidx])].append(f)
 
-        # Cost of the visit
+        # Cost of a single visit
         total_cost = self.__visits[ivis].obs_cost
 
         # Cost of moving the cobra
@@ -717,9 +774,24 @@ class Netflow():
             self.__add_cost(f * total_cost)
 
     #endregion
+    #region Special cost term
+            
+    def __add_cobra_non_allocation_cost(self, ivis):
+        # If requested, penalize non-allocated fibers
+        # Sum up the all Cv_i edges for the current visit and penalize its difference from
+        # the total number of cobras
+        cobra_non_allocation_cost = self.__get_netflow_option('fiberNonAllocationCost', 0)
+        if cobra_non_allocation_cost != 0:
+            # TODO: consider storing Cv_i organized by visit instead of cobra as well
+            relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == ivis ]
+            relevant_vars = [ item for sublist in relevant_vars for item in sublist ]
+            self.__add_cost(cobra_non_allocation_cost *
+                            (self.__positioner.cobra_count - self.__problem.sum(relevant_vars)))
+            
+    #endregion
     #region Constraints
 
-    def __create_collision_constraints(self, ivis, vis_elbow):
+    def __create_cobra_collision_constraints(self, ivis, vis_elbow):
         # TODO: create individual function for each type of constraint
 
         # Add constraints 
@@ -738,20 +810,20 @@ class Netflow():
                 self.__create_elbow_collision_constraints(ivis, vis_elbow, collision_distance)
                 
     def __create_endpoint_collision_constraints(self, ivis, vis_elbow, collision_distance):
-        # Determine target indices visible by this cobra and its neighbors
         ignore_endpoint_collisions = self.__get_debug_option('ignoreEndpointCollisions', False)
 
-        colliding_pairs = self.__positioner.nf_get_colliding_pairs(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
-        keys = self.__variables.Tv_o.keys()
-        keys = set(key[0] for key in keys if key[1] == ivis)
-        for p in colliding_pairs:
-            if p[0] in keys and p[1] in keys:
-                flows = [ v for v, cidx in self.__variables.Tv_o[(p[0], ivis)] ] + \
-                        [ v for v, cidx in self.__variables.Tv_o[(p[1], ivis)] ]
-                name = self.__make_name("Tv_o_coll", p[0], p[1], ivis)
-                constr = self.__problem.sum(flows) <= 1
-                self.__constraints.Tv_o_coll[(p[0], p[1], ivis)] = constr
-                if not ignore_endpoint_collisions:
+        if not ignore_endpoint_collisions:
+            # Determine target indices visible by this cobra and its neighbors
+            colliding_pairs = self.__positioner.nf_get_colliding_pairs(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
+            keys = self.__variables.Tv_o.keys()
+            keys = set(key[0] for key in keys if key[1] == ivis)
+            for p in colliding_pairs:
+                if p[0] in keys and p[1] in keys:
+                    vars = [ v for v, cidx in self.__variables.Tv_o[(p[0], ivis)] ] + \
+                           [ v for v, cidx in self.__variables.Tv_o[(p[1], ivis)] ]
+                    name = self.__make_name("Tv_o_coll", p[0], p[1], ivis)
+                    constr = self.__problem.sum(vars) <= 1
+                    self.__constraints.Tv_o_coll[(p[0], p[1], ivis)] = constr
                     self.__add_constraint(name, constr)
 
     def __create_elbow_collision_constraints(self, ivis, vis_elbow, collision_distance):
@@ -766,15 +838,15 @@ class Netflow():
         for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
             for f, cidx2 in self.__variables.Tv_o[(tidx1, ivis)]:
                 if cidx2 == cidx1:
-                    flow0 = f
+                    var0 = f
 
             for tidx2 in tidx2_list:
                 if True:  # idx2 != tidx1:
-                    flow = [ flow0 ]
-                    flow += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, ivis)] if cidx2 != cidx1 ]
+                    vars = [ var0 ]
+                    vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, ivis)] if cidx2 != cidx1 ]
         
                     name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, ivis)
-                    constr = self.__problem.sum(flow) <= 1
+                    constr = self.__problem.sum(vars) <= 1
                     self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, ivis)] = constr
                     if not ignore_elbow_collisions:
                         self.__add_constraint(name, constr)
@@ -808,6 +880,101 @@ class Netflow():
                         self.__add_constraint(name, constr)
             else:
                 raise RuntimeError("oops")
+            
+    def __create_science_target_class_constraints(self):
+        # Science targets must be either observed or go to the sink
+        # If a maximum on the science target is set fo the target class, enforce that
+        # in a separate constraint
+        ignore_science_target_class_maximum = self.__get_debug_option('ignoreScienceTargetClassMaximum', False)
+        
+        for target_class, vars in self.__variables.STC_o.items():
+            sink = self.__variables.STC_sink[target_class]
+            num_targets = len(vars)
+
+            name = self.__make_name("STC_o_sum", target_class)
+            constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            self.__constraints.STC_o_sum[target_class] = constr
+            self.__add_constraint(name, constr)
+
+            # If a maximum constraint is set on the number observed targets in this class,
+            # enforce it through a maximum constraint on the sum of the outgoing edges not
+            # including the sink
+            # TODO: this constraint could be prescribed as a limit on the sink
+            max_targets = self.__target_classes[target_class].max_targets
+            if not ignore_science_target_class_maximum and max_targets is not None:
+                name = self.__make_name("STC_o_max", target_class)
+                constr = self.__problem.sum(vars) <= max_targets
+                self.__constraints.STC_o_max[target_class] = constr
+                self.__add_constraint(name, constr)
+
+    def __create_calibration_target_class_constraints(self):
+        # The sum of all outgoing edges must be equal the number of calibration targets within each class
+        
+        # Every calibration target class must be observed a minimum number of times every visit
+        ignore_calib_target_class_minimum = self.__get_debug_option('ignoreCalibTargetClassMinimum', False)
+        
+        for (target_class, vidx), vars in self.__variables.CTCv_o.items():
+            sink = self.__variables.CTCv_sink[(target_class, vidx)]
+            num_targets = len(vars)
+
+            name = self.__make_name("CTCv_o_sum", target_class, vidx)
+            constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            self.__constraints.CTCv_o_sum[(target_class, vidx)] = constr
+            self.__add_constraint(name, constr)
+
+            min_targets = self.__target_classes[target_class].min_targets
+            if not ignore_calib_target_class_minimum and min_targets is not None:
+                name = self.__make_name("CTCv_o_min", target_class, vidx)
+                constr = self.__problem.sum([ v for v in vars ]) >= min_targets
+                self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
+                self.__add_constraint(name, constr)
+            
+    def __create_science_target_constraints(self):
+        # Inflow and outflow at every T node must be balanced
+        for tidx, in_flow in self.__variables.T_i.items():
+            sink = self.__variables.T_sink[tidx]
+            out_flow = self.__variables.T_o[tidx]
+            target_id = self.__target_cache.id[tidx]
+            req_visits = self.__target_cache.req_visits[tidx]
+
+            name = self.__make_name("T_i_T_o_sum", target_id)
+            constr = self.__problem.sum([ req_visits * in_flow ] + [ -v for v in out_flow ] + [ sink ]) == 0
+            self.__constraints.T_i_T_o_sum[(target_id)] = constr
+            self.__add_constraint(name, constr)
+
+        # TODO: delete, once rewritten to step-by-step execution
+        # constrain_already_observed = self.__get_netflow_option('constrainAlreadyObserved', False)
+        # if constrain_already_observed:
+        #     # TODO: replace this with logic to set a few Tv and Cv nodes to a fixed value to support
+        #     #       iterative fitting
+
+        #     # TODO: this enforces the number of required visits, only use this when forceAlreadyObserved,
+        #     #       otherwise just add the cost terms
+        #     raise NotImplementedError()
+
+        #     # Inflow and outflow at every T node must be balanced
+        #     for tidx, in_vars in self.__variables.T_i.items():
+        #         out_vars = self.__variables.T_o[tidx]
+        #         target_id = self.__target_cache.id[tidx]
+        #         nvis = max(0, self.__target_cache.req_visits[tidx] - self.__target_cache.done_visits[tidx])
+        #         name = self.__make_name("T_i_T_o_sum", target_id)
+        #         constr = self.__problem.sum([ nvis * v for v in in_vars ] + [ -v for v in out_vars ]) == 0
+        #         self.__constraints.T_i_T_o_sum[(target_id)] = constr
+        #         self.__add_constraint(name, constr)
+        # else:
+        #     pass
+
+    def __create_Tv_i_Tv_o_constraints(self):
+        # Inflow and outflow at every Tv node must be balanced
+        for (tidx, vidx), in_vars in self.__variables.Tv_i.items():
+            out_vars = self.__variables.Tv_o[(tidx, vidx)]
+            target_id = self.__target_cache.id[tidx]
+
+            name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
+            # TODO: why the index in outvars?
+            constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
+            self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
+            self.__add_constraint(name, constr)
 
     def __create_Cv_i_constraints(self):
         # Every cobra can observe at most one target per visit
@@ -817,84 +984,30 @@ class Netflow():
             self.__constraints.Cv_i_sum[(cidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
-    def __create_Tv_i_Tv_o_constraints(self):
-        # Inflow and outflow at every Tv node must be balanced
-        for (tidx, vidx), ivars in self.__variables.Tv_i.items():
-            ovars = self.__variables.Tv_o[(tidx, vidx)]
-            target_id = self.__target_cache.id[tidx]
-            name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
-            constr = self.__problem.sum([ v for v in ivars ] + [ -v[0] for v in ovars ]) == 0
-            self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
-            self.__add_constraint(name, constr)
-
-    def __create_T_i_T_o_constraints(self):
-        # Inflow and outflow at every T node must be balanced
-        for tidx, ivars in self.__variables.T_i.items():
-            ovars = self.__variables.T_o[tidx]
-            target_id = self.__target_cache.id[tidx]
-            nvis = max(0, self.__target_cache.req_visits[tidx] - self.__target_cache.done_visits[tidx])
-            name = self.__make_name("T_i_T_o_sum", target_id)
-            constr = self.__problem.sum([ nvis * v for v in ivars ] + [ -v for v in ovars ]) == 0
-            self.__constraints.T_i_T_o_sum[(target_id)] = constr
-            self.__add_constraint(name, constr)
-
-    def __create_CTCv_o_constraints(self):
-        # Every calibration target class must be observed a minimum number of times
-        # every visit
-
-        ignore_calib_target_class_minimum = self.__get_debug_option('ignoreCalibTargetClassMinimum', False)
-
-        for (target_class, vidx), vars in self.__variables.CTCv_o.items():
-            min_targets = self.__target_classes[target_class].min_targets
-            if min_targets is not None:
-                name = self.__make_name("CTCv_o_min", target_class, vidx)
-                constr = self.__problem.sum([ v for v in vars ]) >= min_targets
-                self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
-                if not ignore_calib_target_class_minimum:
-                    self.__add_constraint(name, constr)
-
-    def __create_STC_o_constraints(self):
-        # Science targets must be either observed or go to the sink
-
-        ignore_science_target_class_total = self.__get_debug_option('ignoreScienceTargetClassTotal', False)
-
-        for target_class, vars in self.__variables.STC_o.items():
-            if self.__target_classes[target_class].max_targets is None:
-                # STC_o contains variables for each target in the science target class plus
-                # one that goes to the sink
-                max_targets = len(vars) - 1
-            else:
-                # TODO: Is this correct here? I think the number of science targets
-                #       cannot be limited this way
-                raise NotImplementedError()
-                max_targets = self.__target_classes[target_class].max_targets
-                
-            name = self.__make_name("STC_o_sum", target_class)
-            constr = self.__problem.sum([ v for v in vars ]) == max_targets
-            self.__constraints.STC_o_sum[target_class] = constr
-            if not ignore_science_target_class_total:
-                self.__add_constraint(name, constr)
-
     def __create_time_budget_constraints(self):
         # Science targets inside a given program must not get more observation time
         # than allowed by the time budget
 
         ignore_time_budget = self.__get_debug_option('ignoreTimeBudget', False)
+        if not ignore_time_budget:
+            # TODO: Review
+            raise NotImplementedError()
 
-        for budget_name, options in self.__time_budgets.items():
-            budget_variables = []
-            # Collect all visits of targets that fall into to budget
-            for (tidx, ivis), val in self.__variables.Tv_i.items():
-                target_class = self.__target_cache.target_class[tidx]
-                if target_class in options.target_classes:
-                    budget_variables.append(val[0])     # TODO: Why the index? Apparently a single var is stored in a list
+            for budget_name, options in self.__time_budgets.items():
+                budget_variables = []
+                # Collect all visits of targets that fall into to budget
+                for (tidx, ivis), val in self.__variables.Tv_i.items():
+                    target_class = self.__target_cache.target_class[tidx]
+                    if target_class in options.target_classes:
+                        # TODO: Why the index? Apparently a single var is stored in a list?
+                        raise NotImplementedError()
+                        budget_variables.append(val[0])     
 
-            # TODO: This assumes a single per visit exposure time which is fine for now
-            #       but the logic could be extended further
-            name = self.__make_name("Tv_i_sum", budget_name)
-            constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
-            self.__constraints.Tv_i_sum[budget_name] = constr
-            if not ignore_time_budget:
+                # TODO: This assumes a single per visit exposure time which is fine for now
+                #       but the logic could be extended further
+                name = self.__make_name("Tv_i_sum", budget_name)
+                constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
+                self.__constraints.Tv_i_sum[budget_name] = constr
                 self.__add_constraint(name, constr)
 
     def __create_cobra_group_constraints(self, nvisits):
@@ -904,40 +1017,42 @@ class Netflow():
         ignore_cobra_group_maximum = self.__get_debug_option('ignoreCobraGroupMaximum', False)
 
         for name, options in self.__cobra_groups.items():
-            for ivis in range(nvisits):
-                for i in range(options.max_group + 1):
-                    variables = self.__variables.CG_Tv_Cv[(name, ivis, i)]
-                    if len(variables) > 0:
-                        if options.min_targets is not None:
-                            name = self.__make_name("CG_Tv_Cv_min", name, ivis, i)
-                            constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
-                            self.__constraints.CG_Tv_Cv_min[name, ivis, i] = constr
-                            if not ignore_cobra_group_minimum:
+            need_min = not ignore_cobra_group_minimum and options.min_targets is not None
+            need_max = not ignore_cobra_group_maximum and options.max_targets is not None
+            if need_min or need_max:                
+                for ivis in range(nvisits):
+                    for gidx in range(options.ngroups):
+                        variables = self.__variables.CG_i[(name, ivis, gidx)]
+                        if len(variables) > 0:
+                            if need_min:
+                                name = self.__make_name("Cv_CG_min", name, ivis, gidx)
+                                constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
+                                self.__constraints.CG_min[name, ivis, gidx] = constr
                                 self.__add_constraint(name, constr)
-                        if options.max_targets is not None:
-                            name = self.__make_name("CG_Tv_Cv_max", name, ivis, i)
-                            constr = self.__problem.sum([ v for v in variables ]) <= options.min_targets
-                            self.__constraints.CG_Tv_Cv_max[name, ivis, i] = constr
-                            if not ignore_cobra_group_maximum:
+
+                            if need_max:
+                                name = self.__make_name("Cv_CG_max", name, ivis, gidx)
+                                constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
+                                self.__constraints.CG_max[name, ivis, gidx] = constr
                                 self.__add_constraint(name, constr)
 
     def __create_unassigned_fiber_constraints(self, nvisits):
         # Make sure that enough fibers are kept unassigned, if this was requested
         # This is done by setting an upper limit on the sum of Cv_i edges
 
-        ignore_unassigned_minimum = self.__get_debug_option('ignoreUnassignedMinimum', False)
-        numReservedFibers = self.__get_netflow_option('numReservedFibers', 0)
+        ignore_reserved_fibers = self.__get_debug_option('ignoreReservedFibers', False)
+        num_reserved_fibers = self.__get_netflow_option('numReservedFibers', 0)
 
-        if numReservedFibers > 0:
-            maxAssignableFibers = self.__positioner.bench.cobras.nCobras - numReservedFibers
+        if not ignore_reserved_fibers and num_reserved_fibers > 0:
+            max_assigned_fibers = self.__positioner.cobra_count - num_reserved_fibers
             for ivis in range(nvisits):
                 variables = [var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == ivis]
                 variables = [item for sublist in variables for item in sublist]
+
                 name = self.__make_name("Cv_i_max", ivis)
-                constr = self.__problem.sum(variables) <= maxAssignableFibers
+                constr = self.__problem.sum(variables) <= max_assigned_fibers
                 self.__constraints.Cv_i_max[ivis] = constr
-                if not ignore_unassigned_minimum:
-                    self.__add_constraint(name, constr)
+                self.__add_constraint(name, constr)
 
     #endregion
 
@@ -948,14 +1063,56 @@ class Netflow():
     def __extract_assignments(self):
         """Extract the fiber assignments from an LP solution"""
 
-        self.__assignments = [ {} for _ in range(len(self.__visits)) ]
+        nvisits = len(self.__visits)
+        ncobras = self.__positioner.cobra_count
 
-        for k1, v1 in self.__problem._variables.items():
-            if k1.startswith("Tv_Cv_"):
-                visited = self.__problem.get_value(v1) > 0
-                if visited:
-                    _, _, tidx, cidx, ivis = k1.split("_")
-                    self.__assignments[int(ivis)][int(tidx)] = int(cidx)
+        self.__target_assignments = [ {} for _ in range(nvisits) ]
+        self.__cobra_assignments = [ np.full(ncobras, -1, dtype=int) for _ in range(nvisits) ]
+
+        def set_assigment(tidx, cidx, ivis):
+            self.__target_assignments[ivis][tidx] = cidx
+            self.__cobra_assignments[ivis][cidx] = tidx
+
+        if self.__variables is not None:
+            # This only works when the netflow problem is built
+            for (tidx, ivis), vars in self.__variables.Tv_o.items():
+                for (f, cidx) in vars:
+                    if self.__problem.get_value(f) > 0:
+                        set_assigment(tidx, cidx, ivis)
+        else:
+            # This also works when only the LP problem is loaded
+            for k1, v1 in self.__problem._variables.items():
+              if k1.startswith("Tv_Cv_"):
+                    if self.__problem.get_value(v1) > 0:
+                        _, _, tidx, cidx, ivis = k1.split("_")
+                        set_assigment(int(tidx), int(cidx), int(ivis))
+
+    def __extract_missed_science_targets(self):
+        """Find science targets for each science target class that have been missed."""
+
+        self.__missed_targets = { k: [] for k, options in self.__target_classes.items() if not options.calib }
+
+        if self.__variables is not None:
+            for tidx, f in self.__variables.T_i.items():
+                if self.__problem.get_value(f) == 0:
+                    target_class = self.__target_cache.target_class[tidx]
+                    self.__missed_targets[target_class].append(tidx)
+        else:
+            raise NotImplementedError
+        
+    def __extract_partially_observed_science_targets(self):
+        """Find science targets that are allocated to fibers during some visits but the total
+        number of visits doesn't meet the requirements."""
+
+        self.__partially_observed_targets = { k: [] for k, options in self.__target_classes.items() if not options.calib }
+
+        if self.__variables is not None:
+            for tidx, f in self.__variables.T_sink.items():
+                if self.__problem.get_value(f) > 0:
+                    target_class = self.__target_cache.target_class[tidx]
+                    self.__partially_observed_targets[target_class].append(tidx)
+        else:
+            raise NotImplementedError()
 
     def __get_idcol(self, catalog):
         for c in ['objid', 'skyid', 'calid']:
@@ -964,19 +1121,29 @@ class Netflow():
         
         raise RuntimeError()
     
-    def get_fiber_assignments(self, catalog):
-        """Returns a mask that indexes the selected targets within a catalog."""
+    def get_cobra_assignments(self):
+        """
+        Return a list of arrays for each visit that contain an array with the the associated target
+        index to each cobra.
+        """
+
+        return self.__cobra_assignments
+    
+    def get_target_assignments(self, catalog):
+        """
+        Return a list of data frames for each visit with two columns: the object IDs and the fiber ID.
+        """
 
         idcol = self.__get_idcol(catalog)
 
         assignments = []
         for i, p in enumerate(self.__visits):
-            idx = np.array([ k for k in self.__assignments[i] ])                   # Target indices
+            idx = np.array([ k for k in self.__target_assignments[i] ])                   # Target indices
 
             targets = pd.DataFrame(
                     {
                         f'target_{idcol}': [ np.int64(self.__targets.iloc[ti]['id']) for ti in idx ],
-                        'fiberid': np.array([ self.__assignments[i][k] for k in idx ]) 
+                        'fiberid': np.array([ self.__target_assignments[i][k] for k in idx ]) 
                     }
                 ).astype({ 'fiberid': pd.Int32Dtype() }).set_index(f'target_{idcol}')
 
@@ -986,9 +1153,11 @@ class Netflow():
 
         return assignments
 
-    def get_fiber_assignments_masks(self, catalog):
+    def get_target_assignments_masks(self, catalog):
+        """Returns a mask that indexes the selected targets within a catalog."""
+
         idcol = self.__get_idcol(catalog)
-        assignments = self.get_fiber_assignments(catalog)
+        assignments = self.get_target_assignments(catalog)
         masks = []
         fiberids = []
         for i, p in enumerate(self.__visits):
@@ -1000,3 +1169,12 @@ class Netflow():
             fiberids.append(np.array(np.int32(a['fiberid'][m])))
 
         return masks, fiberids
+
+    def get_problematic_science_targets(self):
+        if self.__missed_targets is None:
+            self.__extract_missed_science_targets()
+
+        if self.__partially_observed_targets is None:
+            self.__extract_partially_observed_science_targets()
+
+        return self.__missed_targets, self.__partially_observed_targets

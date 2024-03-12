@@ -60,7 +60,7 @@ class GurobiProblem(ILPProblem):
         if lazy is not None:
             constraint.Lazy = lazy
         self._constraints[name] = constraint
-        self.__model.addConstr(constraint)
+        self.__model.addConstr(constraint, name=name)
 
     def add_lazy_constraint(self, name, constraint):
         self.add_constraint(name, constraint, lazy=1)
@@ -78,6 +78,7 @@ class GurobiProblem(ILPProblem):
 
     def read_problem(self, filename):
         self.__model.read(filename)
+        # TODO: populate variable list
 
     def write_solution(self, filename):
         self.__model.write(filename)

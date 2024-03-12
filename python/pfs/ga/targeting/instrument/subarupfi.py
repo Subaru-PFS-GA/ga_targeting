@@ -45,6 +45,11 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     bench = property(__get_bench)
 
+    def __get_cobra_count(self):
+        return self.__bench.cobras.nCobras
+
+    cobra_count = property(__get_cobra_count)
+
     def get_cobra_centers(self):
         centers = np.array([self.__bench.cobras.centers.real, self.__bench.cobras.centers.imag]).T
         radec, mask = self.__projection.pixel_to_world(centers)
@@ -297,6 +302,8 @@ class SubaruPFI(Instrument, FiberAllocator):
         dict : Dictionary of list of targets too close to the cobra indexed by
                all possible target-cobra pairs.
         """
+
+        # TODO: speed up by vectorizing loops
 
         # vis contains the visible cobra indices and corresponding elbow positions
         # by target index. Invert this and build dictionaries indexed by cobra
