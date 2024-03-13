@@ -9,14 +9,13 @@ from types import SimpleNamespace
 from ics.cobraOps.Bench import Bench
 
 from ..util.args import *
-from ..projection import Pointing
 from ..instrument import SubaruWFC, SubaruPFI
-from .calibtarget import CalibTarget
-from .sciencetarget import ScienceTarget
 from .gurobiproblem import GurobiProblem
 
 class Netflow():
-    # Wraps the netflow library with a more object oriented interface
+    """
+    Implements the Network Flow algorithm to optimize fiber allocation.
+    """
     
     def __init__(self, 
                  name,
@@ -187,15 +186,15 @@ class Netflow():
 
         for name, options in self.__get_netflow_option('targetClasses', {}).items():
             
+            prefix = options['prefix'] if 'prefix' in options else False
             min_targets = options['min_targets'] if 'min_targets' in options else None
             max_targets = options['max_targets'] if 'max_targets' in options else None
             non_observation_cost = options['non_observation_cost'] if 'non_observation_cost' in options else None
             partial_observation_cost = options['partial_observation_cost'] if 'partial_observation_cost' in options else None
-            calib = options['calib'] if 'calib' in options else False
             
-            # sanity check for science targets: make sure that partialObservationCost
+            # Sanity check for science targets: make sure that partialObservationCost
             # is larger than nonObservationCost
-            if not calib \
+            if prefix == 'sci' \
                 and non_observation_cost is not None \
                 and partial_observation_cost is not None \
                 and partial_observation_cost < non_observation_cost:
@@ -205,11 +204,11 @@ class Netflow():
                     "is smaller than nonObservationCost")
 
             target_classes[name] = SimpleNamespace(
+                prefix = prefix,
                 min_targets = min_targets,
                 max_targets = max_targets,
                 non_observation_cost = non_observation_cost,
                 partial_observation_cost = partial_observation_cost,
-                calib = calib,
             )
 
         return target_classes
@@ -409,10 +408,8 @@ class Netflow():
         self.__targets['req_visits'] = 0
         self.__targets['req_visits'][sci] = np.int64(np.ceil(self.__targets['exp_time'][sci] / self.__visit_exp_time))
 
-        pass
-
     def __cache_targets(self):
-        # Extract the contents of the Pandas DataFrame for faster indexed access
+        """Extract the contents of the Pandas DataFrame for faster indexed access."""
         
         # TODO: add pm, epoch, etc. required by coordinate transform
 
@@ -487,10 +484,12 @@ class Netflow():
             all = dict(),
 
             STC_o_sum = dict(),             # Total number of science targets per target class, key: (target_class)
+            STC_o_min = dict(),             # Min number of science targets per target class, key: (target_class)
             STC_o_max = dict(),             # Max number of science targets per target class, key: (target_class)
 
             CTCv_o_sum = dict(),            # Total number of calibration targets per target class, key: (target_class, vidx)
-            CTCv_o_min = dict(),            # At least a required number of calibration target in each class (target), key: (target_class, visit_idx)
+            CTCv_o_min = dict(),            # At least a required number of calibration targets in each class (target), key: (target_class, visit_idx)
+            CTCv_o_max = dict(),            # Maximum number of calibration targets in each class, key: (target_class, visit_idx)
 
             Tv_o_coll = dict(),             # Fiber (endpoint or elbow) collision constraints,
                                             #      key: (tidx1, tidx2, visit_idx) if endpoint collisions
@@ -535,7 +534,7 @@ class Netflow():
         
         # Create the variables for each visit
         for ivis in range(nvisits):
-            logging.debug(f'Processing exposure {ivis + 1}.')
+            logging.info(f'Processing exposure {ivis + 1}.')
 
             # Create calibration target class variables and define cost
             # for each calibration target class. These are different for each visit
@@ -544,7 +543,7 @@ class Netflow():
             logging.debug("Creating calibration target class variables.")
             self.__create_calib_target_class_variables(ivis)
 
-            logging.debug("Calculating visibilities.")
+            logging.info("Calculating visibilities.")
             vis_elbow = self.__positioner.nf_get_visibility_and_elbow(self.__target_fp_pos[ivis])
 
             # > T_Tv, CTCv_Tv, Tv_Cv
@@ -564,11 +563,7 @@ class Netflow():
         
         logging.info("Adding constraints")
 
-        # TODO: group these up into functions?
-
         # The maximum number of targets to be observed within a science target class
-        # It defaults to the total number of targets but can be overridden for each target class
-        # TODO: this could be configured in a more detailed manner
         self.__create_science_target_class_constraints()
 
         # Every calibration target class must be observed a minimum number of times
@@ -599,9 +594,8 @@ class Netflow():
     #region Variables and costs
         
     def __create_science_target_class_variables(self):
-        # TODO: replace member `calib` with `prefix` to be consistent with targets
         for target_class in self.__target_classes.keys():
-            if not self.__target_classes[target_class].calib:
+            if self.__target_classes[target_class].prefix == 'sci':
                 # Science Target class node to sink
                 self.__create_STC_sink(target_class)
 
@@ -699,9 +693,8 @@ class Netflow():
 
     def __create_calib_target_class_variables(self, ivis):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
-        # TODO: replace member `calib` with `prefix` to be consistent with targets
         for target_class, options in self.__target_classes.items():
-            if options.calib:
+            if options.prefix in ['sky', 'cal']:
                 self.__create_CTCv_sink(ivis, target_class, options)
                 
     def __create_CTCv_sink(self, ivis, target_class, options):
@@ -757,7 +750,7 @@ class Netflow():
                 self.__variables.CG_i[(cg_name, ivis, options.groups[cidx])].append(f)
 
         # Cost of a single visit
-        total_cost = self.__visits[ivis].obs_cost
+        total_cost = self.__visits[ivis].obs_cost or 0
 
         # Cost of moving the cobra
         cobra_move_cost = self.__get_netflow_option('cobraMoveCost', None)
@@ -798,8 +791,8 @@ class Netflow():
         logging.debug(f"Adding constraints for visit {ivis}")
 
         # Avoid endpoint or elbow collisions
-        collision_distance = self.__get_netflow_option('collision_distance', 0.0)
-        elbow_collisions = self.__get_netflow_option('elbow_collisions', False)
+        collision_distance = self.__get_netflow_option('collisionDistance', 0.0)
+        elbow_collisions = self.__get_netflow_option('elbowCollisions', False)
         
         if collision_distance > 0.0:
             if not elbow_collisions:
@@ -885,6 +878,8 @@ class Netflow():
         # Science targets must be either observed or go to the sink
         # If a maximum on the science target is set fo the target class, enforce that
         # in a separate constraint
+        # It defaults to the total number of targets but can be overridden for each target class
+        ignore_science_target_class_minimum = self.__get_debug_option('ignoreScienceTargetClassMinimum', False)
         ignore_science_target_class_maximum = self.__get_debug_option('ignoreScienceTargetClassMaximum', False)
         
         for target_class, vars in self.__variables.STC_o.items():
@@ -896,10 +891,16 @@ class Netflow():
             self.__constraints.STC_o_sum[target_class] = constr
             self.__add_constraint(name, constr)
 
-            # If a maximum constraint is set on the number observed targets in this class,
-            # enforce it through a maximum constraint on the sum of the outgoing edges not
+            # If a minimum or maximum constraint is set on the number observed targets in this
+            # class, enforce it through a maximum constraint on the sum of the outgoing edges not
             # including the sink
-            # TODO: this constraint could be prescribed as a limit on the sink
+            min_targets = self.__target_classes[target_class].min_targets
+            if not ignore_science_target_class_minimum and min_targets is not None:
+                name = self.__make_name("STC_o_min", target_class)
+                constr = self.__problem.sum(vars) >= min_targets
+                self.__constraints.STC_o_min[target_class] = constr
+                self.__add_constraint(name, constr)
+
             max_targets = self.__target_classes[target_class].max_targets
             if not ignore_science_target_class_maximum and max_targets is not None:
                 name = self.__make_name("STC_o_max", target_class)
@@ -912,6 +913,7 @@ class Netflow():
         
         # Every calibration target class must be observed a minimum number of times every visit
         ignore_calib_target_class_minimum = self.__get_debug_option('ignoreCalibTargetClassMinimum', False)
+        ignore_calib_target_class_maximum = self.__get_debug_option('ignoreCalibTargetClassMaximum', False)
         
         for (target_class, vidx), vars in self.__variables.CTCv_o.items():
             sink = self.__variables.CTCv_sink[(target_class, vidx)]
@@ -925,8 +927,15 @@ class Netflow():
             min_targets = self.__target_classes[target_class].min_targets
             if not ignore_calib_target_class_minimum and min_targets is not None:
                 name = self.__make_name("CTCv_o_min", target_class, vidx)
-                constr = self.__problem.sum([ v for v in vars ]) >= min_targets
+                constr = self.__problem.sum(vars) >= min_targets
                 self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
+                self.__add_constraint(name, constr)
+
+            max_targets = self.__target_classes[target_class].max_targets
+            if not ignore_calib_target_class_maximum and max_targets is not None:
+                name = self.__make_name("CTCv_o_max", target_class, vidx)
+                constr = self.__problem.sum(vars) <= max_targets
+                self.__constraints.CTCv_o_max[(target_class, vidx)] = constr
                 self.__add_constraint(name, constr)
             
     def __create_science_target_constraints(self):
@@ -990,20 +999,16 @@ class Netflow():
 
         ignore_time_budget = self.__get_debug_option('ignoreTimeBudget', False)
         if not ignore_time_budget:
-            # TODO: Review
-            raise NotImplementedError()
-
             for budget_name, options in self.__time_budgets.items():
+                budget_target_classes = set(options.target_classes)
                 budget_variables = []
                 # Collect all visits of targets that fall into to budget
-                for (tidx, ivis), val in self.__variables.Tv_i.items():
+                for (tidx, ivis), v in self.__variables.Tv_i.items():
                     target_class = self.__target_cache.target_class[tidx]
-                    if target_class in options.target_classes:
-                        # TODO: Why the index? Apparently a single var is stored in a list?
-                        raise NotImplementedError()
-                        budget_variables.append(val[0])     
+                    if target_class in budget_target_classes:
+                        budget_variables.append(v)
 
-                # TODO: This assumes a single per visit exposure time which is fine for now
+                # TODO: This assumes a single, per visit exposure time which is fine for now
                 #       but the logic could be extended further
                 name = self.__make_name("Tv_i_sum", budget_name)
                 constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
@@ -1090,7 +1095,7 @@ class Netflow():
     def __extract_missed_science_targets(self):
         """Find science targets for each science target class that have been missed."""
 
-        self.__missed_targets = { k: [] for k, options in self.__target_classes.items() if not options.calib }
+        self.__missed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
 
         if self.__variables is not None:
             for tidx, f in self.__variables.T_i.items():
@@ -1104,7 +1109,7 @@ class Netflow():
         """Find science targets that are allocated to fibers during some visits but the total
         number of visits doesn't meet the requirements."""
 
-        self.__partially_observed_targets = { k: [] for k, options in self.__target_classes.items() if not options.calib }
+        self.__partially_observed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
 
         if self.__variables is not None:
             for tidx, f in self.__variables.T_sink.items():

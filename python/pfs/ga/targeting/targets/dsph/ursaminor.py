@@ -21,8 +21,15 @@ class UrsaMinor(Galaxy):
         pointings = {
             SubaruPFI: [
                 # Pointing(pos, posang=0.0, exp_time=1800)
+                
+                # EK
+                # Pointing([227.29725, 67.21436111], posang=0.0, exp_time=1800)
 
-                Pointing([227.29725, 67.21436111], posang=0.0, exp_time=1800)           # EK
+                # KH
+                Pointing((228.2, 67.5), posang=0),
+                Pointing((226.3, 67.5), posang=0),
+                Pointing((226.0, 66.9), posang=0),
+                Pointing((228.1, 66.955), posang=40),
             ]
         }
 
