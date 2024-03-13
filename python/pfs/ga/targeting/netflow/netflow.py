@@ -479,6 +479,11 @@ class Netflow():
         self.__variables.all[name] = v
         return v
     
+    def __add_variable_array(self, name, indexes, lo=None, hi=None, cost=None):
+        v = self.__problem.add_variable_array(name, indexes, lo=lo, hi=hi, cost=cost)
+        self.__variables.all[name] = v
+        return v
+    
     def __init_constraints(self):
         self.__constraints = SimpleNamespace(
             all = dict(),
@@ -544,14 +549,14 @@ class Netflow():
             self.__create_calib_target_class_variables(ivis)
 
             logging.info("Calculating visibilities.")
-            vis_elbow = self.__positioner.nf_get_visibility_and_elbow(self.__target_fp_pos[ivis])
+            vis_targets_elbows, vis_cobras_targets = self.__positioner.nf_get_visibility_and_elbow(self.__target_fp_pos[ivis])
 
             # > T_Tv, CTCv_Tv, Tv_Cv
             logging.debug("Creating target and cobra visit variables.")
-            self.__create_visit_variables(ivis, vis_elbow)
+            self.__create_visit_variables(ivis, vis_targets_elbows, vis_cobras_targets)
 
             logging.debug("Creating cobra collision constraints.")
-            self.__create_cobra_collision_constraints(ivis, vis_elbow)
+            self.__create_cobra_collision_constraints(ivis, vis_targets_elbows)
 
             logging.debug("Adding cobra non-allocation cost terms.")
             self.__add_cobra_non_allocation_cost(ivis)
@@ -667,29 +672,6 @@ class Netflow():
         f = self.__add_variable(self.__make_name("T_sink", target_id), 0, None)
         self.__variables.T_sink[tidx] = f
         self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)
-            
-    # TODO: DELETE
-    # def __create_cobra_group_variables(self, ivis):
-    #     # Cobra groups are defined by array with the same size as the number of cobras
-    #     # Each item of this array is a cobra group number
-    #     # There can be a minimum required number and maximum allowed number of targets
-    #     # in each cobra group. This is to set a lower limit of sky fibers in every sky location
-    #     # and instrument region.
-
-    #     for name, options in self.__cobra_groups.items():
-    #         # Create a sink for each group and each visit
-    #         for cgidx in range(options.ngroups):
-    #             # Add overflow arcs to the sink
-    #             self.__create_CG_sink(ivis, cgidx, name, options)
-
-    # def __create_CG_sink(self, ivis, cgidx, name, options):
-    #     # TODO: is it used for anything?
-    #     raise NotImplementedError()
-    
-    #     # Add overflow arcs to the sink
-    #     f = self.__add_variable(self.__make_name('CG_sink', name, cgidx, ivis), 0, None)
-    #     self.__variables.CG_o[(name, cgidx, ivis)].append(f)
-    #     self.__add_cost(f * options.non_observation_cost)
 
     def __create_calib_target_class_variables(self, ivis):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
@@ -702,69 +684,75 @@ class Netflow():
         self.__variables.CTCv_sink[(target_class, ivis)] = f
         self.__add_cost(f * options.non_observation_cost)
     
-    def __create_visit_variables(self, ivis, vis_elbow):
-        # For each target-cobra pair with elbow position
-        for tidx, cidx_elbow in vis_elbow.items():
-            target_id = self.__target_cache.id[tidx]
-            target_class = self.__target_cache.target_class[tidx]
-            target_prefix = self.__target_cache.prefix[tidx]
+    def __create_visit_variables(self, ivis, vis_targets_elbows, vis_cobras_targets):
+        tidx = np.array(list(vis_targets_elbows.keys()), dtype=int)
 
-            if target_prefix == 'sci':
-                # Target node to target visit node
-                self.__create_T_Tv(ivis, tidx, target_id)
-            elif target_prefix in ['sky', 'cal']:
-                # Calibration Target class node to target visit node
-                self.__create_CTCv_Tv(ivis, tidx, target_class, target_id)
-            else:
-                raise NotImplementedError()
+        # Create science targets T_Tv edges in batch
+        sci_mask = self.__target_cache.prefix[tidx] == 'sci'
+        self.__create_T_Tv(ivis, tidx[sci_mask])
 
-            for (cidx, _) in cidx_elbow:
-                # Target visit node to cobra visit node
-                # > Tv_o, Cv_i, CG_i
-                self.__create_Tv_Cv_CG(ivis, tidx, cidx, target_class, target_prefix)
+        # Create calibration targets CTCv_Tv edges
+        cal_mask = (self.__target_cache.prefix[tidx] == 'sky') | (self.__target_cache.prefix[tidx] == 'cal')
+        self.__create_CTCv_Tv(ivis, tidx[cal_mask])
 
-    def __create_T_Tv(self, ivis, tidx, target_id):
-        # Target node to target visit node
-        f = self.__add_variable(self.__make_name("T_Tv", target_id, ivis), 0, 1)
-        self.__variables.T_o[tidx].append(f)
-        self.__variables.Tv_i[(tidx, ivis)].append(f)
+        # For each Cv, generate the incoming Tv_Cv edges
+        # These differ in number but can be vectorized for each cobra
+        for cidx, tidx_elbow in vis_cobras_targets.items():
+            tidx = np.array([ ti for ti, _ in tidx_elbow ], dtype=int)
+            self.__create_Tv_Cv_CG(ivis, cidx, tidx)
 
-    def __create_CTCv_Tv(self, ivis, tidx, target_class, target_id):
-        # Calibration Target class node to target visit node
-        f = self.__add_variable(self.__make_name("CTCv_Tv", target_class, target_id, ivis), 0, 1)
-        self.__variables.Tv_i[(tidx, ivis)].append(f)
-        self.__variables.CTCv_o[(target_class, ivis)].append(f)
+    def __create_T_Tv(self, ivis, tidx):
+        vars = self.__add_variable_array(self.__make_name('T_Tv', ivis), tidx, 0, 1)
+        for ti in tidx:
+            f = vars[ti]
+            self.__variables.T_o[ti].append(f)
+            self.__variables.Tv_i[(ti, ivis)].append(f)
+            
+    def __create_CTCv_Tv(self, ivis, tidx):
+        cost = self.__target_cache.penalty[tidx]
+        name = self.__make_name('CTCv_Tv', ivis)
+        vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
 
-        # Cost of observing the calibration target
-        if self.__target_cache.penalty[tidx] != 0:
-            self.__add_cost(f * self.__target_cache.penalty[tidx])
+        for ti in tidx:
+            f = vars[ti]
+            target_class = self.__target_cache.target_class[ti]
+            self.__variables.Tv_i[(ti, ivis)].append(f)
+            self.__variables.CTCv_o[(target_class, ivis)].append(f)
 
-    def __create_Tv_Cv_CG(self, ivis, tidx, cidx, target_class, target_prefix):
-        f = self.__add_variable(self.__make_name("Tv_Cv", tidx, cidx, ivis), 0, 1)
-        self.__variables.Cv_i[(cidx, ivis)].append(f)
-        self.__variables.Tv_o[(tidx, ivis)].append((f, cidx))
-
-        # Save the variable to the list of each cobra group to which it's relevant
-        for cg_name, options in self.__cobra_groups.items():
-            if target_class in options.target_classes:
-                self.__variables.CG_i[(cg_name, ivis, options.groups[cidx])].append(f)
-
+    def __create_Tv_Cv_CG(self, ivis, cidx, tidx):
+        # Calculate the cost for each target - cobra assignment
+        cost = np.zeros_like(tidx, dtype=float)
+        
         # Cost of a single visit
-        total_cost = self.__visits[ivis].obs_cost or 0
+        if self.__visits[ivis].obs_cost is not None:
+            cost += self.__visits[ivis].obs_cost
 
         # Cost of moving the cobra
         cobra_move_cost = self.__get_netflow_option('cobraMoveCost', None)
         if cobra_move_cost is not None:
             dist = np.abs(self.__positioner.bench.cobras.centers[cidx] - self.__target_fp_pos[ivis][tidx])
-            total_cost += cobra_move_cost(dist)
+            cost += cobra_move_cost(dist)
         
         # Cost of closest black dots for each cobra
         if self.__black_dots is not None:
             dist = np.min(np.abs(self.__black_dots.black_dot_list[cidx] - self.__target_fp_pos[ivis][tidx]))
-            total_cost += self.__black_dots.black_dot_penalty(dist)
-        
-        if total_cost != 0:
-            self.__add_cost(f * total_cost)
+            cost += self.__black_dots.black_dot_penalty(dist)
+
+        # Create LP variables
+        name = self.__make_name("Tv_Cv", ivis, cidx)
+        vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
+
+        for ti in tidx:
+            f = vars[ti]
+            target_class = self.__target_cache.target_class[ti]
+
+            self.__variables.Cv_i[(cidx, ivis)].append(f)
+            self.__variables.Tv_o[(ti, ivis)].append((f, cidx))
+
+            # Save the variable to the list of each cobra group to which it's relevant
+            for cg_name, options in self.__cobra_groups.items():
+                if target_class in options.target_classes:
+                    self.__variables.CG_i[(cg_name, ivis, options.groups[cidx])].append(f)
 
     #endregion
     #region Special cost term
@@ -785,8 +773,6 @@ class Netflow():
     #region Constraints
 
     def __create_cobra_collision_constraints(self, ivis, vis_elbow):
-        # TODO: create individual function for each type of constraint
-
         # Add constraints 
         logging.debug(f"Adding constraints for visit {ivis}")
 

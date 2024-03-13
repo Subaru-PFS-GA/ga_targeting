@@ -229,16 +229,20 @@ class SubaruPFI(Instrument, FiberAllocator):
         tgroup = TargetGroup(fp_pos)
         tselect = DummyTargetSelector(self.__bench, tgroup)
         tselect.calculateAccessibleTargets()
-        tmp = tselect.accessibleTargetIndices   # shape: (cobras, targets), padded with -1
-        elb = tselect.accessibleTargetElbows    # shape: (cobras, targets), padded with 0+0j
-        res = defaultdict(list)
+        targets = tselect.accessibleTargetIndices   # shape: (cobras, targets), padded with -1
+        elbows = tselect.accessibleTargetElbows     # shape: (cobras, targets), padded with 0+0j
+        
+        # Build two dictionaries with different look-up directions
+        targets_cobras = defaultdict(list)
+        cobras_targets = defaultdict(list)
 
-        for cbr in range(tmp.shape[0]):
-            for i, tidx in enumerate(tmp[cbr, :]):
+        for cidx in range(targets.shape[0]):
+            for i, tidx in enumerate(targets[cidx, :]):
                 if tidx >= 0:
-                    res[tidx].append((cbr, elb[cbr, i]))
+                    targets_cobras[tidx].append((cidx, elbows[cidx, i]))
+                    cobras_targets[cidx].append((tidx, elbows[cidx, i]))
 
-        return res
+        return targets_cobras, cobras_targets
     
     def nf_get_colliding_pairs(self, fp_pos, vis_elbow, dist):
         """Return the list of target pairs that would cause fiber

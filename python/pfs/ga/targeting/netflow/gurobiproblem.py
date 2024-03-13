@@ -50,6 +50,24 @@ class GurobiProblem(ILPProblem):
         self._variables[name] = var
         return var
     
+    def add_variable_array(self, name, indexes, lo, hi, cost=None):
+        if cost is None:
+            cost = 0.0
+
+        if lo is None:
+            lo = -gbp.GRB.INFINITY
+
+        if hi is None:
+            hi = gbp.GRB.INFINITY
+
+        if lo == 0 and hi == 1:
+            vars = self.__model.addVars(indexes, name=name, obj=cost, vtype=gbp.GRB.BINARY)
+        else:
+            vars = self.__model.addVars(indexes, lb=lo, ub=hi, name=name, obj=cost, vtype=gbp.GRB.INTEGER)
+            
+        self._variables[name] = vars
+        return vars
+    
     def get_value(self, variable):
         return variable.X
     
