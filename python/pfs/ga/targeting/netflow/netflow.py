@@ -42,8 +42,7 @@ class Netflow():
         self.__name_counter = 0
 
         self.__telescope_type = SubaruWFC
-        self.__positioner_type = SubaruPFI
-        self.__positioner = None
+        self.__bench = Bench(layout='full')
 
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped
@@ -109,6 +108,8 @@ class Netflow():
             return self.__debug_options[key]
         else:
             return default
+        
+    #region Save and load
 
     def __get_prefixed_filename(self, filename=None, default_filename=None):
         # TODO: add support for .zip, .gz, .bz2, and .7z
@@ -179,6 +180,7 @@ class Netflow():
         fn = self.__get_solution_filename(filename)
         self.__problem.write_solution(fn)
 
+    #endregion
     #region Configuration
         
     def __get_target_class_config(self):
@@ -235,7 +237,7 @@ class Netflow():
         if black_dot_penalty is not None:
             black_dots = SimpleNamespace(
                 # Closest black dots for each cobra
-                black_dot_list = self.__positioner.nf_get_closest_dots(),
+                black_dot_list = self.__get_closest_black_dots(),
                 black_dot_penalty = black_dot_penalty
             )
         else:
@@ -286,6 +288,164 @@ class Netflow():
 
         return time_budgets
     
+    #endregion
+    #region PFI functions
+
+    def __get_closest_black_dots(self):
+        """
+        For each cobra, return the list of focal plane black dot positions.
+        
+        Returns
+        =======
+        list : List of arrays of complex focal plane positions.
+        """
+        res = []
+        for cidx in range(len(self.__bench.cobras.centers)):
+            nb = self.__bench.getCobraNeighbors(cidx)
+            res.append(self.__bench.blackDots.centers[[cidx] + list(nb)])
+
+        return res
+    
+    def __get_visibility_and_elbow(self, fp_pos):
+        """
+        Calculate the visibility and the corresponding elbow position for each
+        target of a single visit from the focal plane positions in ˙tpos˙.
+
+        Parameters
+        ==========
+
+        tpos : numpy.ndarray
+            Complex focal plane positions of each target.
+
+        Returns
+        =======
+        dict : Dictionary of lists of (cobra ID, elbow position) pairs, keyed by target indices.
+        """
+
+        from ics.cobraOps.TargetGroup import TargetGroup
+        from ics.cobraOps.TargetSelector import TargetSelector
+
+        class DummyTargetSelector(TargetSelector):
+            def run(self):
+                return
+
+            def selectTargets(self):
+                return
+
+        tgroup = TargetGroup(fp_pos)
+        tselect = DummyTargetSelector(self.__bench, tgroup)
+        tselect.calculateAccessibleTargets()
+        targets = tselect.accessibleTargetIndices   # shape: (cobras, targets), padded with -1
+        elbows = tselect.accessibleTargetElbows     # shape: (cobras, targets), padded with 0+0j
+        
+        # Build two dictionaries with different look-up directions
+        targets_cobras = defaultdict(list)
+        cobras_targets = defaultdict(list)
+
+        for cidx in range(targets.shape[0]):
+            for i, tidx in enumerate(targets[cidx, :]):
+                if tidx >= 0:
+                    targets_cobras[tidx].append((cidx, elbows[cidx, i]))
+                    cobras_targets[cidx].append((tidx, elbows[cidx, i]))
+
+        return targets_cobras, cobras_targets
+    
+    def __get_colliding_pairs(self, fp_pos, vis_elbow, dist):
+        """Return the list of target pairs that would cause fiber
+        collision when observed by two neighboring fibers.
+        
+        Parameters
+        ==========
+
+        fp_pos : array
+            Complex focal plane positions of the targets
+        vis_elbow: dict
+            Visibility, dict of (cobra ID, elbow position), keyed by target index.
+        dist:
+            Maximum distance causing a collision.
+
+        Returns
+        =======
+        set : pairs of target indices that would cause fiber top collisions.
+        """
+
+        # Collect targets associated with each cobra, for each visit
+        fp_pos = np.array(fp_pos)
+        ivis = defaultdict(list)
+        for tidx, thing in vis_elbow.items():
+            for (cidx, _) in thing:
+                ivis[cidx].append(tidx)
+
+        pairs = set()
+        for cidx, i1 in ivis.items():
+            # Determine target indices visible by this cobra and its neighbors
+            nb = self.__bench.getCobraNeighbors(cidx)
+            i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+            i2 = np.concatenate((i1, i2))
+            i2 = np.unique(i2).astype(int)
+            d = np.abs(np.subtract.outer(fp_pos[i1], fp_pos[i2]))
+            for m in range(d.shape[0]):
+                for n in range(d.shape[1]):
+                    if d[m][n] < dist:
+                        if i1[m] < i2[n]:               # Only store pairs once
+                            pairs.add((i1[m], i2[n]))
+        return pairs
+    
+    def __get_colliding_elbows(self, fp_pos, vis_elbow, dist):
+        """
+        For each target-cobra pair, and the corresponding elbow position,
+        return the list of other targets that are too close to the "upper arm" of
+        the cobra.
+        
+        Parameters
+        ==========
+
+        fp_pos : array
+            Complex focal plane positions of the targets
+        vis_elbow: dict
+            Visibility, dict of (cobra ID, elbow position), keyed by target index.
+        dist:
+            Maximum distance causing a collision.
+
+        Returns
+        =======
+        dict : Dictionary of list of targets too close to the cobra indexed by
+               all possible target-cobra pairs.
+        """
+
+        # TODO: speed up by vectorizing loops
+
+        # vis contains the visible cobra indices and corresponding elbow positions
+        # by target index. Invert this and build dictionaries indexed by cobra
+        # indices that contain the lists of targets with corresponding elbow positions.
+        ivis = defaultdict(list)
+        epos = defaultdict(list)    # target_index, elbow position pairs keyed by cobra_index
+        for tidx, cidx_elbow in vis_elbow.items():
+            for (cidx, elbowpos) in cidx_elbow:
+                ivis[cidx].append(tidx)
+                epos[cidx].append((tidx, elbowpos))
+
+        res = defaultdict(list)
+        for cidx, tidx_elbow in epos.items():
+            # Determine target indices visible by neighbors of this cobra
+            nb = self.__bench.getCobraNeighbors(cidx)       # list of cobra_index
+            tmp = [ epos[j] for j in nb if j in epos ]      # all targets visible by neighboring cobras
+            if len(tmp) > 0:
+                i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+                i2 = np.unique(i2).astype(int)
+
+                # For each target visible by this cobra and the corresponding elbow
+                # position, find all targets which are too close to the "upper arm"
+                # of the cobra
+                for tidx, elbowpos in tidx_elbow:
+                    ebp = np.full(len(i2), elbowpos)
+                    tp = np.full(len(i2), fp_pos[tidx])
+                    ti2 = fp_pos[i2]
+                    d = self.__bench.distancesToLineSegments(ti2, tp, ebp)
+                    res[(cidx, tidx)] += list(i2[d < dist])
+
+        return res
+
     #endregion
         
     def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None):
@@ -350,8 +510,6 @@ class Netflow():
         """Construct the ILP problem"""
         # Load configuration
         logging.info("Processing configuration")
-
-        self.__positioner = self.__positioner_type()
 
         # Target classes
         self.__target_classes = self.__get_target_class_config()
@@ -549,7 +707,7 @@ class Netflow():
             self.__create_calib_target_class_variables(ivis)
 
             logging.info("Calculating visibilities.")
-            vis_targets_elbows, vis_cobras_targets = self.__positioner.nf_get_visibility_and_elbow(self.__target_fp_pos[ivis])
+            vis_targets_elbows, vis_cobras_targets = self.__get_visibility_and_elbow(self.__target_fp_pos[ivis])
 
             # > T_Tv, CTCv_Tv, Tv_Cv
             logging.debug("Creating target and cobra visit variables.")
@@ -730,7 +888,7 @@ class Netflow():
         # Cost of moving the cobra
         cobra_move_cost = self.__get_netflow_option('cobraMoveCost', None)
         if cobra_move_cost is not None:
-            dist = np.abs(self.__positioner.bench.cobras.centers[cidx] - self.__target_fp_pos[ivis][tidx])
+            dist = np.abs(self.__bench.cobras.centers[cidx] - self.__target_fp_pos[ivis][tidx])
             cost += cobra_move_cost(dist)
         
         # Cost of closest black dots for each cobra
@@ -767,7 +925,7 @@ class Netflow():
             relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == ivis ]
             relevant_vars = [ item for sublist in relevant_vars for item in sublist ]
             self.__add_cost(cobra_non_allocation_cost *
-                            (self.__positioner.cobra_count - self.__problem.sum(relevant_vars)))
+                            (self.__bench.cobras.nCobras - self.__problem.sum(relevant_vars)))
             
     #endregion
     #region Constraints
@@ -793,7 +951,7 @@ class Netflow():
 
         if not ignore_endpoint_collisions:
             # Determine target indices visible by this cobra and its neighbors
-            colliding_pairs = self.__positioner.nf_get_colliding_pairs(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
+            colliding_pairs = self.__get_colliding_pairs(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
             keys = self.__variables.Tv_o.keys()
             keys = set(key[0] for key in keys if key[1] == ivis)
             for p in colliding_pairs:
@@ -813,7 +971,7 @@ class Netflow():
 
         ### SLOW ###
 
-        colliding_elbows = self.__positioner.nf_get_colliding_elbows(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
+        colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[ivis], vis_elbow, collision_distance)
         for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
             for f, cidx2 in self.__variables.Tv_o[(tidx1, ivis)]:
                 if cidx2 == cidx1:
@@ -1035,7 +1193,7 @@ class Netflow():
         num_reserved_fibers = self.__get_netflow_option('numReservedFibers', 0)
 
         if not ignore_reserved_fibers and num_reserved_fibers > 0:
-            max_assigned_fibers = self.__positioner.cobra_count - num_reserved_fibers
+            max_assigned_fibers = self.__bench.cobras.nCobras - num_reserved_fibers
             for ivis in range(nvisits):
                 variables = [var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == ivis]
                 variables = [item for sublist in variables for item in sublist]
@@ -1055,7 +1213,7 @@ class Netflow():
         """Extract the fiber assignments from an LP solution"""
 
         nvisits = len(self.__visits)
-        ncobras = self.__positioner.cobra_count
+        ncobras = self.__bench.cobras.nCobras
 
         self.__target_assignments = [ {} for _ in range(nvisits) ]
         self.__cobra_assignments = [ np.full(ncobras, -1, dtype=int) for _ in range(nvisits) ]
