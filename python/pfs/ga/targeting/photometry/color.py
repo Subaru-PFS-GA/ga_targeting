@@ -9,6 +9,7 @@ class Color():
         else:
             self.__magnitudes = magnitudes or safe_deep_copy(orig.magnitudes)
             
+        # TODO: what if we have a color from different photometric systems?
         self.__photometry = self.__magnitudes[0].photometry
 
         self._validate()

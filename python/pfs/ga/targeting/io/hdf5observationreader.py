@@ -12,6 +12,10 @@ class Hdf5ObservationReader(ObservationReader):
         else:
             pass
 
+    def has_target(self, filename, target, inst):
+        with h5py.File(filename, 'r') as h:
+            return 'obs' in h and target in h['obs'] and inst in h['obs'][target]
+
     def read(self, filename, target, inst, mask=None, name=None):
         with h5py.File(filename, 'r') as h:
             g = h['obs'][target][inst]

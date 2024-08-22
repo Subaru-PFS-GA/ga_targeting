@@ -15,7 +15,7 @@ class Hdf5ObservationWriter(ObservationWriter):
         else:
             pass
 
-    def write(self, catalog: Catalog, filename: str, target, inst, mask=None, name=None, mode='w'):
+    def write(self, catalog: Catalog, filename: str, target, inst, mask=None, name=None, mode='a'):
         group_name = f'obs/{target}/{inst}'
 
         if isinstance(mask, Callable):

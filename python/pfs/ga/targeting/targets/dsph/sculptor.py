@@ -9,27 +9,18 @@ from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from .dsphgalaxy import DSphGalaxy
 
-class UrsaMinor(DSphGalaxy):
+class Sculptor(DSphGalaxy):
     def __init__(self):
-        ID = 'umi'
-        pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]
+        ID = 'scl'
+        pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
         rad = 120 # arc min
-        DM, DM_err = 18.9, 0.2
-        pm, pm_err = [ -0.119, 0.072 ], [ 0.005, 0.005 ]       # Pace et al. (2022)
-        RV, RV_err = -274.0 * u.kilometer / u.second, 1.0
+        DM, DM_err = 19.67, 0.1     # Evan
+        pm, pm_err = [ 0.09, 0.02 ], [ 0.13, 0.13 ]       # Piatek et al. (2006)
+        RV, RV_err = -110.0 * u.kilometer / u.second, 2.0
 
-        pointings = {
+        pointings = { 
             SubaruPFI: [
-                # Pointing(pos, posang=0.0)
-                
-                # EK
-                # Pointing([227.29725, 67.21436111], posang=0.0, exp_time=1800)
-
-                # KH
-                Pointing((228.2, 67.5), posang=0),
-                Pointing((226.3, 67.5), posang=0),
-                Pointing((226.0, 66.9), posang=0),
-                Pointing((228.1, 66.955), posang=40),
+                Pointing(pos, posang=0.0)
             ]
         }
 
@@ -39,7 +30,23 @@ class UrsaMinor(DSphGalaxy):
                          pm=pm, pm_err=pm_err,
                          RV=RV, RV_err=RV_err,
                          pointings=pointings)
-    
+        
+        hsc = SubaruHSC.photometry()
+        self.__hsc_cmd = CMD([
+            ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
+            MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
+        ])
+        self.__hsc_ccd = CCD([
+            ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
+            ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
+        ])
+
+        gaia = Gaia.photometry()
+        self.__gaia_cmd = CMD([
+            ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
+            MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
+        ])
+
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
 
@@ -57,7 +64,7 @@ class UrsaMinor(DSphGalaxy):
                 ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
 
                 | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
-                & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], None, 2.0).apply(catalog, observed=observed)
                 
                 | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
             )
@@ -79,6 +86,9 @@ class UrsaMinor(DSphGalaxy):
     
     def assign_priorities(self, catalog: Catalog, mask=None):
         """Assign priority classes based on photometry"""
+
+        # TODO: merge this with Umi
+        # TODO: log warnings when decisions are made based on available columns
 
         mask = mask if mask is not None else np.s_[:]
 

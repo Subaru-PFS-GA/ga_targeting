@@ -96,18 +96,20 @@ class Isochrone(DiagramValueProvider):
         
         self.__values = {}
         self.__magnitudes = {}
-        for i, m in enumerate(photometry.magnitudes.values()):
-            name = m.get_name()
+        i = 0
+        for m in photometry.magnitudes.values():
+            name = m.get_name(name_mappings=name_mappings)
             if name in isogrid.values:
                 self.__values[name] = np.array(iso_values[i][~iso_mask])
                 self.__magnitudes[name] = m
+                i += 1
 
-    def has_magnitude(self, magnitude: Magnitude, observed=False):
-        return magnitude.get_name() in self.__values
+    def has_magnitude(self, magnitude: Magnitude, observed=False, name_mappings=None):
+        return magnitude.get_name(name_mappings=name_mappings) in self.__values
         
-    def get_magnitude(self, magnitude: Magnitude, DM=None, observed=False, mask=None):
+    def get_magnitude(self, magnitude: Magnitude, DM=None, observed=False, mask=None, name_mappings=None):
         DM = DM or self.__DM or 0
-        m = self.__values[magnitude.get_name()] + DM
+        m = self.__values[magnitude.get_name(name_mappings=name_mappings)] + DM
         s_m = magnitude.mag_to_sigma(m)
 
         return m, s_m

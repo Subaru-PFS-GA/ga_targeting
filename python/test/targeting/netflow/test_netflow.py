@@ -8,7 +8,6 @@ import pfs.ga.targeting.netflow as nf
 from pfs.ga.targeting.netflow import ScienceTarget, CalibTarget, Telescope
 from ics.cobraOps.TargetGroup import TargetGroup
 from ics.cobraOps.CollisionSimulator import CollisionSimulator
-from ics.cobraOps.CollisionSimulator2 import CollisionSimulator2
 from ics.cobraOps.Bench import Bench
 from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 

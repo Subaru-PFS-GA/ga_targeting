@@ -1,7 +1,12 @@
-from .ursaminor import UrsaMinor as UrsaMinorClass
+from .ursaminor import UrsaMinor as __UrsaMinor
+from .sculptor import Sculptor as __Sculptor
 
-UrsaMinor = UrsaMinorClass()
+# Singleton instances
+
+UrsaMinor = __UrsaMinor()
+Sculptor = __Sculptor()
 
 GALAXIES = {
-    'umi': UrsaMinor
+    'umi': UrsaMinor,
+    'scl': Sculptor
 }

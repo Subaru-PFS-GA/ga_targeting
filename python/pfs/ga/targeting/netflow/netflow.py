@@ -16,7 +16,129 @@ from .gurobiproblem import GurobiProblem
 
 class Netflow():
     """
-    Implements the Network Flow algorithm to optimize fiber allocation.
+    Implements the Network Flow algorithm to optimize fiber allocation. The problem
+    is translated into an integer linear program (ILP)  solved by Gurobi.
+
+    The initialization options are the following:
+
+    solver_options : dict
+        Options for the solver, passed to the GurobiProblem (or different class) constructor.
+        See the documentation of the the LP solver API for details.
+    netflow_options : dict
+        Configuration options for the Netflow algorithm. The following options are supported:
+        * blackDotPenalty : callable
+            A function that returns the penalty for a cobra being too close to a black dot,
+            as a function of distance. None if no penalty for being close to a black dot.
+        * fiberNonAllocationCost : float
+            Cost for not allocating a fiber to a science or calibration target, or sky.
+        * collisionDistance : float
+            Minimum distance between two fibers (ends or elbows) to avoid collision.
+        * elbowCollisions : bool
+            If True, check for collisions between the fiber elbows, otherwise check for collisions
+            between the fiber ends.
+        * forbiddenTargets : list
+            List of forbidden target IDs. These are added to the problem as constraints.
+        * forbiddenPairs : list of list
+            List of forbidden target id pairs, where each pair is a list of two target IDs.
+            These are added to the problem as constraints.
+        * targetClasses : dict
+            Dictionary of target classes, see below for details.
+        * cobraGroups : dict
+            Dictionary of cobra groups, see below for details.
+        * cobraMoveCost : callable
+            A function that returns the cost of moving a cobra from the center,
+            as a function of the distance. None if there is no extra cost.
+        * timeBudgets : dict
+            Dictionary of time budgets for each target class, see below for details.
+        * numReservedFibers : int
+            Number of reserved fibers, without any additional constraints.
+    debug_options : dict
+        Debugging options for the Netflow algorithm. When an option is set to True, the
+        corresponding constraint are created but not added to the problem. The following
+        options are supported:
+        * ignoreEndpointCollisions
+        * ignoreElbowCollisions
+        * ignoreForbiddenPairs
+        * ignoreForbiddenSingles
+        * ignoreCalibTargetClassMinimum
+        * ignoreCalibTargetClassMaximum
+        * ignoreScienceTargetClassMinimum
+        * ignoreScienceTargetClassMaximum
+        * ignoreTimeBudget
+        * ignoreCobraGroupMinimum
+        * ignoreCobraGroupMaximum
+        * ignoreReservedFibers
+    targetClasses : dict
+        Dictionary of target classes. The keys are the names of the target classes. Two special
+        keys are reserved: 'sky' and 'cal', for sky fibers and calibration targets, respectively.
+        Each target class definition is a dictionary with the following keys
+        * prefix : str
+            Prefix of the target class, e.g. 'sci', 'cal', 'sky'. This is used to identify the
+            type of the target class, whereas names can be arbitrary.
+        * min_targets : int
+            Minimum number of targets of this class that must be observed.
+        * max_targets : int
+            Maximum number of targets of this class that can be observed.
+        * non_observation_cost : float
+            Cost for not observing a target of this class.
+        * partial_observation_cost : float
+            Cost for partially observing a target of this class. Must be larger than
+            the non-obervation cost.
+    cobraGroups : dict
+        Dictionary of cobra groups. The keys are the names of the cobra groups. Each cobra group
+        definition is a dictionary with the following keys:
+        * groups : ndarray
+            An array of integers indicating the group of each cobra.
+        * target_classes : list
+            A list of target classes that should be considered when creating the constraints
+            applicable to this cobra group.
+        * min_targets : int
+            Minimum number of targets of the target classes that must be observed with this cobra group.
+        * max_targets : int
+            Maximum number of targets of the target classes that can be observed with this cobra group.
+        * non_observation_cost : float
+            Cost for not observing a target of any of the target classes with this cobra group.
+
+    After initialization, the targets are added in form of `Catalog` objects which in
+    turn contain a Pandas dataframe in the variables `data`. The targets are added
+    with the function `append_targets` and its wrappers. The input dataframe is converted
+    into a uniform format with the following columns:
+    * ID          - must be unique across all targets
+    * RA          - right ascension in degrees
+    * Dec         - declination in degrees
+    * penalty     - penalty for observing the target, smaller for higher priory targets
+    * prefix      - target prefix, e.g. 'sci', 'cal', 'sky'
+    * exp_time    - total requested exposure time
+    * priority    - priority of the target, only used to generate a name for the target class e.g. 'sci_P1'.
+    * class       - name of the target class to which the target belongs
+    
+
+    
+    Using dataframes helps with the manipulation of the data and prevents instantiation a
+    large number of objects.
+    
+    Once the targets are added, the problem is built with the function `build`. This function
+    constructs the ILP problem by defining the variables and constraints. First, the number of
+    required visits for each target it calculated in `__calculate_target_visits`. The duration
+    of each visit is assumed to be the same for all pointings and visits. Next, the targets are
+    cached, which consists of rewriting the pandas dataframe `__targets` into numpy arrays by
+    the function `__cache_targets`. The advantage of this is the much faster item access by index
+    compared to the pandas dataframe. Everywhere where the targets are indexed with variables
+    named similar to `target_idx` or `tidx`, they're indices into the arrays of  `__target_cache`.
+    Note that `target_idx` is different from `target_id`, where the later is the unique identifier
+    of the target within the catalog, as provided by the user.
+    
+    A `Visit` object is created for each pointing and visit. These are stored in the list `__visits`.
+    Everywhere where variables named similar to `visit_idx` or `vidx` are used, they're indices into
+    the list `__visits`.
+    
+    In the next step, the focal plane coordinates of the targets are calculated for each pointing.
+    Visits of the same pointing, hence, will assume the same focal plane positions.
+    
+    After the setup, the ILP problem is built in `__build_ilp_problem`. This is the second most time
+    consuming step of the algorithm, after the actual optimization, since it requires creating
+    millions of variables and constraints.
+    
     """
     
     def __init__(self, 
@@ -32,6 +154,7 @@ class Netflow():
 
         self.__name = name                          # Problem name
         self.__pointings = pointings                # List of pointings
+        self.__visits = None                        # List of visits
         
         self.__workdir = workdir if workdir is not None else os.getcwd()
         self.__filename_prefix = filename_prefix if filename_prefix is not None else ''
@@ -50,7 +173,8 @@ class Netflow():
         self.__constraints = None
 
         self.__target_classes = None
-        self.__forbidden_pairs = None
+        self.__forbidden_targets = None             # List of forbidden individual target, identified by target_idx
+        self.__forbidden_pairs = None               # List of forbidden target pairs, identified by target_idx
         self.__black_dots = None
         self.__cobra_groups = None
         self.__time_budgets = None
@@ -59,9 +183,10 @@ class Netflow():
         self.__targets = None                       # DataFrame of targets
         self.__target_fp_pos = None                 # Target focal plane positions for each pointing
         
-        self.__target_assignments = None
-        self.__cobra_assignments = None
+        self.__target_assignments = None            # List of dicts for each visit, keyed by target index
+        self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
         self.__missed_targets = None
+        self.__fully_observed_targets = None
         self.__partially_observed_targets = None
 
     #region Property accessors
@@ -73,6 +198,16 @@ class Netflow():
         self.__name = value
 
     name = property(__get_name, __set_name)
+
+    def __get_pointings(self):
+        return self.__pointings
+    
+    pointings = property(__get_pointings)
+
+    def __get_visits(self):
+        return self.__visits
+    
+    visits = property(__get_visits)
 
     def __get_targets(self):
         return self.__targets
@@ -214,7 +349,28 @@ class Netflow():
 
         return target_classes
     
+    def __get_forbidden_targets_config(self):
+        """
+        Look up the target index based on the target id of forbidden targets.
+        """
+
+        forbidden_targets = self.__get_netflow_option('forbiddenTargets', None)
+        fpp = []
+        if forbidden_targets is not None:
+            # Reindex targets for faster search
+            df = self.__targets.set_index('id')
+
+            for i, target_id in enumerate(forbidden_targets):            
+                tidx = df.index.get_loc(target_id)
+                fpp.append(tidx)
+                
+        return fpp
+    
     def __get_forbidden_pairs_config(self):
+        """
+        Look up the target indices based on the target ids of forbidden pairs.
+        """
+
         forbidden_pairs = self.__get_netflow_option('forbiddenPairs', None)
         fpp = []
         if forbidden_pairs is not None:
@@ -222,7 +378,7 @@ class Netflow():
             df = self.__targets.set_index('id')
 
             for i, pair in enumerate(forbidden_pairs):
-                if len(pair) == 0 or len(pair) > 2:
+                if len(pair) != 2:
                     raise ValueError(f"Found an incorrect number of target ids in forbidden pair list at index {i}.")
             
                 tidx_list = [ df.index.get_loc(p) for p in pair ]
@@ -305,7 +461,7 @@ class Netflow():
         else:
             pm = None
 
-        # The parallax of the cordinatess used for sky_pfi transformation.
+        # The parallax of the coordinates used for sky_pfi transformation.
         # The unit is mas, the shape is (1, N)
         # if parallax is not None:
         #     parallax = parallax[None, :]
@@ -551,7 +707,8 @@ class Netflow():
         # Target classes
         self.__target_classes = self.__get_target_class_config()
 
-        # Forbidden target pairs
+        # Forbidden targets and target pairs
+        self.__forbidden_targets = self.__get_forbidden_targets_config()
         self.__forbidden_pairs = self.__get_forbidden_pairs_config()
 
         # Cobras positioned too close to a black dot can get a penalty
@@ -738,67 +895,94 @@ class Netflow():
 
         logging.info("Creating network topology")
 
-        # Create science target variables that are independent of visit because
-        # we want multiple visits of the same target
+        # Create science target class variables which are independent
+        # of visit because we want multiple visits of the same target.
+        # > STC_sink_{target_class}
         self.__create_science_target_class_variables()
 
         # Create science target variables, for each visit
-        # > STC_T
+        # > STC_T[target_idx]
+        # > T_sink[target_idx]
         self.__create_science_target_variables()
         
-        # Create the variables for each pointing and visit               
+        # Create the variables for each visit of every pointing
         for visit_idx, visit in enumerate(self.__visits):
             logging.info(f'Processing visit {visit_idx + 1}.')
 
             # Create calibration target class variables and define cost
             # for each calibration target class. These are different for each visit
             # because we don't necessarily need the same calibration targets at each visit.
-            # > CTCv_sink
+            # > CTCv_sink_{target_class}_{visit_idx}
             logging.debug("Creating calibration target class variables.")
             self.__create_calib_target_class_variables(visit)
 
-            # > T_Tv, CTCv_Tv, Tv_Cv
+            # > T_Tv_{visit_idx}[target_idx]
+            # > CTCv_Tv_{visit_idx}[target_idx]
+            # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
             logging.debug("Creating target and cobra visit variables.")
             self.__create_visit_variables(visit, vis_targets_elbows[visit.pointing_idx], vis_cobras_targets[visit.pointing_idx])
 
+            # > Tv_o_coll_{?}_{?}_{visit_idx} (endpoint collisions)
+            # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx} (elbow collisions)
             logging.debug("Creating cobra collision constraints.")
             self.__create_cobra_collision_constraints(visit, vis_targets_elbows[visit.pointing_idx])
 
             logging.debug("Adding cobra non-allocation cost terms.")
             self.__add_cobra_non_allocation_cost(visit)
 
-            # Add constraints for forbidden pairs of targets
+            # Add constraints for forbidden targets and forbidden pairs
+            if self.__forbidden_targets is not None and len(self.__forbidden_targets) > 0:
+                # > Tv_o_forb_{tidx}_{tidx}_{visit_idx}
+                logging.debug("Adding forbidden target constraints")
+                self.__create_forbidden_target_constraints(visit)
+
             if self.__forbidden_pairs is not None and len(self.__forbidden_pairs) > 0:
+                # > Tv_o_forb_{tidx1}_{tidx2}_{visit_idx}
                 logging.debug("Adding forbidden pair constraints")
-                self.__create_forbidden_pairs_constraints(visit)
+                self.__create_forbidden_pair_constraints(visit)
         
         logging.info("Adding constraints")
 
-        # The maximum number of targets to be observed within a science target class
+        # The total number of science targets per target class must be balanced and
+        # the minimum and maximum number of targets to be observed within
+        # a science target class can be optionally constrained.
+        # > STC_o_sum_{target_class}
+        # > STC_o_min_{target_class}
+        # > STC_o_max_{target_class}
         self.__create_science_target_class_constraints()
 
         # Every calibration target class must be observed a minimum number of times
         # every visit
+        # > CTCv_o_sum_{target_class}_{visit_idx}
+        # > CTCv_o_min_{target_class}_{visit_idx}
+        # > CTCv_o_max_{target_class}_{visit_idx}
         self.__create_calibration_target_class_constraints()
 
-        # Inflow and outflow at every Tv node must be balanced
+        # Inflow and outflow at every T node must be balanced
+        # > T_i_T_o_sum_{target_id}
         self.__create_science_target_constraints()
 
         # Inflow and outflow at every Tv node must be balanced
+        # > Tv_i_Tv_o_sum_{target_id}_{visit_idx}
         self.__create_Tv_i_Tv_o_constraints()
 
-        # Every cobra can observe at most one target per visit    
+        # Every cobra can observe at most one target per visit 
+        # > Cv_i_sum_{cobra_idx}_{visit_idx}
         self.__create_Cv_i_constraints()
 
         # Science targets inside a given program must not get more observation time
         # than allowed by the time budget
+        # > Tv_i_sum_{budget_name}
         self.__create_time_budget_constraints()
 
         # Make sure that there are enough sky targets in every Cobra location group
         # and instrument region
+        # > Cv_CG_min_{cg_name}_{visit_idx}_{group_idx}
+        # > Cv_CG_max_{cg_name}_{visit_idx}_{group_idx}
         self.__create_cobra_group_constraints(nvisits)
 
         # Make sure that enough fibers are kept unassigned, if this was requested
+        # > Cv_i_max_{visit_idx}
         self.__create_unassigned_fiber_constraints(nvisits)
 
     def __calculate_visibilities(self):
@@ -829,65 +1013,104 @@ class Netflow():
         self.__add_cost(f * self.__target_classes[target_class].non_observation_cost)
         
     def __create_science_target_variables(self):
+        """
+        Create the variables corresponding to the STC -> T and STC -> STC_sink edges.
+        These edges are created regardless of the visibility of the targets during the visits.
+        """
+
         # TODO: replace this with the logic to implement step-by-step targeting
         force_already_observed = self.__get_netflow_option('forceAlreadyObserved', False)
 
-        for tidx in range(len(self.__targets)):
-            target_id = self.__target_cache.id[tidx]
-            target_class = self.__target_cache.target_class[tidx]
-            target_prefix = self.__target_cache.prefix[tidx]
-            target_penalty = self.__target_cache.penalty[tidx]
+        # Select only science targets and create the variables in batch mode
+        mask = self.__target_cache.prefix == 'sci'
+        tidx = np.where(mask)[0]
+        target_class = self.__target_cache.target_class[mask]
+        target_penalty = self.__target_cache.penalty[mask]
+
+        # Science Target class node to target node: STC -> T
+        self.__create_STC_T(tidx, target_class, target_penalty)
+
+        # Science Target node to sink: T -> T_sink
+        self.__create_T_sink(tidx, target_class)
+
+        # TODO: DELETE
+        # for tidx in range(len(self.__targets)):
+        #     target_id = self.__target_cache.id[tidx]
+        #     target_class = self.__target_cache.target_class[tidx]
+        #     target_prefix = self.__target_cache.prefix[tidx]
+        #     target_penalty = self.__target_cache.penalty[tidx]
             
-            if target_prefix == 'sci':
-                # Science Target class node to target node
-                self.__create_STC_T(tidx, target_class, target_id, target_penalty, force_already_observed)
+        #     # TODO: this can be vectorized because we only use target_class and target_id
+        #     #       to name the variables but tidx is a unique identifier
+        #     if target_prefix == 'sci':
+        #         # Science Target class node to target node
+        #         self.__create_STC_T(tidx, target_class, target_id, target_penalty, force_already_observed)
 
-                # Science Target node to sink
-                self.__create_T_sink(tidx, target_class, target_id)
+        #         # Science Target node to sink
+        #         self.__create_T_sink(tidx, target_class, target_id)
 
-    def __create_STC_T(self, tidx, target_class, target_id, target_penalty, force_already_observed):
-        # TODO: This is a bit fishy here. If the target is marked as already observed
-        #       by done_visits > 0, why is a new variable added at all?
-        #       It seems that this setting is trying to force observation of targets
-        #       that have already been observed but this might cause problems, for
-        #       example when there is a fiber collision.
+    def __create_STC_T(self, tidx, target_class, target_penalty):
+        vars =  self.__add_variable_array('STC_T', tidx, 0, 1)
+        for i in range(len(tidx)):
+            f = vars[tidx[i]]
+            self.__variables.T_i[tidx[i]] = f
+            self.__variables.STC_o[target_class[i]].append(f)
+            if target_penalty[i] != 0:
+                self.__add_cost(f * target_penalty[i])
+        
+    # TODO: DELETE
+    #       this is the non-vectorized version but there are important comments here
+    # def __create_STC_T(self, tidx, target_class, target_id, target_penalty, force_already_observed):
+    #     # TODO: This is a bit fishy here. If the target is marked as already observed
+    #     #       by done_visits > 0, why is a new variable added at all?
+    #     #       It seems that this setting is trying to force observation of targets
+    #     #       that have already been observed but this might cause problems, for
+    #     #       example when there is a fiber collision.
 
-        # If the STC_T edge is forced to be 1, it will eventually force the observation of
-        # the particular target because the edges of T are always balanced.
-        # The problem is that we don't know at which visits and by what fiber which is also
-        # necessary to resume targeting.
+    #     # If the STC_T edge is forced to be 1, it will eventually force the observation of
+    #     # the particular target because the edges of T are always balanced.
+    #     # The problem is that we don't know at which visits and by what fiber which is also
+    #     # necessary to resume targeting.
 
-        # TODO: just remove this and replace with logic to implement step-by-step targeting
-        # if force_already_observed:
-        #     raise NotImplementedError()
-        #     lo = 1 if self.__target_cache.done_visits[tidx] > 0 else 0
-        # else:
-        #     lo = 0
+    #     # TODO: just remove this and replace with logic to implement step-by-step targeting
+    #     # if force_already_observed:
+    #     #     raise NotImplementedError()
+    #     #     lo = 1 if self.__target_cache.done_visits[tidx] > 0 else 0
+    #     # else:
+    #     #     lo = 0
 
-        f = self.__add_variable(self.__make_name("STC_T", target_class, target_id), 0, 1)
-        self.__variables.T_i[tidx] = f
-        self.__variables.STC_o[target_class].append(f)
+    #     f = self.__add_variable(self.__make_name("STC_T", target_class, target_id), 0, 1)
+    #     self.__variables.T_i[tidx] = f
+    #     self.__variables.STC_o[target_class].append(f)
 
-        # Cost of observing the science target
-        if target_penalty != 0:
-            self.__add_cost(f * target_penalty)
+    #     # Cost of observing the science target
+    #     if target_penalty != 0:
+    #         self.__add_cost(f * target_penalty)
 
-    def __create_T_sink(self, tidx, target_class, target_id):
-        # TODO: we could calculate a maximum for this, which is the total number of visits
+    def __create_T_sink(self, tidx, target_class):
+        vars =  self.__add_variable_array('T_sink', tidx, 0, None)
+        for i in range(len(tidx)):
+            f = vars[tidx[i]]
+            self.__variables.T_sink[tidx[i]] = f
+            self.__add_cost(f * self.__target_classes[target_class[i]].partial_observation_cost)
 
-        # TODO: this is wrong, a target is only partially observed if it doesn't have as
-        #       many visits as required by observation time
+    # TODO: DELETE when batch mode works
+    # def __create_T_sink(self, tidx, target_class, target_id):
+    #     # TODO: we could calculate a maximum for this, which is the total number of visits
 
-        # TODO: way to force the required number of observations only:
-        #       - set constraints on the T_i or the sink
-        #       - set a partial obs cost and a too many obs cost
-        #         -- but how to set the cost to zero when within the bounds?
-        # https://stackoverflow.com/questions/69904853/gurobipy-optimization-constraint-to-make-variable-value-to-be-greater-than-100
-        # https://support.gurobi.com/hc/en-us/articles/4414392016529-How-do-I-model-conditional-statements-in-Gurobi
+    #     # TODO: this is wrong, a target is only partially observed if it doesn't have as
+    #     #       many visits as required by observation time
 
-        f = self.__add_variable(self.__make_name("T_sink", target_id), 0, None)
-        self.__variables.T_sink[tidx] = f
-        self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)
+    #     # TODO: way to force the required number of observations only:
+    #     #       - set constraints on the T_i or the sink
+    #     #       - set a partial obs cost and a too many obs cost
+    #     #         -- but how to set the cost to zero when within the bounds?
+    #     # https://stackoverflow.com/questions/69904853/gurobipy-optimization-constraint-to-make-variable-value-to-be-greater-than-100
+    #     # https://support.gurobi.com/hc/en-us/articles/4414392016529-How-do-I-model-conditional-statements-in-Gurobi
+
+    #     f = self.__add_variable(self.__make_name("T_sink", target_id), 0, None)
+    #     self.__variables.T_sink[tidx] = f
+    #     self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)
 
     def __create_calib_target_class_variables(self, visit):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
@@ -898,23 +1121,42 @@ class Netflow():
                 self.__add_cost(f * options.non_observation_cost)
     
     def __create_visit_variables(self, visit, vis_targets_elbows, vis_cobras_targets):
+        """
+        Create the variables for the visible variables for a visit.
+        """
+
         tidx = np.array(list(vis_targets_elbows.keys()), dtype=int)
 
         # Create science targets T_Tv edges in batch
+        # > T_Tv_{visit_idx}[target_idx]
         sci_mask = self.__target_cache.prefix[tidx] == 'sci'
         self.__create_T_Tv(visit, tidx[sci_mask])
 
         # Create calibration targets CTCv_Tv edges
+        # > CTCv_Tv_{visit_idx}[target_idx]
         cal_mask = (self.__target_cache.prefix[tidx] == 'sky') | (self.__target_cache.prefix[tidx] == 'cal')
         self.__create_CTCv_Tv(visit, tidx[cal_mask])
 
         # For each Cv, generate the incoming Tv_Cv edges
         # These differ in number but can be vectorized for each cobra
+        # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
         for cidx, tidx_elbow in vis_cobras_targets.items():
             tidx = np.array([ ti for ti, _ in tidx_elbow ], dtype=int)
             self.__create_Tv_Cv_CG(visit, cidx, tidx)
 
     def __create_T_Tv(self, visit, tidx):
+        """
+        Create the T -> Tv variables for a visit. This function is called for the visible
+        targets only.
+
+        Parameters:
+        -----------
+        visit : Visit
+            The visit object
+        tidx : array
+            The target indices visible by the cobras in the visit
+        """
+
         vars = self.__add_variable_array(self.__make_name('T_Tv', visit.visit_idx), tidx, 0, 1)
         for ti in tidx:
             f = vars[ti]
@@ -995,9 +1237,11 @@ class Netflow():
         
         if collision_distance > 0.0:
             if not elbow_collisions:
+                # > Tv_o_coll_{?}_{?}_{visit_idx}
                 logging.debug("Adding endpoint collision constraints")
                 self.__create_endpoint_collision_constraints(visit, vis_elbow, collision_distance)
             else:
+                # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
                 logging.debug("Adding elbow collision constraints")
                 self.__create_elbow_collision_constraints(visit, vis_elbow, collision_distance)
                 
@@ -1043,36 +1287,47 @@ class Netflow():
                     if not ignore_elbow_collisions:
                         self.__add_constraint(name, constr)
 
-    def __create_forbidden_pairs_constraints(self, visit):
+    def __create_forbidden_target_constraints(self, visit):
+        """
+        Create the constraints prohibiting individual targets being observed in any visit.
+        """
+
+        ignore_forbidden_targets = self.__get_debug_option('ignoreForbiddenTargets', False)
+
         # All edges of visible targets, relevant for this visit
+        tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
+        for tidx in self.__forbidden_targets:
+            if tidx in tidx_set:
+                flows = [ v for v, cidx in self.__variables.Tv_o[(tidx, visit.visit_idx)] ]
+                name = self.__make_name("Tv_o_forb", tidx, tidx, visit.visit_idx)
+                constr = self.__problem.sum(flows) == 0
+                self.__constraints.Tv_o_forb[(tidx, tidx, visit.visit_idx)] = constr
+                if not ignore_forbidden_targets:
+                    self.__add_constraint(name, constr)
+
+    def __create_forbidden_pair_constraints(self, visit):
+        """
+        Create the constraints prohibiting two targets (or individual targets) being observed
+        in the same visit.
+         
+        This constraint is independent of the cobra collision constraints.
+        """
 
         ignore_forbidden_pairs = self.__get_debug_option('ignoreForbiddenPairs', False)
-        ignore_forbidden_singles = self.__get_debug_option('ignoreForbiddenSingles', False)
 
+        # All edges of visible targets, relevant for this visit
         tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
         for p in self.__forbidden_pairs:
-            if len(p) == 2:
-                [tidx1, tidx2] = p
-                if tidx1 in tidx_set and tidx2 in tidx_set:
-                    flows = [ v for v, cidx in self.__variables.Tv_o[(tidx1, visit.visit_idx)] ] + \
-                            [ v for v, cidx in self.__variables.Tv_o[(tidx2, visit.visit_idx)] ]
-                    name = self.__make_name("Tv_o_forb", tidx1, tidx2, visit.visit_idx)
-                    constr = self.__problem.sum(flows) <= 1
-                    self.__constraints.Tv_o_forb[(tidx1, tidx2, visit.visit_idx)] = constr
-                    if not ignore_forbidden_pairs:
-                        self.__add_constraint(name, constr)
-            elif len(p) == 1:
-                [tidx] = p
-                if tidx in tidx_set:
-                    flows = [ v for v, cidx in self.__variables.Tv_o[(tidx, visit.visit_idx)] ]
-                    name = self.__make_name("Tv_o_forb", tidx, tidx, visit.visit_idx)
-                    constr = self.__problem.sum(flows) == 0
-                    self.__constraints.Tv_o_forb[(tidx, tidx, visit.visit_idx)] = constr
-                    if not ignore_forbidden_singles:
-                        self.__add_constraint(name, constr)
-            else:
-                raise RuntimeError("oops")
-            
+            [tidx1, tidx2] = p
+            if tidx1 in tidx_set and tidx2 in tidx_set:
+                flows = [ v for v, cidx in self.__variables.Tv_o[(tidx1, visit.visit_idx)] ] + \
+                        [ v for v, cidx in self.__variables.Tv_o[(tidx2, visit.visit_idx)] ]
+                name = self.__make_name("Tv_o_forb", tidx1, tidx2, visit.visit_idx)
+                constr = self.__problem.sum(flows) <= 1
+                self.__constraints.Tv_o_forb[(tidx1, tidx2, visit.visit_idx)] = constr
+                if not ignore_forbidden_pairs:
+                    self.__add_constraint(name, constr)
+
     def __create_science_target_class_constraints(self):
         # Science targets must be either observed or go to the sink
         # If a maximum on the science target is set fo the target class, enforce that
@@ -1085,6 +1340,8 @@ class Netflow():
             sink = self.__variables.STC_sink[target_class]
             num_targets = len(vars)
 
+            # All STC_o edges must be balanced. We don't handle the incoming edges in the model
+            # so simply the sum of outgoing edges must add up to the number of targets.
             name = self.__make_name("STC_o_sum", target_class)
             constr = self.__problem.sum(vars + [ sink ]) == num_targets
             self.__constraints.STC_o_sum[target_class] = constr
@@ -1141,15 +1398,34 @@ class Netflow():
             
     def __create_science_target_constraints(self):
         # Inflow and outflow at every T node must be balanced
-        for tidx, in_flow in self.__variables.T_i.items():
-            sink = self.__variables.T_sink[tidx]
-            out_flow = self.__variables.T_o[tidx]
-            target_id = self.__target_cache.id[tidx]
+        
+        # in_flow is a single variable for each target representing the STC -> T edge
+        # out_flow variables are T -> Tv edges, there is one per visit + a T_sink for each target
+
+        # Outer loop should go over T_o because those variable are created for visible targets only,
+        # where T_i are created for all targets.
+
+        for tidx, vars in self.__variables.T_o.items():
             req_visits = self.__target_cache.req_visits[tidx]
 
-            name = self.__make_name("T_i_T_o_sum", target_id)
-            constr = self.__problem.sum([ req_visits * in_flow ] + [ -v for v in out_flow ] + [ sink ]) == 0
-            self.__constraints.T_i_T_o_sum[(target_id)] = constr
+            in_flow = [ req_visits * self.__variables.T_i[tidx] ]
+            out_flow = vars + [ self.__variables.T_sink[tidx] ]
+
+            # TODO: here we could also use a soft limit on the number of req_visit, i.e.
+            #       allow for more visits for a target but maybe penalize it a little bit
+
+            # TODO: This is different than the original implementation
+            #       https://github.com/Subaru-PFS/ets_fiberalloc/blob/151d5c785a3f4ae1750672d32019c0b3a90594fb/ets_fiber_assigner/netflow.py#L584
+
+            name = self.__make_name("T_i_T_o_sum", tidx)
+            
+            # Require an exact number of visits
+            constr = self.__problem.sum(in_flow + [ -v for v in out_flow ]) == 0
+
+            # Allow for a larger number of visits
+            # constr = self.__problem.sum(in_flow + [ -v for v in out_flow ]) >= 0
+            
+            self.__constraints.T_i_T_o_sum[tidx] = constr
             self.__add_constraint(name, constr)
 
         # TODO: delete, once rewritten to step-by-step execution
@@ -1294,7 +1570,10 @@ class Netflow():
                         set_assigment(int(tidx), int(cidx), int(ivis))
 
     def __extract_missed_science_targets(self):
-        """Find science targets for each science target class that have been missed."""
+        """
+        Find science targets for each science target class that have been missed.
+        These can be identified by the T_i variables that are zero.
+        """
 
         self.__missed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
 
@@ -1304,7 +1583,24 @@ class Netflow():
                     target_class = self.__target_cache.target_class[tidx]
                     self.__missed_targets[target_class].append(tidx)
         else:
-            raise NotImplementedError
+            raise NotImplementedError()
+        
+    def __extract_fully_observed_science_targets(self):
+        """
+        Find science targets that are allocated to fibers during at least the number of visits
+        as requested.
+        """
+
+        self.__fully_observed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
+
+        if self.__variables is not None:
+            for tidx, f in self.__variables.T_sink.items():
+                g = self.__variables.T_i[tidx]
+                if self.__problem.get_value(f) == 0 and self.__problem.get_value(g) == 1:
+                    target_class = self.__target_cache.target_class[tidx]
+                    self.__fully_observed_targets[target_class].append(tidx)
+        else:
+            raise NotImplementedError()
         
     def __extract_partially_observed_science_targets(self):
         """Find science targets that are allocated to fibers during some visits but the total
@@ -1327,6 +1623,8 @@ class Netflow():
         
         raise RuntimeError()
     
+    # TODO: this function is redundant with the property of the same name
+    #       rename to something else
     def get_cobra_assignments(self):
         """
         Return a list of arrays for each visit that contain an array with the the associated target
@@ -1335,9 +1633,59 @@ class Netflow():
 
         return self.__cobra_assignments
     
-    def get_target_assignments(self, catalog):
+    # TODO: this function is redundant with the property of the same name
+    #       rename to something else
+    def get_target_assignments(self):
         """
-        Return a list of data frames for each visit with two columns: the object IDs and the fiber ID.
+        Returns a list of data frames, for each visit, of the target assignments including
+        positions, fiberid and other information.
+        """
+
+        assignments = []
+        for i, visit in enumerate(self.__visits):
+            # Target indices
+            idx = np.array([ k for k in self.__target_assignments[i] ], dtype=int)
+
+            targets = pd.DataFrame(
+                    {
+                        f'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in idx ],
+                        'fiberid': np.array([ self.__target_assignments[i][k] for k in idx ]),
+                        'fp_x':  self.__target_fp_pos[visit.pointing_idx][idx].real,
+                        'fp_y':  self.__target_fp_pos[visit.pointing_idx][idx].imag,
+                    }
+                ).astype({ 'fiberid': pd.Int32Dtype() }).set_index(f'targetid')
+
+            # Find the index of each object in the catalog and return the matching fiberid
+            assign = self.__targets.set_index('id').join(targets, how='inner')
+            assign = assign.reset_index(names=['targetid'])
+            assignments.append(assign)
+
+        return assignments
+    
+    def get_target_assignments_masks(self):
+        """
+        Returns a mask that indexes the assigned targets within the target list.
+        """
+
+        masks = []
+        fiberids = []
+        for i, p in enumerate(self.__visits):
+            m = np.full(len(self.__targets), False, dtype=bool)
+            m[list(self.__target_assignments[i].keys())] = True
+            masks.append(m)
+            fiberids.append(np.array(self.__target_assignments[i].values()))
+
+        return masks, fiberids
+    
+    def get_catalog_assignments(self, catalog):
+        """
+        Cross-references the provided catalog with the target assignments and returns a list of
+        data frames for each visit with two columns: the object IDs and the fiber ID.
+
+        Parameters:
+        -----------
+        catalog: Catalog
+            The catalog to cross-reference with the target assignments.
         """
 
         idcol = self.__get_idcol(catalog)
@@ -1359,11 +1707,13 @@ class Netflow():
 
         return assignments
 
-    def get_target_assignments_masks(self, catalog):
-        """Returns a mask that indexes the selected targets within a catalog."""
+    def get_catalog_assignments_masks(self, catalog):
+        """
+        Returns a mask that indexes the selected targets within a catalog.
+        """
 
         idcol = self.__get_idcol(catalog)
-        assignments = self.get_target_assignments(catalog)
+        assignments = self.get_catalog_assignments(catalog)
         masks = []
         fiberids = []
         for i, p in enumerate(self.__visits):
