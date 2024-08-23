@@ -1031,6 +1031,7 @@ class Netflow():
         self.__create_STC_T(tidx, target_class, target_penalty)
 
         # Science Target node to sink: T -> T_sink
+        # > T_sink[target_idx]
         self.__create_T_sink(tidx, target_class)
 
         # TODO: DELETE
@@ -1088,29 +1089,17 @@ class Netflow():
     #         self.__add_cost(f * target_penalty)
 
     def __create_T_sink(self, tidx, target_class):
-        vars =  self.__add_variable_array('T_sink', tidx, 0, None)
+        max_visits = len(self.__visits)
+
+        # Allow more visits than required
+        T_sink =  self.__add_variable_array('T_sink', tidx, 0, max_visits)
+
+        # Do not allow more visits than required
+        # T_sink =  self.__add_variable_array('T_sink', tidx, 0, None)
+
         for i in range(len(tidx)):
-            f = vars[tidx[i]]
-            self.__variables.T_sink[tidx[i]] = f
-            self.__add_cost(f * self.__target_classes[target_class[i]].partial_observation_cost)
-
-    # TODO: DELETE when batch mode works
-    # def __create_T_sink(self, tidx, target_class, target_id):
-    #     # TODO: we could calculate a maximum for this, which is the total number of visits
-
-    #     # TODO: this is wrong, a target is only partially observed if it doesn't have as
-    #     #       many visits as required by observation time
-
-    #     # TODO: way to force the required number of observations only:
-    #     #       - set constraints on the T_i or the sink
-    #     #       - set a partial obs cost and a too many obs cost
-    #     #         -- but how to set the cost to zero when within the bounds?
-    #     # https://stackoverflow.com/questions/69904853/gurobipy-optimization-constraint-to-make-variable-value-to-be-greater-than-100
-    #     # https://support.gurobi.com/hc/en-us/articles/4414392016529-How-do-I-model-conditional-statements-in-Gurobi
-
-    #     f = self.__add_variable(self.__make_name("T_sink", target_id), 0, None)
-    #     self.__variables.T_sink[tidx] = f
-    #     self.__add_cost(f * self.__target_classes[target_class].partial_observation_cost)
+            self.__variables.T_sink[tidx[i]] = T_sink[tidx[i]]
+            self.__add_cost(T_sink[tidx[i]] * self.__target_classes[target_class[i]].partial_observation_cost)
 
     def __create_calib_target_class_variables(self, visit):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
@@ -1395,60 +1384,28 @@ class Netflow():
                 constr = self.__problem.sum(vars) <= max_targets
                 self.__constraints.CTCv_o_max[(target_class, vidx)] = constr
                 self.__add_constraint(name, constr)
-            
+
     def __create_science_target_constraints(self):
-        # Inflow and outflow at every T node must be balanced
-        
-        # in_flow is a single variable for each target representing the STC -> T edge
-        # out_flow variables are T -> Tv edges, there is one per visit + a T_sink for each target
-
-        # Outer loop should go over T_o because those variable are created for visible targets only,
-        # where T_i are created for all targets.
-
-        for tidx, vars in self.__variables.T_o.items():
+        for tidx, T_o in self.__variables.T_o.items():
+            T_i = self.__variables.T_i[tidx]
+            T_sink = self.__variables.T_sink[tidx]
             req_visits = self.__target_cache.req_visits[tidx]
+            max_visits = len(self.__visits)
 
-            in_flow = [ req_visits * self.__variables.T_i[tidx] ]
-            out_flow = vars + [ self.__variables.T_sink[tidx] ]
-
-            # TODO: here we could also use a soft limit on the number of req_visit, i.e.
-            #       allow for more visits for a target but maybe penalize it a little bit
-
-            # TODO: This is different than the original implementation
-            #       https://github.com/Subaru-PFS/ets_fiberalloc/blob/151d5c785a3f4ae1750672d32019c0b3a90594fb/ets_fiber_assigner/netflow.py#L584
-
-            name = self.__make_name("T_i_T_o_sum", tidx)
-            
             # Require an exact number of visits
-            constr = self.__problem.sum(in_flow + [ -v for v in out_flow ]) == 0
+            name = self.__make_name("T_i_T_o_sum", tidx)
 
-            # Allow for a larger number of visits
-            # constr = self.__problem.sum(in_flow + [ -v for v in out_flow ]) >= 0
-            
-            self.__constraints.T_i_T_o_sum[tidx] = constr
-            self.__add_constraint(name, constr)
+            # Require an exact number of visits
+            # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] - [ T_sink ]) == 0
 
-        # TODO: delete, once rewritten to step-by-step execution
-        # constrain_already_observed = self.__get_netflow_option('constrainAlreadyObserved', False)
-        # if constrain_already_observed:
-        #     # TODO: replace this with logic to set a few Tv and Cv nodes to a fixed value to support
-        #     #       iterative fitting
+            # Allow for a larger number of visits than required
+            constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
+            constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
 
-        #     # TODO: this enforces the number of required visits, only use this when forceAlreadyObserved,
-        #     #       otherwise just add the cost terms
-        #     raise NotImplementedError()
-
-        #     # Inflow and outflow at every T node must be balanced
-        #     for tidx, in_vars in self.__variables.T_i.items():
-        #         out_vars = self.__variables.T_o[tidx]
-        #         target_id = self.__target_cache.id[tidx]
-        #         nvis = max(0, self.__target_cache.req_visits[tidx] - self.__target_cache.done_visits[tidx])
-        #         name = self.__make_name("T_i_T_o_sum", target_id)
-        #         constr = self.__problem.sum([ nvis * v for v in in_vars ] + [ -v for v in out_vars ]) == 0
-        #         self.__constraints.T_i_T_o_sum[(target_id)] = constr
-        #         self.__add_constraint(name, constr)
-        # else:
-        #     pass
+            self.__constraints.T_i_T_o_sum[(tidx, 0)] = constr0
+            self.__constraints.T_i_T_o_sum[(tidx, 1)] = constr1
+            self.__add_constraint(name, constr0)
+            self.__add_constraint(name, constr1)
 
     def __create_Tv_i_Tv_o_constraints(self):
         # Inflow and outflow at every Tv node must be balanced
