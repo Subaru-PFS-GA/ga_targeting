@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from typing import Callable
 from collections import defaultdict
@@ -26,48 +27,48 @@ class Netflow():
         See the documentation of the the LP solver API for details.
     netflow_options : dict
         Configuration options for the Netflow algorithm. The following options are supported:
-        * blackDotPenalty : callable
+        * black_dot_penalty : callable
             A function that returns the penalty for a cobra being too close to a black dot,
             as a function of distance. None if no penalty for being close to a black dot.
-        * fiberNonAllocationCost : float
+        * fiber_non_allocation_cost : float
             Cost for not allocating a fiber to a science or calibration target, or sky.
-        * collisionDistance : float
+        * collision_distance : float
             Minimum distance between two fibers (ends or elbows) to avoid collision.
-        * elbowCollisions : bool
+        * elbow_collisions : bool
             If True, check for collisions between the fiber elbows, otherwise check for collisions
             between the fiber ends.
-        * forbiddenTargets : list
+        * forbidden_targets : list
             List of forbidden target IDs. These are added to the problem as constraints.
-        * forbiddenPairs : list of list
+        * forbidden_tairs : list of list
             List of forbidden target id pairs, where each pair is a list of two target IDs.
             These are added to the problem as constraints.
-        * targetClasses : dict
+        * target_classes : dict
             Dictionary of target classes, see below for details.
-        * cobraGroups : dict
+        * cobra_groups : dict
             Dictionary of cobra groups, see below for details.
-        * cobraMoveCost : callable
+        * cobra_move_cost : callable
             A function that returns the cost of moving a cobra from the center,
             as a function of the distance. None if there is no extra cost.
-        * timeBudgets : dict
+        * time_budgets : dict
             Dictionary of time budgets for each target class, see below for details.
-        * numReservedFibers : int
+        * num_reserved_fibers : int
             Number of reserved fibers, without any additional constraints.
     debug_options : dict
         Debugging options for the Netflow algorithm. When an option is set to True, the
         corresponding constraint are created but not added to the problem. The following
         options are supported:
-        * ignoreEndpointCollisions
-        * ignoreElbowCollisions
-        * ignoreForbiddenPairs
-        * ignoreForbiddenSingles
-        * ignoreCalibTargetClassMinimum
-        * ignoreCalibTargetClassMaximum
-        * ignoreScienceTargetClassMinimum
-        * ignoreScienceTargetClassMaximum
-        * ignoreTimeBudget
-        * ignoreCobraGroupMinimum
-        * ignoreCobraGroupMaximum
-        * ignoreReservedFibers
+        * ignore_endpoint_collisions
+        * ignore_elbow_collisions
+        * ignore_forbidden_pairs
+        * ignore_forbidden_singles
+        * ignore_calib_target_class_minimum
+        * ignore_calib_target_class_maximum
+        * ignore_science_target_class_minimum
+        * ignore_science_target_class_maximum
+        * ignore_time_budget
+        * ignore_cobra_group_minimum
+        * ignore_cobra_group_maximum
+        * ignore_reserved_fibers
     targetClasses : dict
         Dictionary of target classes. The keys are the names of the target classes. Two special
         keys are reserved: 'sky' and 'cal', for sky fibers and calibration targets, respectively.
@@ -159,8 +160,8 @@ class Netflow():
         self.__workdir = workdir if workdir is not None else os.getcwd()
         self.__filename_prefix = filename_prefix if filename_prefix is not None else ''
         self.__solver_options = solver_options
-        self.__netflow_options = netflow_options
-        self.__debug_options = debug_options
+        self.__netflow_options = Netflow.__camel_to_snake(netflow_options)
+        self.__debug_options = Netflow.__camel_to_snake(debug_options)
 
         # Internally used variables
 
@@ -232,12 +233,22 @@ class Netflow():
     #endregion
 
     def __get_netflow_option(self, key, default=None):
+        """
+        Return an option from the netflow_options dictionary, if it exists,
+        otherwise return the default value.
+        """
+
         if self.__netflow_options is not None and key in self.__netflow_options:
             return self.__netflow_options[key]
         else:
             return default
         
     def __get_debug_option(self, key, default=None):
+        """
+        Return an option from the debug_options dictionary, if it exists,
+        otherwise return the default value
+        """
+
         if self.__debug_options is not None and key in self.__debug_options:
             return self.__debug_options[key]
         else:
@@ -316,11 +327,29 @@ class Netflow():
 
     #endregion
     #region Configuration
+
+    @staticmethod
+    def __camel_to_snake(s):
+        """
+        If a dictionary (of settings) is provided with camelCase keys, convert them to snake_case.
+        """
+
+        if isinstance(s, dict):
+            return { Netflow.__camel_to_snake(k): v for k, v in s.items() }
+        elif isinstance(s, list):
+            return s
+        elif isinstance(s, str):
+            if '_' in s:
+                return s
+            else:
+                return re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
+        else:
+            raise NotImplementedError()
         
     def __get_target_class_config(self):
         target_classes = {}
 
-        for name, options in self.__get_netflow_option('targetClasses', {}).items():
+        for name, options in self.__get_netflow_option('target_classes', {}).items():
             
             prefix = options['prefix'] if 'prefix' in options else False
             min_targets = options['min_targets'] if 'min_targets' in options else None
@@ -354,7 +383,7 @@ class Netflow():
         Look up the target index based on the target id of forbidden targets.
         """
 
-        forbidden_targets = self.__get_netflow_option('forbiddenTargets', None)
+        forbidden_targets = self.__get_netflow_option('forbidden_targets', None)
         fpp = []
         if forbidden_targets is not None:
             # Reindex targets for faster search
@@ -371,7 +400,7 @@ class Netflow():
         Look up the target indices based on the target ids of forbidden pairs.
         """
 
-        forbidden_pairs = self.__get_netflow_option('forbiddenPairs', None)
+        forbidden_pairs = self.__get_netflow_option('forbidden_pairs', None)
         fpp = []
         if forbidden_pairs is not None:
             # Reindex targets for faster search
@@ -387,7 +416,7 @@ class Netflow():
         return fpp
 
     def __get_black_dot_config(self):
-        black_dot_penalty = self.__get_netflow_option('blackDotPenalty', None)
+        black_dot_penalty = self.__get_netflow_option('black_dot_penalty', None)
         
         if black_dot_penalty is not None:
             black_dots = SimpleNamespace(
@@ -403,7 +432,7 @@ class Netflow():
     def __get_cobra_groups_config(self):
         cobra_groups = {}
         
-        for name, options in self.__get_netflow_option('cobraGroups', {}).items():
+        for name, options in self.__get_netflow_option('cobra_groups', {}).items():
             for item in ['groups', 'target_classes', 'non_observation_cost']:
                 if item not in options:
                     raise RuntimeError(f'Config entry `{item}` is missing for cobra group `{name}`.')
@@ -431,7 +460,7 @@ class Netflow():
     def __get_time_budget_config(self):
         time_budgets = {}
 
-        for name, options in self.__get_netflow_option('timeBudgets', {}).items():
+        for name, options in self.__get_netflow_option('time_budgets', {}).items():
             for item in ['target_classes', 'budget']:
                 if item not in options:
                     raise RuntimeError(f'Config entry `{item}` is missing for time budget `{name}`.')
@@ -1019,7 +1048,7 @@ class Netflow():
         """
 
         # TODO: replace this with the logic to implement step-by-step targeting
-        force_already_observed = self.__get_netflow_option('forceAlreadyObserved', False)
+        force_already_observed = self.__get_netflow_option('force_already_observed', False)
 
         # Select only science targets and create the variables in batch mode
         mask = self.__target_cache.prefix == 'sci'
@@ -1034,22 +1063,6 @@ class Netflow():
         # > T_sink[target_idx]
         self.__create_T_sink(tidx, target_class)
 
-        # TODO: DELETE
-        # for tidx in range(len(self.__targets)):
-        #     target_id = self.__target_cache.id[tidx]
-        #     target_class = self.__target_cache.target_class[tidx]
-        #     target_prefix = self.__target_cache.prefix[tidx]
-        #     target_penalty = self.__target_cache.penalty[tidx]
-            
-        #     # TODO: this can be vectorized because we only use target_class and target_id
-        #     #       to name the variables but tidx is a unique identifier
-        #     if target_prefix == 'sci':
-        #         # Science Target class node to target node
-        #         self.__create_STC_T(tidx, target_class, target_id, target_penalty, force_already_observed)
-
-        #         # Science Target node to sink
-        #         self.__create_T_sink(tidx, target_class, target_id)
-
     def __create_STC_T(self, tidx, target_class, target_penalty):
         vars =  self.__add_variable_array('STC_T', tidx, 0, 1)
         for i in range(len(tidx)):
@@ -1059,35 +1072,6 @@ class Netflow():
             if target_penalty[i] != 0:
                 self.__add_cost(f * target_penalty[i])
         
-    # TODO: DELETE
-    #       this is the non-vectorized version but there are important comments here
-    # def __create_STC_T(self, tidx, target_class, target_id, target_penalty, force_already_observed):
-    #     # TODO: This is a bit fishy here. If the target is marked as already observed
-    #     #       by done_visits > 0, why is a new variable added at all?
-    #     #       It seems that this setting is trying to force observation of targets
-    #     #       that have already been observed but this might cause problems, for
-    #     #       example when there is a fiber collision.
-
-    #     # If the STC_T edge is forced to be 1, it will eventually force the observation of
-    #     # the particular target because the edges of T are always balanced.
-    #     # The problem is that we don't know at which visits and by what fiber which is also
-    #     # necessary to resume targeting.
-
-    #     # TODO: just remove this and replace with logic to implement step-by-step targeting
-    #     # if force_already_observed:
-    #     #     raise NotImplementedError()
-    #     #     lo = 1 if self.__target_cache.done_visits[tidx] > 0 else 0
-    #     # else:
-    #     #     lo = 0
-
-    #     f = self.__add_variable(self.__make_name("STC_T", target_class, target_id), 0, 1)
-    #     self.__variables.T_i[tidx] = f
-    #     self.__variables.STC_o[target_class].append(f)
-
-    #     # Cost of observing the science target
-    #     if target_penalty != 0:
-    #         self.__add_cost(f * target_penalty)
-
     def __create_T_sink(self, tidx, target_class):
         max_visits = len(self.__visits)
 
@@ -1172,7 +1156,7 @@ class Netflow():
             cost += visit.visit_cost
 
         # Cost of moving the cobra away from the center
-        cobra_move_cost = self.__get_netflow_option('cobraMoveCost', None)
+        cobra_move_cost = self.__get_netflow_option('cobra_move_cost', None)
         if cobra_move_cost is not None:
             dist = np.abs(self.__bench.cobras.centers[cidx] - self.__target_fp_pos[visit.pointing_idx][tidx])
             cost += cobra_move_cost(dist)
@@ -1205,7 +1189,7 @@ class Netflow():
         # If requested, penalize non-allocated fibers
         # Sum up the all Cv_i edges for the current visit and penalize its difference from
         # the total number of cobras
-        cobra_non_allocation_cost = self.__get_netflow_option('fiberNonAllocationCost', 0)
+        cobra_non_allocation_cost = self.__get_netflow_option('fiber_non_allocation_cost', 0)
         if cobra_non_allocation_cost != 0:
             # TODO: consider storing Cv_i organized by visit instead of cobra as well
             relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == visit.visit_idx ]
@@ -1221,8 +1205,8 @@ class Netflow():
         logging.debug(f"Adding constraints for visit {visit.visit_idx}")
 
         # Avoid endpoint or elbow collisions
-        collision_distance = self.__get_netflow_option('collisionDistance', 0.0)
-        elbow_collisions = self.__get_netflow_option('elbowCollisions', False)
+        collision_distance = self.__get_netflow_option('collision_distance', 0.0)
+        elbow_collisions = self.__get_netflow_option('elbow_collisions', False)
         
         if collision_distance > 0.0:
             if not elbow_collisions:
@@ -1235,7 +1219,7 @@ class Netflow():
                 self.__create_elbow_collision_constraints(visit, vis_elbow, collision_distance)
                 
     def __create_endpoint_collision_constraints(self, visit, vis_elbow, collision_distance):
-        ignore_endpoint_collisions = self.__get_debug_option('ignoreEndpointCollisions', False)
+        ignore_endpoint_collisions = self.__get_debug_option('ignore_endpoint_collisions', False)
 
         if not ignore_endpoint_collisions:
             # Determine target indices visible by this cobra and its neighbors
@@ -1255,7 +1239,7 @@ class Netflow():
         # Determine targets accessible by two different cobras that would cause an elbow collision
         # colliding_elbows contains a list of tidx keyed by cidx and tidx
 
-        ignore_elbow_collisions = self.__get_debug_option('ignoreElbowCollisions', False)
+        ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
 
         ### SLOW ###
 
@@ -1281,7 +1265,7 @@ class Netflow():
         Create the constraints prohibiting individual targets being observed in any visit.
         """
 
-        ignore_forbidden_targets = self.__get_debug_option('ignoreForbiddenTargets', False)
+        ignore_forbidden_targets = self.__get_debug_option('ignore_forbidden_targets', False)
 
         # All edges of visible targets, relevant for this visit
         tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
@@ -1302,7 +1286,7 @@ class Netflow():
         This constraint is independent of the cobra collision constraints.
         """
 
-        ignore_forbidden_pairs = self.__get_debug_option('ignoreForbiddenPairs', False)
+        ignore_forbidden_pairs = self.__get_debug_option('ignore_forbidden_pairs', False)
 
         # All edges of visible targets, relevant for this visit
         tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
@@ -1322,8 +1306,8 @@ class Netflow():
         # If a maximum on the science target is set fo the target class, enforce that
         # in a separate constraint
         # It defaults to the total number of targets but can be overridden for each target class
-        ignore_science_target_class_minimum = self.__get_debug_option('ignoreScienceTargetClassMinimum', False)
-        ignore_science_target_class_maximum = self.__get_debug_option('ignoreScienceTargetClassMaximum', False)
+        ignore_science_target_class_minimum = self.__get_debug_option('ignore_science_target_class_minimum', False)
+        ignore_science_target_class_maximum = self.__get_debug_option('ignore_science_target_class_maximum', False)
         
         for target_class, vars in self.__variables.STC_o.items():
             sink = self.__variables.STC_sink[target_class]
@@ -1356,8 +1340,8 @@ class Netflow():
     def __create_calibration_target_class_constraints(self):
         
         
-        ignore_calib_target_class_minimum = self.__get_debug_option('ignoreCalibTargetClassMinimum', False)
-        ignore_calib_target_class_maximum = self.__get_debug_option('ignoreCalibTargetClassMaximum', False)
+        ignore_calib_target_class_minimum = self.__get_debug_option('ignore_calib_target_class_minimum', False)
+        ignore_calib_target_class_maximum = self.__get_debug_option('ignore_calib_target_class_maximum', False)
         
         for (target_class, vidx), vars in self.__variables.CTCv_o.items():
             sink = self.__variables.CTCv_sink[(target_class, vidx)]
@@ -1431,7 +1415,7 @@ class Netflow():
         # Science targets inside a given program must not get more observation time
         # than allowed by the time budget
 
-        ignore_time_budget = self.__get_debug_option('ignoreTimeBudget', False)
+        ignore_time_budget = self.__get_debug_option('ignore_time_budget', False)
         if not ignore_time_budget:
             for budget_name, options in self.__time_budgets.items():
                 budget_target_classes = set(options.target_classes)
@@ -1452,8 +1436,8 @@ class Netflow():
     def __create_cobra_group_constraints(self, nvisits):
         # Make sure that there are enough targets in every cobra group for each visit
 
-        ignore_cobra_group_minimum = self.__get_debug_option('ignoreCobraGroupMinimum', False)
-        ignore_cobra_group_maximum = self.__get_debug_option('ignoreCobraGroupMaximum', False)
+        ignore_cobra_group_minimum = self.__get_debug_option('ignore_cobra_group_minimum', False)
+        ignore_cobra_group_maximum = self.__get_debug_option('ignore_cobra_group_maximum', False)
 
         for name, options in self.__cobra_groups.items():
             need_min = not ignore_cobra_group_minimum and options.min_targets is not None
@@ -1479,8 +1463,8 @@ class Netflow():
         # Make sure that enough fibers are kept unassigned, if this was requested
         # This is done by setting an upper limit on the sum of Cv_i edges
 
-        ignore_reserved_fibers = self.__get_debug_option('ignoreReservedFibers', False)
-        num_reserved_fibers = self.__get_netflow_option('numReservedFibers', 0)
+        ignore_reserved_fibers = self.__get_debug_option('ignore_reserved_fibers', False)
+        num_reserved_fibers = self.__get_netflow_option('num_reserved_fibers', 0)
 
         if not ignore_reserved_fibers and num_reserved_fibers > 0:
             max_assigned_fibers = self.__bench.cobras.nCobras - num_reserved_fibers
