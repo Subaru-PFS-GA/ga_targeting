@@ -78,6 +78,12 @@ class GurobiProblem(ILPProblem):
         if lazy is not None:
             constraint.Lazy = lazy
         self._constraints[name] = constraint
+
+        # TODO: replace with addLConstr to speed up model building
+        #       it requires rewriting everything because right now
+        #       constraints are created as python expressions
+        # self.__model.addLConstr(lhs, sense, rhs, name=name)
+
         self.__model.addConstr(constraint, name=name)
 
     def add_lazy_constraint(self, name, constraint):
