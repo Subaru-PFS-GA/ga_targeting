@@ -4,14 +4,21 @@ import matplotlib.pyplot as plt
 
 from test_base import TestBase
 
-import pfs.ga.targeting.netflow as nf
-from pfs.ga.targeting.netflow import ScienceTarget, CalibTarget, Telescope
+from pfs.ga.targeting.netflow import Netflow
 from ics.cobraOps.TargetGroup import TargetGroup
 from ics.cobraOps.CollisionSimulator import CollisionSimulator
 from ics.cobraOps.Bench import Bench
 from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 
 class NetflowTest(TestBase):
+    def test_camel_to_snake(self):
+        self.assertEqual(Netflow._Netflow__camel_to_snake('Camel'), 'camel')
+        self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCase'), 'camel_case')
+        self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCaseCase'), 'camel_case_case')
+        self.assertEqual(Netflow._Netflow__camel_to_snake('camel'), 'camel')
+        self.assertEqual(Netflow._Netflow__camel_to_snake('camelCase'), 'camel_case')
+        self.assertEqual(Netflow._Netflow__camel_to_snake('camelCaseCase'), 'camel_case_case')
+
     def test_netflow(self):
         obs = self.load_test_observation()
         cmd, _ = self.get_test_cmd()

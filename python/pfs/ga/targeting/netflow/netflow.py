@@ -39,7 +39,7 @@ class Netflow():
             between the fiber ends.
         * forbidden_targets : list
             List of forbidden target IDs. These are added to the problem as constraints.
-        * forbidden_tairs : list of list
+        * forbidden_pairs : list of list
             List of forbidden target id pairs, where each pair is a list of two target IDs.
             These are added to the problem as constraints.
         * target_classes : dict
@@ -53,6 +53,8 @@ class Netflow():
             Dictionary of time budgets for each target class, see below for details.
         * num_reserved_fibers : int
             Number of reserved fibers, without any additional constraints.
+        * allow_more_visits : bool
+            If True, allow more than visits per science targets than required. Default is False.
     debug_options : dict
         Debugging options for the Netflow algorithm. When an option is set to True, the
         corresponding constraint are created but not added to the problem. The following
@@ -113,8 +115,6 @@ class Netflow():
     * priority    - priority of the target, only used to generate a name for the target class e.g. 'sci_P1'.
     * class       - name of the target class to which the target belongs
     
-
-    
     Using dataframes helps with the manipulation of the data and prevents instantiation a
     large number of objects.
     
@@ -133,13 +133,20 @@ class Netflow():
     Everywhere where variables named similar to `visit_idx` or `vidx` are used, they're indices into
     the list `__visits`.
     
-    In the next step, the focal plane coordinates of the targets are calculated for each pointing.
-    Visits of the same pointing, hence, will assume the same focal plane positions.
+    In the next step, the focal plane coordinates of the targets are calculated for each pointing by
+    `__calculate_target_fp_pos`. Visits of the same pointing will result in the same focal plane positions.
     
-    After the setup, the ILP problem is built in `__build_ilp_problem`. This is the second most time
+    After the setup, the ILP problem is built in `__build_ilp_problem`. This is the second most time-
     consuming step of the algorithm, after the actual optimization, since it requires creating
-    millions of variables and constraints.
+    millions of variables and constraints. After the ILP problem is built it can be saved to a file
+    with `save_problem` and loaded with `load_problem`.
     
+    The problem can be solved with the `solve` function which executes the solver and calls
+    `__extract_assignments` to extract the results. The results are stored in the variables
+    `__target_assignments` and `__cobra_assignments` which are lists of dictionaries keyed by
+    the target index or the cobra index, respectively.
+
+    Once the problem is solved and target assignments 
     """
     
     def __init__(self, 
@@ -186,9 +193,6 @@ class Netflow():
         
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
-        self.__missed_targets = None
-        self.__fully_observed_targets = None
-        self.__partially_observed_targets = None
 
     #region Property accessors
 
@@ -318,6 +322,7 @@ class Netflow():
 
         fn = self.__get_solution_filename(filename)
         self.__problem.read_solution(fn)
+        self.__extract_assignments()
 
     def save_solution(self, filename=None):
         """Save the LP solution to a file."""
@@ -1073,13 +1078,12 @@ class Netflow():
                 self.__add_cost(f * target_penalty[i])
         
     def __create_T_sink(self, tidx, target_class):
+        """
+        Create the sink variable which is responsible for draining the flow from the target nodes
+        which get less visits than required
+        """
         max_visits = len(self.__visits)
-
-        # Allow more visits than required
         T_sink =  self.__add_variable_array('T_sink', tidx, 0, max_visits)
-
-        # Do not allow more visits than required
-        # T_sink =  self.__add_variable_array('T_sink', tidx, 0, None)
 
         for i in range(len(tidx)):
             self.__variables.T_sink[tidx[i]] = T_sink[tidx[i]]
@@ -1370,26 +1374,44 @@ class Netflow():
                 self.__add_constraint(name, constr)
 
     def __create_science_target_constraints(self):
+        """
+        Create the constraints that make sure the targets get as many visits as required and if not,
+        they get penalized. The penalty is added in `__create_T_sink`.
+
+        Optionally, allow for more visits than required. In this case we create two constraints:
+        - One that requires at least the required number of visits
+        - One that allows for more visits than required but sets a cap at the maximum number of visits.
+        Note, that if `T_i` in zero, the target is not observed at all.
+        """
+
+        # TODO: handle already observed targets here
+
+        allow_more_visits = self.__get_netflow_option('allow_more_visits', False)
+
         for tidx, T_o in self.__variables.T_o.items():
             T_i = self.__variables.T_i[tidx]
             T_sink = self.__variables.T_sink[tidx]
             req_visits = self.__target_cache.req_visits[tidx]
             max_visits = len(self.__visits)
 
-            # Require an exact number of visits
-            name = self.__make_name("T_i_T_o_sum", tidx)
+            if not allow_more_visits:
+                # Require an exact number of visits
+                name = self.__make_name("T_i_T_o_sum", tidx)
+                constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == 0
+                self.__constraints.T_i_T_o_sum[tidx] = constr
+                self.__add_constraint(name, constr)
+            else:
+                # Allow for a larger number of visits than required
+                name0 = self.__make_name("T_i_T_o_sum_0", tidx)
+                name1 = self.__make_name("T_i_T_o_sum_1", tidx)
 
-            # Require an exact number of visits
-            # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] - [ T_sink ]) == 0
+                constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
+                constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
 
-            # Allow for a larger number of visits than required
-            constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
-            constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
-
-            self.__constraints.T_i_T_o_sum[(tidx, 0)] = constr0
-            self.__constraints.T_i_T_o_sum[(tidx, 1)] = constr1
-            self.__add_constraint(name, constr0)
-            self.__add_constraint(name, constr1)
+                self.__constraints.T_i_T_o_sum[(tidx, 0)] = constr0
+                self.__constraints.T_i_T_o_sum[(tidx, 1)] = constr1
+                self.__add_constraint(name0, constr0)
+                self.__add_constraint(name1, constr1)
 
     def __create_Tv_i_Tv_o_constraints(self):
         # Inflow and outflow at every Tv node must be balanced
@@ -1398,7 +1420,6 @@ class Netflow():
             target_id = self.__target_cache.id[tidx]
 
             name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
-            # TODO: why the index in outvars?
             constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
             self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
             self.__add_constraint(name, constr)
@@ -1484,7 +1505,15 @@ class Netflow():
         self.__extract_assignments()
 
     def __extract_assignments(self):
-        """Extract the fiber assignments from an LP solution"""
+        """
+        Extract the fiber assignments from an LP solution
+        
+        The assignments are stored in two lists:
+        - target_assignments: a list of dictionaries for each visit that maps target indices
+          to cobra indices
+        - cobra_assignments: a list of arrays for each visit that contain an array with the id
+          of associated the targets
+        """
 
         nvisits = len(self.__visits)
         ncobras = self.__bench.cobras.nCobras
@@ -1492,78 +1521,25 @@ class Netflow():
         self.__target_assignments = [ {} for _ in range(nvisits) ]
         self.__cobra_assignments = [ np.full(ncobras, -1, dtype=int) for _ in range(nvisits) ]
 
-        def set_assigment(tidx, cidx, ivis):
-            self.__target_assignments[ivis][tidx] = cidx
-            self.__cobra_assignments[ivis][cidx] = tidx
+        def set_assigment(tidx, cidx, vidx):
+            self.__target_assignments[vidx][tidx] = cidx
+            self.__cobra_assignments[vidx][cidx] = tidx
 
         if self.__variables is not None:
-            # This only works when the netflow problem is built
-            for (tidx, ivis), vars in self.__variables.Tv_o.items():
+            # This only works when the netflow problem is fully built
+            for (tidx, vidx), vars in self.__variables.Tv_o.items():
                 for (f, cidx) in vars:
                     if self.__problem.get_value(f) > 0:
-                        set_assigment(tidx, cidx, ivis)
+                        set_assigment(tidx, cidx, vidx)
         else:
-            # This also works when only the LP problem is loaded
+            # This also works when only the LP problem is loaded back from a file
+            # but it's much slower
             for k1, v1 in self.__problem._variables.items():
               if k1.startswith("Tv_Cv_"):
                     if self.__problem.get_value(v1) > 0:
-                        _, _, tidx, cidx, ivis = k1.split("_")
-                        set_assigment(int(tidx), int(cidx), int(ivis))
+                        _, _, tidx, cidx, vidx = k1.split("_")
+                        set_assigment(int(tidx), int(cidx), int(vidx))
 
-    def __extract_missed_science_targets(self):
-        """
-        Find science targets for each science target class that have been missed.
-        These can be identified by the T_i variables that are zero.
-        """
-
-        self.__missed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
-
-        if self.__variables is not None:
-            for tidx, f in self.__variables.T_i.items():
-                if self.__problem.get_value(f) == 0:
-                    target_class = self.__target_cache.target_class[tidx]
-                    self.__missed_targets[target_class].append(tidx)
-        else:
-            raise NotImplementedError()
-        
-    def __extract_fully_observed_science_targets(self):
-        """
-        Find science targets that are allocated to fibers during at least the number of visits
-        as requested.
-        """
-
-        self.__fully_observed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
-
-        if self.__variables is not None:
-            for tidx, f in self.__variables.T_sink.items():
-                g = self.__variables.T_i[tidx]
-                if self.__problem.get_value(f) == 0 and self.__problem.get_value(g) == 1:
-                    target_class = self.__target_cache.target_class[tidx]
-                    self.__fully_observed_targets[target_class].append(tidx)
-        else:
-            raise NotImplementedError()
-        
-    def __extract_partially_observed_science_targets(self):
-        """Find science targets that are allocated to fibers during some visits but the total
-        number of visits doesn't meet the requirements."""
-
-        self.__partially_observed_targets = { k: [] for k, options in self.__target_classes.items() if options.prefix == 'sci' }
-
-        if self.__variables is not None:
-            for tidx, f in self.__variables.T_sink.items():
-                if self.__problem.get_value(f) > 0:
-                    target_class = self.__target_cache.target_class[tidx]
-                    self.__partially_observed_targets[target_class].append(tidx)
-        else:
-            raise NotImplementedError()
-
-    def __get_idcol(self, catalog):
-        for c in ['objid', 'skyid', 'calid']:
-            if c in catalog.data.columns:
-                return c
-        
-        raise RuntimeError()
-    
     # TODO: this function is redundant with the property of the same name
     #       rename to something else
     def get_cobra_assignments(self):
@@ -1573,16 +1549,23 @@ class Netflow():
         """
 
         return self.__cobra_assignments
-    
-    # TODO: this function is redundant with the property of the same name
-    #       rename to something else
-    def get_target_assignments(self):
+
+    def get_target_assignments(self, all_columns=False):
         """
-        Returns a list of data frames, for each visit, of the target assignments including
-        positions, fiberid and other information.
+        Return a data frame of the target assignments including positions, visitid, fiberid
+        and other information.
+
+        When `all_columns` is set to True, all columns from the target catalog are included in the
+        output.
+
+        Parameters:
+        -----------
+        all_columns : bool
+            Include all columns from the input target catalog in the output.
         """
 
-        assignments = []
+        assignments : pd.DataFrame = None
+        
         for i, visit in enumerate(self.__visits):
             # Target indices
             idx = np.array([ k for k in self.__target_assignments[i] ], dtype=int)
@@ -1590,22 +1573,36 @@ class Netflow():
             targets = pd.DataFrame(
                     {
                         f'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in idx ],
+                        'pointingid': visit.pointing_idx,
+                        'visitid': i,
                         'fiberid': np.array([ self.__target_assignments[i][k] for k in idx ]),
                         'fp_x':  self.__target_fp_pos[visit.pointing_idx][idx].real,
                         'fp_y':  self.__target_fp_pos[visit.pointing_idx][idx].imag,
                     }
-                ).astype({ 'fiberid': pd.Int32Dtype() }).set_index(f'targetid')
+                )
 
             # Find the index of each object in the catalog and return the matching fiberid
-            assign = self.__targets.set_index('id').join(targets, how='inner')
-            assign = assign.reset_index(names=['targetid'])
-            assignments.append(assign)
+            # targets = self.__targets.set_index('id').join(targets.set_index(f'targetid'), how='inner')
+            # targets = targets.reset_index(names=['targetid'])
+
+            if assignments is None:
+                assignments = targets
+            else:
+                assignments = pd.concat([ assignments, targets ])
+
+        # Convert data type to handle Nan values
+        assignments = assignments.astype({ 'fiberid': pd.Int32Dtype() })
+
+        # Include all columns if requested
+        if all_columns:
+            assignments = assignments.join(self.__targets.set_index('id'), on='targetid', how='inner')
+            assignments = assignments.reset_index(drop=True)
 
         return assignments
     
     def get_target_assignments_masks(self):
         """
-        Returns a mask that indexes the assigned targets within the target list.
+        Returns a list of masks that index the assigned targets within the target list.
         """
 
         masks = []
@@ -1617,6 +1614,31 @@ class Netflow():
             fiberids.append(np.array(self.__target_assignments[i].values()))
 
         return masks, fiberids
+    
+    def get_target_assignment_summary(self):
+        """
+        Return a data frame of the input targets with the number of visits each target was
+        scheduled for.
+
+        This output is useful for identifying targets that were not assigned to any visit or
+        targets that were assigned to more than the required number of visits.
+        """
+
+        all_assignments, all_fiberids = self.get_target_assignments_masks()
+        num_assignments = np.sum(np.stack(all_assignments, axis=-1), axis=-1)
+
+        targets = self.__targets.copy()
+        targets.rename(columns={ 'id': 'targetid' }, inplace=True)
+        targets['num_visits'] = num_assignments
+
+        return targets
+
+    def __get_idcol(self, catalog):
+        for c in ['objid', 'skyid', 'calid']:
+            if c in catalog.data.columns:
+                return c
+        
+        raise RuntimeError()
     
     def get_catalog_assignments(self, catalog):
         """
@@ -1666,12 +1688,3 @@ class Netflow():
             fiberids.append(np.array(np.int32(a['fiberid'][m])))
 
         return masks, fiberids
-
-    def get_problematic_science_targets(self):
-        if self.__missed_targets is None:
-            self.__extract_missed_science_targets()
-
-        if self.__partially_observed_targets is None:
-            self.__extract_partially_observed_science_targets()
-
-        return self.__missed_targets, self.__partially_observed_targets
