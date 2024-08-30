@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 from ics.cobraOps.Bench import Bench
 from pfs.utils.coordinates.CoordTransp import CoordinateTransform
+from pfs.utils.fiberids import FiberIds
 
 from ..util.args import *
 from .pointing import Pointing
@@ -55,6 +56,12 @@ class Netflow():
             Number of reserved fibers, without any additional constraints.
         * allow_more_visits : bool
             If True, allow more than visits per science targets than required. Default is False.
+        * epoch : float
+            Epoch for proper motion and parallax calculations, all catalogs must be at the same epoch.
+        * ignore_proper_motion : bool
+            If True, ignore proper motion when calculating the focal plane positions.
+        * fiberids_path : str
+            Path to the fiberids file. Should point to `pfs_utils/data/fiberids`. 
     debug_options : dict
         Debugging options for the Netflow algorithm. When an option is set to True, the
         corresponding constraint are created but not added to the problem. The following
@@ -480,7 +487,11 @@ class Netflow():
     #endregion
     #region PFI functions
 
-    def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None, epoch=2015.5):
+    def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None):
+
+        epoch = self.__get_netflow_option('epoch', 2016.0)
+        ignore_proper_motion = self.__get_netflow_option('ignore_proper_motion', False)
+
         cent = np.array([[ pointing.ra ], [ pointing.dec ]])
         pa = pointing.posang
 
@@ -490,17 +501,23 @@ class Netflow():
 
         # The proper motion of the targets used for sky_pfi transformation.
         # The unit is mas/yr, the shape is (2, N)
-        if pmra is not None and pmdec is not None:
+        if not ignore_proper_motion and  pmra is not None and pmdec is not None:
             pm = np.stack([ pmra, pmdec ], axis=0)
         else:
             pm = None
 
         # The parallax of the coordinates used for sky_pfi transformation.
         # The unit is mas, the shape is (1, N)
-        # if parallax is not None:
-        #     parallax = parallax[None, :]
-        # else:
-        #     parallax = None
+        if not ignore_proper_motion and parallax is not None:
+            parallax = parallax.copy()
+        else:
+            parallax = None
+
+        # Set pms and parallaxes to 0 if any of them is Nan
+        if not ignore_proper_motion and pm is not None and parallax is not None:
+            mask = np.any(np.isnan(pm), axis=0) | np.isnan(parallax)
+            pm[:, mask] = 0
+            parallax[mask] = 0.0000001
 
         # Observation time UTC in format of %Y-%m-%d %H:%M:%S
         obs_time = pointing.obs_time.to_value('iso')
@@ -678,10 +695,33 @@ class Netflow():
     def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None):
         df = catalog.get_data(mask=mask, filter=filter)
 
-        # TODO: add pm, epoch
-        targets = pd.DataFrame({ 'id': df[id_column],
-                                 'RA': df['RA'],
-                                 'Dec': df['Dec'] })
+        # Collect columns
+        data = {
+            'id': df[id_column],
+            'RA': df['RA'],
+            'Dec': df['Dec'] 
+        }
+
+        # Create the formatted dataset
+        targets = pd.DataFrame(data)
+
+        # Add proper motion and parallax, if available
+        if 'pm' in df:
+            targets['pm'] = df['pm']
+        else:
+            targets['pm'] = np.nan
+        
+        if 'pmra' in df and 'pmdec' in df:
+            targets['pmra'] = df['pmra']
+            targets['pmdec'] = df['pmdec']
+        else:
+            targets['pmra'] = np.nan
+            targets['pmdec'] = np.nan
+
+        if 'parallax' in df:
+            targets['parallax'] = df['parallax']
+        else:
+            targets['parallax'] = np.nan
         
         # This is a per-object penalty for observing calibration targets
         if penalty is not None:
@@ -802,13 +842,15 @@ class Netflow():
 
     def __cache_targets(self):
         """Extract the contents of the Pandas DataFrame for faster indexed access."""
-        
-        # TODO: add pm, epoch, etc. required by coordinate transform
-
+    
         self.__target_cache = SimpleNamespace(
             id = np.array(self.__targets['id'].astype(np.int64)),
             ra = np.array(self.__targets['RA'].astype(np.float64)),
             dec = np.array(self.__targets['Dec'].astype(np.float64)),
+            pm = np.array(self.__targets['pm'].astype(np.float64)),
+            pmra = np.array(self.__targets['pmra'].astype(np.float64)),
+            pmdec = np.array(self.__targets['pmdec'].astype(np.float64)),
+            parallax = np.array(self.__targets['parallax'].astype(np.float64)),
             target_class = np.array(self.__targets['class'].astype(str)),
             prefix = np.array(self.__targets['prefix'].astype(str)),
             req_visits = np.array(self.__targets['req_visits'].astype(np.int32)),
@@ -832,8 +874,9 @@ class Netflow():
             fp_pos = self.__calculate_fp_pos(p, 
                                              self.__target_cache.ra,
                                              self.__target_cache.dec,
-                                             # pmra=None, pmdec=None, parallax=None,
-            )
+                                             pmra=self.__target_cache.pmra,
+                                             pmdec=self.__target_cache.pmdec,
+                                             parallax=self.__target_cache.parallax)
             self.__target_fp_pos.append(fp_pos)
 
     def __make_name(self, *parts):
@@ -1565,19 +1608,25 @@ class Netflow():
         """
 
         assignments : pd.DataFrame = None
+
+        # map cobra ids to fiber ids
+        mapper = FiberIds(path=self.__get_netflow_option('fiberids_path', None))
+        cobraids = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
+        fiberids = mapper.cobraIdToFiberId(cobraids)
         
-        for i, visit in enumerate(self.__visits):
+        for vidx, visit in enumerate(self.__visits):
             # Target indices
-            idx = np.array([ k for k in self.__target_assignments[i] ], dtype=int)
+            tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
 
             targets = pd.DataFrame(
                     {
-                        f'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in idx ],
+                        f'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in tidx ],
                         'pointingid': visit.pointing_idx,
-                        'visitid': i,
-                        'fiberid': np.array([ self.__target_assignments[i][k] for k in idx ]),
-                        'fp_x':  self.__target_fp_pos[visit.pointing_idx][idx].real,
-                        'fp_y':  self.__target_fp_pos[visit.pointing_idx][idx].imag,
+                        'visitid': vidx,
+                        'cobraid': np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
+                        'fiberid': np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
+                        'fp_x':  self.__target_fp_pos[visit.pointing_idx][tidx].real,
+                        'fp_y':  self.__target_fp_pos[visit.pointing_idx][tidx].imag,
                     }
                 )
 
