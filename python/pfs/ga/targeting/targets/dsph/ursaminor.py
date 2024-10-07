@@ -13,24 +13,19 @@ class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
         pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]
-        rad = 120 # arc min
+        # pos = [ 227.29725, 67.21436111 ] * u.deg                    # Evan
+        rad = 120 * u.arcmin
         DM, DM_err = 18.9, 0.2
-        pm, pm_err = [ -0.119, 0.072 ], [ 0.005, 0.005 ]       # Pace et al. (2022)
-        RV, RV_err = -274.0 * u.kilometer / u.second, 1.0
+        pm = [ -0.119, 0.072 ] * u.mas / u.yr                         # Pace et al. (2022)
+        pm_err = [ 0.005, 0.005 ] * u.mas / u.yr
+        RV, RV_err = (-274.0, 1.0) * u.kilometer / u.second
+
+        ra0 = [ 228.2, 226.3, 226.0, 228.0 ] * u.deg
+        dec0 = [ 67.5, 67.5, 66.9, 66.955 ] * u.deg
+        pa = [ 0, 0, 0, 0] * u.deg
 
         pointings = {
-            SubaruPFI: [
-                # Pointing(pos, posang=0.0)
-                
-                # EK
-                # Pointing([227.29725, 67.21436111], posang=0.0, exp_time=1800)
-
-                # KH
-                Pointing((228.2, 67.5), posang=0),
-                Pointing((226.3, 67.5), posang=0),
-                Pointing((226.0, 66.9), posang=0),
-                Pointing((228.1, 66.955), posang=40),
-            ]
+            SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa) ]
         }
 
         super().__init__(ID,
@@ -39,6 +34,24 @@ class UrsaMinor(DSphGalaxy):
                          pm=pm, pm_err=pm_err,
                          RV=RV, RV_err=RV_err,
                          pointings=pointings)
+        
+        # CMD and CCD definitions with color and magnitude limits for Ursa Minor
+
+        hsc = SubaruHSC.photometry()
+        self.__hsc_cmd = CMD([
+            ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
+            MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
+        ])
+        self.__hsc_ccd = CCD([
+            ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
+            ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
+        ])
+
+        gaia = Gaia.photometry()
+        self.__gaia_cmd = CMD([
+            ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
+            MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
+        ])
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
@@ -69,7 +82,7 @@ class UrsaMinor(DSphGalaxy):
         # Allow blue
         if blue:
             mask |= (
-                ColorSelection(self.ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
+                ColorSelection(ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
             )
 
         # Always impose faint and bright magnitude cuts

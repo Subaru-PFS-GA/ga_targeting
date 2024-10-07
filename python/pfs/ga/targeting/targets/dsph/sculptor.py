@@ -13,15 +13,20 @@ class Sculptor(DSphGalaxy):
     def __init__(self):
         ID = 'scl'
         pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
-        rad = 120 # arc min
-        DM, DM_err = 19.67, 0.1     # Evan
-        pm, pm_err = [ 0.09, 0.02 ], [ 0.13, 0.13 ]       # Piatek et al. (2006)
+        # pos = [ 15.0392, -33.7089 ] * u.deg               # Evan
+        rad = 120 * u.arcmin
+        DM, DM_err = 19.67, 0.1                             # Evan
+        # pm, pm_err = [ 0.09, 0.02 ], [ 0.13, 0.13 ]       # Piatek et al. (2006)
+        pm = [ 0.101, -0.156 ] * u.mas / u.yr               # Evan
+        pm_err = [ 0.003, 0.002 ] * u.mas / u.yr                          
         RV, RV_err = -110.0 * u.kilometer / u.second, 2.0
 
-        pointings = { 
-            SubaruPFI: [
-                Pointing(pos, posang=0.0)
-            ]
+        ra0 = [ 14.5, 15.1, 15.5, 15.0, 16.4, 15.06, 13.7, 14.9 ] * u.deg
+        dec0 = [ -33.7, -33.4, -33.7, -34.1, -33.9, -33.0, -33.55, -34.5 ] * u.deg
+        pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
+
+        pointings = {
+            SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
         super().__init__(ID,
