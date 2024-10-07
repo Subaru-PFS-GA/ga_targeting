@@ -1,6 +1,7 @@
 import astropy.units as u
 
 from ..util.args import *
+from ..projection import Pointing
 
 class Target():
     def __init__(self, ID,
@@ -145,3 +146,6 @@ class Target():
         return self.__target_class
     
     target_class = property(__get_target_class)
+
+    def get_center_pointing(self, posang=None):
+        return Pointing(self.__pos, posang=posang)
