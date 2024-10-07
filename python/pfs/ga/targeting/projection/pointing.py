@@ -7,12 +7,12 @@ class Pointing():
     def __init__(self, *pos, posang=None, obs_time=None, orig=None):
         if not isinstance(orig, Pointing):
             self.__pos = normalize_pos(*pos)
-            self.__posang = normalize_angle(posang, u.degree) or normalize_angle(0)
-            self.__obs_time = normalize_time(obs_time or datetime.utcnow())
+            self.__posang = normalize_angle(posang, u.degree) if posang is not None else normalize_angle(0)
+            self.__obs_time = normalize_time(obs_time if obs_time is not None else datetime.utcnow())
         else:
             self.__pos = normalize_pos(*pos) if pos is not None else orig.__pos
-            self.__posang = normalize_angle(posang, u.degree) or orig.__posang
-            self.__obs_time = obs_time or orig.__obs_time
+            self.__posang = normalize_angle(posang, u.degree) if posang is not None else orig.__posang
+            self.__obs_time = normalize_time(obs_time) if obs_time is not None else orig.__obs_time
 
     def __get_pos(self):
         return self.__pos
