@@ -60,18 +60,21 @@ def normalize_time(time, scale='utc', allow_none=True):
     
     return time
 
-def normalize_angle(angle, unit=u.degree, allow_none=True):
+def normalize_angle(angle, unit=None, allow_none=True):
     # TODO: Add support for arrays
 
     if allow_none and angle is None:
         return None
     elif angle is None:
         raise TypeError('Argument `angle` cannot be None.')
-    if isinstance(angle, Angle):
+    elif isinstance(angle, Angle):
         pass
+    elif isinstance(angle, Quantity):
+        angle = Angle(angle)
     elif isinstance(angle, str):
         angle = Angle(angle)
     elif isinstance(angle, Number):
+        unit = unit if unit is not None else u.degree
         angle = Angle(np.float64(angle), unit=unit)
     else:
         raise NotImplementedError()
