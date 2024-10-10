@@ -155,4 +155,4 @@ class Catalog(DiagramValueProvider):
         for c in columns:
             self.data[c] = np.nan
             self.data.loc[mask, c] = np.array(other.data[c][idx[mask]])
-
+                

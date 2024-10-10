@@ -1,8 +1,13 @@
 import numpy as np
 
-def ABmag_to_flux(mag, zero=0):
+def ABmag_to_flux(mag, mag_err=None, zero=0):
     """Convert AB mags to flux"""
-    return 10**(-0.4 * (mag - zero + 48.6))
+    flux = 10**(-0.4 * (mag - zero + 48.6))
+    if mag_err is not None:
+        flux_err = 0.4 * np.log(10) * flux * mag_err
+        return flux, flux_err
+    else:
+        return flux
 
 def flux_to_ABmag(flux, zero=0):
     """Convert flux to AB mags"""

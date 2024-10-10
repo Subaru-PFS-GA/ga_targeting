@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from ics.cobraOps.Bench import Bench
 from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 from pfs.utils.fiberids import FiberIds
+from pfs.datamodel import TargetType, FiberStatus
 
 from ..util.args import *
 from .pointing import Pointing
@@ -1593,7 +1594,10 @@ class Netflow():
 
         return self.__cobra_assignments
 
-    def get_target_assignments(self, all_columns=False):
+    def get_target_assignments(self,  
+                               include_target_columns=False,
+                               include_unassigned_fibers=False,
+                               include_engineering_fibers=False):
         """
         Return a data frame of the target assignments including positions, visitid, fiberid
         and other information.
@@ -1601,50 +1605,126 @@ class Netflow():
         When `all_columns` is set to True, all columns from the target catalog are included in the
         output.
 
+        Note that column names ending with `_idx` are 0-based indices into netflow data structured,
+        while the columns `fiberid` and `cobraid` are 1-based indices, as defined by PFS.
+
         Parameters:
         -----------
-        all_columns : bool
+        include_target_columns : bool
             Include all columns from the input target catalog in the output.
+        include_unassigned_fibers : bool
+            Include unassigned fibers in the output.
+        include_engineering_fibers : bool
+            Include engineering fibers in the output.
+        include_empty_fibers : bool
+            Include empty fibers in the output.
         """
 
         assignments : pd.DataFrame = None
 
-        # map cobra ids to fiber ids
+        # Map cobra ids to fiber ids using the grand fiber table
         mapper = FiberIds(path=self.__get_netflow_option('fiberids_path', None))
+
+        # There are 2394 cobras in total
+        # There are 2604 fibers, 2394 assigned to cobras, 64 engineering fibers and 146 empty fibers
+
+        # Internally, cidx is a 0-based index of the cobras, PFS cobraids are 1-based
+        # Map the cobraIds to the corresponding fiberIds
+        # These include all cobras that were part of the netflow problem
+
+        # TODO: make sure this is updated if we leave out cobras from the netflow problem
+        #       because they're broken or else
+
+        # Should have the size of 2394
         cobraids = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
         fiberids = mapper.cobraIdToFiberId(cobraids)
+
+        # Map internal prefixes to PFS fiber status
+        target_type_map = {
+            'na': TargetType.UNASSIGNED,
+            'sky': TargetType.SKY,
+            'cal': TargetType.FLUXSTD,
+            'sci': TargetType.SCIENCE,
+            'eng': TargetType.ENGINEERING,
+        }
+
+        # TODO: add fiber status, this should come from the bench config
         
         for vidx, visit in enumerate(self.__visits):
-            # Target indices
-            tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
+            # Unassigned cobras
+            cidx = np.where(self.__cobra_assignments[vidx] == -1)[0]
 
-            targets = pd.DataFrame(
+            if include_unassigned_fibers:
+                unassigned = pd.DataFrame(
                     {
-                        f'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in tidx ],
-                        'pointingid': visit.pointing_idx,
-                        'visitid': vidx,
-                        'cobraid': np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
-                        'fiberid': np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
-                        'fp_x':  self.__target_fp_pos[visit.pointing_idx][tidx].real,
-                        'fp_y':  self.__target_fp_pos[visit.pointing_idx][tidx].imag,
+                        'targetid': -1,
+                        'pointing_idx': visit.pointing_idx,
+                        'visit_idx': vidx,
+                        'cobraid': cobraids[cidx],
+                        'fiberid': fiberids[cidx],
+                        'fp_x': np.nan,
+                        'fp_y': np.nan,
+                        'target_type': 'na',
+                        'fiber_status': FiberStatus.GOOD
                     }
                 )
 
-            # Find the index of each object in the catalog and return the matching fiberid
-            # targets = self.__targets.set_index('id').join(targets.set_index(f'targetid'), how='inner')
-            # targets = targets.reset_index(names=['targetid'])
+                if assignments is None:
+                    assignments = unassigned
+                else:
+                    assignments = pd.concat([ assignments, unassigned ])
+
+            if include_engineering_fibers:
+                engineering = pd.DataFrame(
+                    {
+                        'targetid': -1,
+                        'pointing_idx': visit.pointing_idx,
+                        'visit_idx': vidx,
+                        'cobraid': -1,
+                        'fiberid': np.where(mapper.data['scienceFiberId'] == mapper.ENGINEERING)[0] + 1,
+                        'fp_x': np.nan,
+                        'fp_y': np.nan,
+                        'target_type': 'eng',
+                        'fiber_status': FiberStatus.GOOD
+                    }
+                )
+
+                if assignments is None:
+                    assignments = engineering
+                else:
+                    assignments = pd.concat([ assignments, engineering ])
+
+            # Assigned targets
+            tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
+
+            targets = pd.DataFrame(
+                {
+                    'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in tidx ],
+                    'pointing_idx': visit.pointing_idx,
+                    'visit_idx': vidx,
+                    'cobraid': np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
+                    'fiberid': np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
+                    'fp_x':  self.__target_fp_pos[visit.pointing_idx][tidx].real,
+                    'fp_y':  self.__target_fp_pos[visit.pointing_idx][tidx].imag,
+                    'target_type': self.__target_cache.prefix[tidx],
+                    'fiber_status': FiberStatus.GOOD
+                }
+            )
 
             if assignments is None:
                 assignments = targets
             else:
                 assignments = pd.concat([ assignments, targets ])
 
+        # Map target prefix to PFS target type
+        assignments['target_type'] = assignments['target_type'].map(target_type_map)
+
         # Convert data type to handle Nan values
         assignments = assignments.astype({ 'fiberid': pd.Int32Dtype() })
 
-        # Include all columns if requested
-        if all_columns:
-            assignments = assignments.join(self.__targets.set_index('id'), on='targetid', how='inner')
+        # Include all columns from the target list data frame, if requested
+        if include_target_columns:
+            assignments = assignments.join(self.__targets.set_index('id'), on='targetid', how='left')
             assignments = assignments.reset_index(drop=True)
 
         return assignments
@@ -1737,3 +1817,5 @@ class Netflow():
             fiberids.append(np.array(np.int32(a['fiberid'][m])))
 
         return masks, fiberids
+
+    

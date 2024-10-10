@@ -122,3 +122,30 @@ class Observation(Catalog):
         df = self.__data[this_columns].join(other[other_columns].set_index(other_key), on='objid', how='left')
         for s, t in zip(source_columns, target_columns if target_columns is not None else source_columns):
             self.__data[t] = df[s]
+
+    def calculate_flux(self, unit=u.nJy, force=False):
+        """
+        For each magnitude in the catalog, calculate the flux and its error, if
+        not already available.
+
+        If `force` is True, then the flux is recalculated even if it is already available.
+
+        Parameters
+        ----------
+        force : bool
+            If True, recalculate the flux even if it is already available.
+        """
+
+        for p in self.photometry.values():
+            for m in p.magnitudes.values():
+                if m.get_name('obs_') in self.__data and (force or m.get_name('obs_flux_') not in self.__data):
+                    mag, mag_err = self.get_magnitude(m, observed=True, dered=False)
+                    
+                    if mag is not None:
+                        # Convert to flux in nJy using astropy
+                        flux = (np.array(mag) * u.ABmag).to_value(unit)
+                        self.__data[m.get_name('obs_flux_')] = flux
+
+                        if mag_err is not None:
+                            flux_err = flux * np.array(mag_err) * np.log(10) / 2.5
+                            self.__data[m.get_name('err_flux_')] = flux_err

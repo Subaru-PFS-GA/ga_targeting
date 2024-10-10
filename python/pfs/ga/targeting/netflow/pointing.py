@@ -6,7 +6,10 @@ class Pointing():
         """
         Create a new `Pointing` instance that describes the telescope's position
         the time of the observation and the number and length of exposures.
+
+        Note, that this object is for netflow and distinct from `projection.Pointing`.
         """
+
         self.__ra = ra
         self.__dec = dec
         self.__posang = posang

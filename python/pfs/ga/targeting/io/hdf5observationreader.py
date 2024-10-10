@@ -5,7 +5,7 @@ from .observationreader import ObservationReader
 
 class Hdf5ObservationReader(ObservationReader):
     def __init__(self, orig=None):
-        super(Hdf5ObservationReader, self).__init__(orig=orig)
+        super().__init__(orig=orig)
 
         if not isinstance(orig, Hdf5ObservationReader):
             pass
@@ -16,9 +16,11 @@ class Hdf5ObservationReader(ObservationReader):
         with h5py.File(filename, 'r') as h:
             return 'obs' in h and target in h['obs'] and inst in h['obs'][target]
 
-    def read(self, filename, target, inst, mask=None, name=None):
+    def read(self, filename, target, inst=None, mask=None, name=None):
         with h5py.File(filename, 'r') as h:
-            g = h['obs'][target][inst]
+            g = h['obs'][target]
+            if inst is not None:
+                g = g[inst]
             d = { k: g[k][()] for k in g.keys() }
         df = pd.DataFrame(d)
 
