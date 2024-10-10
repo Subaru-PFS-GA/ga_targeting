@@ -1291,21 +1291,21 @@ class Netflow():
 
         ### SLOW ###
 
-        colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
-        for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
-            for f, cidx2 in self.__variables.Tv_o[(tidx1, visit.visit_idx)]:
-                if cidx2 == cidx1:
-                    var0 = f
+        if not ignore_elbow_collisions:
+            colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
+            for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
+                for f, cidx2 in self.__variables.Tv_o[(tidx1, visit.visit_idx)]:
+                    if cidx2 == cidx1:
+                        var0 = f
 
-            for tidx2 in tidx2_list:
-                if True:  # idx2 != tidx1:
-                    vars = [ var0 ]
-                    vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, visit.visit_idx)] if cidx2 != cidx1 ]
-        
-                    name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, visit.visit_idx)
-                    constr = self.__problem.sum(vars) <= 1
-                    self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, visit.visit_idx)] = constr
-                    if not ignore_elbow_collisions:
+                for tidx2 in tidx2_list:
+                    if True:  # idx2 != tidx1:
+                        vars = [ var0 ]
+                        vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, visit.visit_idx)] if cidx2 != cidx1 ]
+            
+                        name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, visit.visit_idx)
+                        constr = self.__problem.sum(vars) <= 1
+                        self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, visit.visit_idx)] = constr
                         self.__add_constraint(name, constr)
 
     def __create_forbidden_target_constraints(self, visit):
