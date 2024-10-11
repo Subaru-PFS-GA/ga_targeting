@@ -86,7 +86,7 @@ class FeatherFluxStdReader(ObservationReader):
         #   'logg_brutus_high'
         # }
 
-        df.rename(inplace=True,columns=column_mapping)
+        df.rename(inplace=True, columns=column_mapping)
         
         c = self._create_catalog()
         c._set_data(df)

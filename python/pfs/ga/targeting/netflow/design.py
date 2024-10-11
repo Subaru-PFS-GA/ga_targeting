@@ -13,7 +13,7 @@ class Design():
         for catalog in catalogs:
             assignments = assignments.merge(catalog, on='targetid', how='left')
 
-    def get_pfsDesign_visit(visit, assignments):
+    def create_pfsDesign_visit(visit, assignments):
         """
         Generate a PfsDesign object for a given visit.
         """
@@ -36,7 +36,7 @@ class Design():
         nfibers = len(fiber_assignments)
                 
         kwargs = dict(
-            designName = 'ga_{galaxy.ID}',
+            designName = '',
             variant = 0,
             designId0 = 0,
 
@@ -44,24 +44,26 @@ class Design():
             decBoresight = visit.pointing.dec,
             posAng = visit.pointing.posang,
             arms = 'bmn',
-            fiberId = np.array(fiber_assignments.index, dtype=np.int32),
-            tract = np.array(fiber_assignments['tract'], dtype=np.int32),
-            patch = np.array(fiber_assignments['patch']),
-            ra = np.array(fiber_assignments['RA'], dtype=np.float64),
-            dec = np.array(fiber_assignments['Dec'], dtype=np.float64),
-            catId = np.array(fiber_assignments['catid'], dtype=np.int32),
-            objId = np.array(fiber_assignments['targetid'], dtype=np.int64),
-            targetType = np.array(fiber_assignments['target_type'], dtype=np.int64),
-            fiberStatus = np.array(fiber_assignments['fiber_status'], dtype=np.int64),
-            epoch = np.array(fiber_assignments['epoch']),
-            pmRa = np.array(fiber_assignments['pmra'], dtype=np.float64),
-            pmDec = np.array(fiber_assignments['pmdec'], dtype=np.float64),
-            parallax = np.array(fiber_assignments['parallax'], dtype=np.float64),
-            proposalId = np.array(fiber_assignments['proposalid']),
+            fiberId = np.array(fiber_assignments.index.astype(np.int32)),
+            tract = np.array(fiber_assignments['tract'].astype(np.int32)),
+            patch = np.array(fiber_assignments['patch'].astype(str)),
+            ra = np.array(fiber_assignments['RA'].astype(np.float64)),
+            dec = np.array(fiber_assignments['Dec'].astype(np.float64)),
+            catId = np.array(fiber_assignments['catid'].fillna(-1).astype(np.int32)),
+            objId = np.array(fiber_assignments['targetid'].fillna(-1).astype(np.int64)),
+            targetType = np.array(fiber_assignments['target_type'].fillna(-1).astype(np.int32)),
+            fiberStatus = np.array(fiber_assignments['fiber_status'].fillna(-1).astype(np.int32)),
+            epoch = np.array(fiber_assignments['epoch'].astype(str)),
+            pmRa = np.array(fiber_assignments['pmra'].astype(np.float64)),
+            pmDec = np.array(fiber_assignments['pmdec'].astype(np.float64)),
+            parallax = np.array(fiber_assignments['parallax'].astype(np.float64)),
+            proposalId = np.array(fiber_assignments['proposalid'].astype(str)),
             
             obCode = np.array(fiber_assignments['obcode']),    # TODO: this should be unique for each design
 
-            pfiNominal = np.stack([ fiber_assignments['fp_x'],  fiber_assignments['fp_y']], axis=-1).astype(float),
+            pfiNominal = np.stack([
+                 fiber_assignments['fp_x'].astype(float),
+                 fiber_assignments['fp_y'].astype(float)], axis=-1),
 
             guideStars = None,
         )
@@ -78,13 +80,3 @@ class Design():
 
         return PfsDesign(**kwargs)
     
-    def get_pfsDesign_all(self, filters, assignments=None):
-        """
-        Generate a list of PfsDesign objects for all visits.
-        """
-
-        designs = []
-        for visit in self.__visits:
-            designs.append(self.get_pfsDesign_visit(visit, filters, assignments=assignments))
-
-        return designs

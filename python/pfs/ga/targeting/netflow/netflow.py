@@ -3,6 +3,7 @@ import re
 import logging
 from typing import Callable
 from collections import defaultdict
+from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 from types import SimpleNamespace  
@@ -12,6 +13,7 @@ from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 from pfs.utils.fiberids import FiberIds
 from pfs.datamodel import TargetType, FiberStatus
 
+from .util import *
 from ..util.args import *
 from .pointing import Pointing
 from .visit import Visit
@@ -694,64 +696,65 @@ class Netflow():
     #endregion
         
     def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None):
+        
+        # Make sure that we convert to the right data type everywhere
+                       
         df = catalog.get_data(mask=mask, filter=filter)
 
-        # Collect columns
+        # Create the formatted dataset from the input catalog
         data = {
-            'id': df[id_column],
-            'RA': df['RA'],
-            'Dec': df['Dec'] 
+            'id': df[id_column].astype(np.int64).reset_index(drop=True),
+            'RA': df['RA'].astype(np.float64).reset_index(drop=True),
+            'Dec': df['Dec'].astype(np.float64).reset_index(drop=True)
         }
-
-        # Create the formatted dataset
         targets = pd.DataFrame(data)
 
         # Add proper motion and parallax, if available
         if 'pm' in df:
-            targets['pm'] = df['pm']
+            pd_append_column(targets, 'pm', df['pm'], np.float64)
         else:
-            targets['pm'] = np.nan
+            pd_append_column(targets, 'pm', np.nan, np.float64)
         
         if 'pmra' in df and 'pmdec' in df:
-            targets['pmra'] = df['pmra']
-            targets['pmdec'] = df['pmdec']
+            pd_append_column(targets, 'pmra', df['pmra'], np.float64)
+            pd_append_column(targets, 'pmdec', df['pmdec'], np.float64)
         else:
-            targets['pmra'] = np.nan
-            targets['pmdec'] = np.nan
+            pd_append_column(targets, 'pmra', np.nan, np.float64)
+            pd_append_column(targets, 'pmdec', np.nan, np.float64)
 
         if 'parallax' in df:
-            targets['parallax'] = df['parallax']
+            pd_append_column(targets, 'parallax', df['parallax'], np.float64)
         else:
-            targets['parallax'] = np.nan
+            pd_append_column(targets, 'parallax', np.nan, np.float64)
         
         # This is a per-object penalty for observing calibration targets
         if penalty is not None:
-            targets['penalty'] = penalty
+            pd_append_column(targets, 'penalty', penalty, np.int32)
         elif 'penalty' in df.columns:
-            targets['penalty'] = df['penalty']
+            pd_append_column(targets, 'penalty', df['penalty'], np.int32)
         else:
-            targets['penalty'] = 0
+            pd_append_column(targets, 'penalty', 0, np.int32)
 
-        targets['prefix'] = prefix
+        pd_append_column(targets, 'prefix', prefix, str)
 
         if prefix == 'sci':
             if exp_time is not None:
-                targets['exp_time'] = exp_time
+                pd_append_column(targets, 'exp_time', exp_time, np.float64)
             else:
-                targets['exp_time'] = df['exp_time']
+                pd_append_column(targets, 'exp_time', df['exp_time'], np.float64)
 
             if priority is not None:
-                targets['priority'] = priority
+                pd_append_column(targets, 'priority', priority, np.int32)
             else:
-                targets['priority'] = df['priority']
+                pd_append_column(targets, 'priority', df['priority'], np.int32)
 
             targets['class'] = targets[['prefix', 'priority']].apply(lambda r: f"{r['prefix']}_P{r['priority']}", axis=1)
         else:
-            targets['class'] = prefix
+            pd_append_column(targets, 'class', prefix, str)
 
             # Calibration targets have no prescribed exposure time and priority
-            targets['exp_time'] = -1
-            targets['priority'] = -1
+            pd_append_column(targets, 'exp_time', -1, np.float64)
+            pd_append_column(targets, 'priority', -1, np.int32)
 
         # Append to the existing list
         if self.__targets is None:
@@ -803,6 +806,10 @@ class Netflow():
         # Build the problem
         self.__create_visits()
         self.__calculate_target_fp_pos()
+
+        # Run a few sanity checks
+        self.__check_target_fp_pos()
+
         self.__build_ilp_problem()
                     
     def __calculate_exp_time(self):
@@ -879,6 +886,15 @@ class Netflow():
                                              pmdec=self.__target_cache.pmdec,
                                              parallax=self.__target_cache.parallax)
             self.__target_fp_pos.append(fp_pos)
+
+    def __check_target_fp_pos(self):
+        # Verify if each pointing contains a reasonable number of targets
+        # A target is accessible if it is within the 400mm radius of the PFI
+
+        for fp in self.__target_fp_pos:
+            n = np.sum(np.abs(fp) < 400)
+            if n < 100:
+                raise RuntimeError(f"Pointing contains only {n} targets within the PFI radius.")
 
     def __make_name(self, *parts):
         ### SLOW ### 4M calls!
@@ -1627,6 +1643,7 @@ class Netflow():
 
         # There are 2394 cobras in total
         # There are 2604 fibers, 2394 assigned to cobras, 64 engineering fibers and 146 empty fibers
+        # The design files contain 2458 rows, for the cobras plus the 64 engineering fibers
 
         # Internally, cidx is a 0-based index of the cobras, PFS cobraids are 1-based
         # Map the cobraIds to the corresponding fiberIds
@@ -1638,15 +1655,6 @@ class Netflow():
         # Should have the size of 2394
         cobraids = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
         fiberids = mapper.cobraIdToFiberId(cobraids)
-
-        # Map internal prefixes to PFS fiber status
-        target_type_map = {
-            'na': TargetType.UNASSIGNED,
-            'sky': TargetType.SKY,
-            'cal': TargetType.FLUXSTD,
-            'sci': TargetType.SCIENCE,
-            'eng': TargetType.ENGINEERING,
-        }
 
         # TODO: add fiber status, this should come from the bench config
         
@@ -1717,14 +1725,20 @@ class Netflow():
                 assignments = pd.concat([ assignments, targets ])
 
         # Map target prefix to PFS target type
+        # Map internal prefixes to PFS fiber status
+        target_type_map = {
+            'na': TargetType.UNASSIGNED,
+            'sky': TargetType.SKY,
+            'cal': TargetType.FLUXSTD,
+            'sci': TargetType.SCIENCE,
+            'eng': TargetType.ENGINEERING,
+        }
         assignments['target_type'] = assignments['target_type'].map(target_type_map)
 
-        # Convert data type to handle Nan values
-        assignments = assignments.astype({ 'fiberid': pd.Int32Dtype() })
-
         # Include all columns from the target list data frame, if requested
+        # Convert integer columns to nullable to avoid float conversion in join
         if include_target_columns:
-            assignments = assignments.join(self.__targets.set_index('id'), on='targetid', how='left')
+            assignments = assignments.join(pd_to_nullable(self.__targets).set_index('id'), on='targetid', how='left')
             assignments = assignments.reset_index(drop=True)
 
         return assignments

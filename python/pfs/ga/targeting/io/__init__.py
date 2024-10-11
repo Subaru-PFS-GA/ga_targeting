@@ -1,3 +1,4 @@
+from .dataframeserializer import DataFrameSerializer
 from .textobservationreader import TextObservationReader
 from .textobservationwriter import TextObservationWriter
 from .hdf5observationreader import Hdf5ObservationReader
