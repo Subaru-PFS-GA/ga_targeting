@@ -9,6 +9,7 @@ import pandas as pd
 from types import SimpleNamespace  
 
 from ics.cobraOps.Bench import Bench
+from pfs.utils.coordinates import DistortionCoefficients as DCoeff
 from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 from pfs.utils.fiberids import FiberIds
 from pfs.datamodel import TargetType, FiberStatus
@@ -349,7 +350,9 @@ class Netflow():
         If a dictionary (of settings) is provided with camelCase keys, convert them to snake_case.
         """
 
-        if isinstance(s, dict):
+        if s is None:
+            return None
+        elif isinstance(s, dict):
             return { Netflow.__camel_to_snake(k): v for k, v in s.items() }
         elif isinstance(s, list):
             return s
@@ -782,6 +785,9 @@ class Netflow():
         # Load configuration
         logging.info("Processing configuration")
 
+        # Run a few sanity checks
+        self.__check_target_visibility()
+
         # Target classes
         self.__target_classes = self.__get_target_class_config()
 
@@ -811,8 +817,23 @@ class Netflow():
         self.__check_target_fp_pos()
 
         self.__build_ilp_problem()
+
+    def __check_target_visibility(self):
+        """
+        Verify that all pointings are visible in the sky at obs_time.
+        """
+
+        for p in self.__pointings:
+            # Convert pointing center into azimuth and elevation (+ instrument rotator angle)
+            az, el, inr = DCoeff.radec_to_subaru(p.ra, p.dec, p.posang, p.obs_time,
+                                                 2000.0, pmra=0.0, pmdec=0.0, par=1e-6)
+            assert el > 0, f"Pointing is below the horizon."
                     
     def __calculate_exp_time(self):
+        """
+        Calculate the exposure time for each object.
+        """
+
         # Since targeting is done in fix quanta in time, make sure all pointings and visits
         # have the same exposure time
 
@@ -893,8 +914,7 @@ class Netflow():
 
         for fp in self.__target_fp_pos:
             n = np.sum(np.abs(fp) < 400)
-            if n < 100:
-                raise RuntimeError(f"Pointing contains only {n} targets within the PFI radius.")
+            assert n > 100, f"Pointing contains only {n} targets within the PFI radius."
 
     def __make_name(self, *parts):
         ### SLOW ### 4M calls!

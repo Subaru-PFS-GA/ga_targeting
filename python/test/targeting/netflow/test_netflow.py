@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from test_base import TestBase
 
-from pfs.ga.targeting.netflow import Netflow
+from pfs.ga.targeting.netflow import Netflow, Pointing
 from ics.cobraOps.TargetGroup import TargetGroup
 from ics.cobraOps.CollisionSimulator import CollisionSimulator
 from ics.cobraOps.Bench import Bench
@@ -12,12 +12,25 @@ from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 
 class NetflowTest(TestBase):
     def test_camel_to_snake(self):
+        self.assertIsNone(Netflow._Netflow__camel_to_snake(None))
         self.assertEqual(Netflow._Netflow__camel_to_snake('Camel'), 'camel')
         self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCase'), 'camel_case')
         self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCaseCase'), 'camel_case_case')
         self.assertEqual(Netflow._Netflow__camel_to_snake('camel'), 'camel')
         self.assertEqual(Netflow._Netflow__camel_to_snake('camelCase'), 'camel_case')
         self.assertEqual(Netflow._Netflow__camel_to_snake('camelCaseCase'), 'camel_case_case')
+
+    def test_check_target_visibility(self):
+        # Ursa Minor dSph visible
+        pointing = Pointing(226.3, 67.5, 0, "2024-06-10T00:00:00.0Z")
+        nf = Netflow(f'test', [ pointing ])
+        nf._Netflow__check_target_visibility()
+
+        # Below horizon
+        pointing = Pointing(0, 0, 0, "2016-04-03T08:00:00Z")
+        nf = Netflow(f'test', [ pointing ])
+        with self.assertRaises(AssertionError):
+            nf._Netflow__check_target_visibility()
 
     def test_netflow(self):
         obs = self.load_test_observation()
