@@ -2,19 +2,19 @@ import pandas as pd
 import numpy as np
 from collections.abc import Iterable
 
-def pd_append_column(df, c, d, dtype=None):
+def pd_append_column(df, name, data, dtype=None):
     """
     Append a column to a DataFrame by allowing to specify the data type.
     """
 
-    if isinstance(d, str):
-        df[c] = pd.Series([d] * len(df), dtype=dtype)
-    elif not isinstance(d, Iterable):
-        df[c] = pd.Series([d] * len(df), dtype=dtype)
-    elif isinstance(d, pd.Series):
-        df[c] = d.reset_index(drop=True)
+    if isinstance(data, str):
+        df[name] = pd.Series([data] * len(df), dtype=dtype)
+    elif not isinstance(data, Iterable):
+        df[name] = pd.Series([data] * len(df), dtype=dtype)
+    elif isinstance(data, pd.Series):
+        df[name] = data.reset_index(drop=True)
     else:
-        df[c] = pd.Series(d, dtype=dtype)
+        df[name] = pd.Series(data, dtype=dtype)
 
 def pd_to_nullable(df: pd.DataFrame, in_place=False) -> pd.DataFrame:
     """
@@ -33,5 +33,21 @@ def pd_to_nullable(df: pd.DataFrame, in_place=False) -> pd.DataFrame:
             df[c] = df[c].astype('Float32')
         elif df[c].dtype == np.float64:
             df[c] = df[c].astype('Float64')
+
+    return df
+
+def pd_null_to_nan(df: pd.DataFrame, in_place=False) -> pd.DataFrame:
+    """
+    Convert None values of float columns to NaN.
+    """
+
+    if not in_place:
+        df = df.copy()
+
+    for c in df:
+        if df[c].dtype == 'Float32':
+            df[c] = df[c].fillna(np.nan).astype('float32')
+        if df[c].dtype == 'Float64':
+            df[c] = df[c].fillna(np.nan).astype('float64')
 
     return df
