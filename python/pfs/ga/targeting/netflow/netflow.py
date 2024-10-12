@@ -1,6 +1,5 @@
 import os
 import re
-import logging
 from typing import Callable
 from collections import defaultdict
 from collections.abc import Iterable
@@ -14,6 +13,7 @@ from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 from pfs.utils.fiberids import FiberIds
 from pfs.datamodel import TargetType, FiberStatus
 
+from .setup_logger import logger
 from .util import *
 from ..util.args import *
 from .pointing import Pointing
@@ -188,6 +188,8 @@ class Netflow():
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped
 
+        self.__name_counter = None
+
         self.__variables = None
         self.__constraints = None
 
@@ -200,7 +202,15 @@ class Netflow():
 
         self.__visit_exp_time = None                # Exposure time of a single visit in integer seconds
         self.__targets = None                       # DataFrame of targets
+        self.__target_cache = None                  # Cached targets in numpy arrays
         self.__target_fp_pos = None                 # Target focal plane positions for each pointing
+
+        self.__target_mask = None                   # Mask for valid targets for each pointing
+        self.__target_cache_mask = None             # Mask for targets in the target cache
+        self.__target_to_cache_map = None           # Maps target index to cache index
+        self.__cache_to_target_map = None           # Maps cache index to target index
+        self.__cache_to_fp_pos_map = None           # Maps tidx to fpidx for each pointing
+        self.__fp_pos_to_cache_map = None           # Maps fpidx to tidx for each pointing
         
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
@@ -214,6 +224,21 @@ class Netflow():
         self.__name = value
 
     name = property(__get_name, __set_name)
+
+    def __get_netflow_options(self):
+        return self.__netflow_options
+
+    netflow_options = property(__get_netflow_options)
+
+    def __get_solver_options(self):
+        return self.__solver_options
+    
+    solver_options = property(__get_solver_options)
+
+    def __debug_options(self):
+        return self.__debug_options
+    
+    debug_options = property(__debug_options)
 
     def __get_pointings(self):
         return self.__pointings
@@ -403,13 +428,17 @@ class Netflow():
 
         forbidden_targets = self.__get_netflow_option('forbidden_targets', None)
         fpp = []
+        wrong_id_count = 0
         if forbidden_targets is not None:
-            # Reindex targets for faster search
-            df = self.__targets.set_index('id')
-
             for i, target_id in enumerate(forbidden_targets):            
-                tidx = df.index.get_loc(target_id)
-                fpp.append(tidx)
+                tidx = self.__target_to_cache_map[self.__targets.index.get_loc(target_id)]
+                if tidx != -1:
+                    fpp.append(tidx)
+                else:
+                    wrong_id_count += 1
+                    
+        if wrong_id_count > 0:
+            logger.warning(f"Found {wrong_id_count} forbidden targets that are outside the pointings.")
                 
         return fpp
     
@@ -420,16 +449,20 @@ class Netflow():
 
         forbidden_pairs = self.__get_netflow_option('forbidden_pairs', None)
         fpp = []
+        wrong_id_count = 0
         if forbidden_pairs is not None:
-            # Reindex targets for faster search
-            df = self.__targets.set_index('id')
-
             for i, pair in enumerate(forbidden_pairs):
                 if len(pair) != 2:
                     raise ValueError(f"Found an incorrect number of target ids in forbidden pair list at index {i}.")
             
-                tidx_list = [ df.index.get_loc(p) for p in pair ]
-                fpp.append(tidx_list)
+                tidx_list = [ self.__target_to_cache_map[self.__targets.index.get_loc(p)] for p in pair ]
+                if -1 not in tidx_list:
+                    fpp.append(tidx_list)
+                else:
+                    wrong_id_count += 1
+
+        if wrong_id_count:
+            logger.warning(f"Found {wrong_id_count} forbidden targets pairs that are outside the pointings.")
                 
         return fpp
 
@@ -556,7 +589,7 @@ class Netflow():
 
         return res
     
-    def __get_visibility_and_elbow(self, fp_pos):
+    def __get_visibility_and_elbow(self, fp_pos, fpidx_to_tidx_map):
         """
         Calculate the visibility and the corresponding elbow position for each
         target of a single visit from the focal plane positions in ˙tpos˙.
@@ -593,8 +626,10 @@ class Netflow():
         cobras_targets = defaultdict(list)
 
         for cidx in range(targets.shape[0]):
-            for i, tidx in enumerate(targets[cidx, :]):
-                if tidx >= 0:
+            for i, fpidx in enumerate(targets[cidx, :]):
+                if fpidx >= 0:
+                    # Map focal plane index to the target cache index
+                    tidx = fpidx_to_tidx_map[fpidx]
                     targets_cobras[tidx].append((cidx, elbows[cidx, i]))
                     cobras_targets[cidx].append((tidx, elbows[cidx, i]))
 
@@ -641,7 +676,7 @@ class Netflow():
                             pairs.add((i1[m], i2[n]))
         return pairs
     
-    def __get_colliding_elbows(self, fp_pos, vis_elbow, dist):
+    def __get_colliding_elbows(self, fp_pos, vis_targets_elbows, vis_cobras_targets, collision_distance, tidx_to_fpidx_map):
         """
         For each target-cobra pair, and the corresponding elbow position,
         return the list of other targets that are too close to the "upper arm" of
@@ -652,10 +687,14 @@ class Netflow():
 
         fp_pos : array
             Complex focal plane positions of the targets
-        vis_elbow: dict
+        vis_targets_elbows: dict
             Visibility, dict of (cobra ID, elbow position), keyed by target index.
-        dist:
+        vis_cobras_targets
+            Visibility, dict of (target ID, elbow position), keyed by cobra index.
+        collision_distance:
             Maximum distance causing a collision.
+        tidx_to_fpidx_map:
+            Mapping of target index to focal plane index.
 
         Returns
         =======
@@ -663,40 +702,46 @@ class Netflow():
                all possible target-cobra pairs.
         """
 
-        # TODO: speed up by vectorizing loops
-
-        # vis contains the visible cobra indices and corresponding elbow positions
-        # by target index. Invert this and build dictionaries indexed by cobra
-        # indices that contain the lists of targets with corresponding elbow positions.
-        ivis = defaultdict(list)
-        epos = defaultdict(list)    # target_index, elbow position pairs keyed by cobra_index
-        for tidx, cidx_elbow in vis_elbow.items():
-            for (cidx, elbowpos) in cidx_elbow:
-                ivis[cidx].append(tidx)
-                epos[cidx].append((tidx, elbowpos))
-
         res = defaultdict(list)
-        for cidx, tidx_elbow in epos.items():
+        for cidx, tidx_elbow in vis_cobras_targets.items():
             # Determine target indices visible by neighbors of this cobra
-            nb = self.__bench.getCobraNeighbors(cidx)       # list of cobra_index
-            tmp = [ epos[j] for j in nb if j in epos ]      # all targets visible by neighboring cobras
+            
+            # List of neighboring cobra_index
+            nb = self.__bench.getCobraNeighbors(cidx)       
+
+            # All targets and elbow positions visible by neighboring cobras
+            # tmp = [ vis_cobras_targets[j] for j in nb if j in vis_cobras_targets ]
+            tmp = [ ti for j in nb if j in vis_cobras_targets for ti, _ in vis_cobras_targets[j] ]
+
             if len(tmp) > 0:
-                i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
-                i2 = np.unique(i2).astype(int)
+                # Unique list of target indices visible by neighboring cobras
+                i2 = np.unique(tmp)
 
                 # For each target visible by this cobra and the corresponding elbow
                 # position, find all targets which are too close to the "upper arm"
                 # of the cobra
                 for tidx, elbowpos in tidx_elbow:
-                    ebp = np.full(len(i2), elbowpos)
-                    tp = np.full(len(i2), fp_pos[tidx])
-                    ti2 = fp_pos[i2]
+                    ebp = np.full(len(i2), elbowpos)                            # elbow position of the cobra
+                    tp = np.full(len(i2), fp_pos[tidx_to_fpidx_map[tidx]])      # target position
+                    ti2 = fp_pos[tidx_to_fpidx_map[i2]]                         # target positions of the neighbors
                     d = self.__bench.distancesToLineSegments(ti2, tp, ebp)
-                    res[(cidx, tidx)] += list(i2[d < dist])
+                    res[(cidx, tidx)] += list(i2[d < collision_distance])
 
         return res
 
     #endregion
+
+    def __filter_targets(self, data: pd.DataFrame, pointings):
+        # Filter down the data to the field of view, this saves a lot of time
+        # when calculating the focal plane positions
+        mask = []
+        cc = SkyCoord(np.array(data['RA']) * u.deg, np.array(data['Dec']) * u.deg)
+        for p in pointings:
+            pp = SkyCoord(p.ra * u.deg, p.dec * u.deg)
+            sep = cc.separation(pp).degree
+            mask.append(sep < 0.75)
+
+        return mask
         
     def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None):
         
@@ -756,7 +801,7 @@ class Netflow():
             pd_append_column(targets, 'class', prefix, str)
 
             # Calibration targets have no prescribed exposure time and priority
-            pd_append_column(targets, 'exp_time', -1, np.float64)
+            pd_append_column(targets, 'exp_time', np.nan, np.float64)
             pd_append_column(targets, 'priority', -1, np.int32)
 
         # Append to the existing list
@@ -783,10 +828,15 @@ class Netflow():
     def build(self):
         """Construct the ILP problem"""
         # Load configuration
-        logging.info("Processing configuration")
+        logger.info("Processing netflow configuration")
 
         # Run a few sanity checks
-        self.__check_target_visibility()
+        self.__check_pointing_visibility()
+
+        # Optimize data access
+        self.__calculate_exp_time()
+        self.__calculate_target_visits()
+        self.__cache_targets()
 
         # Target classes
         self.__target_classes = self.__get_target_class_config()
@@ -804,11 +854,6 @@ class Netflow():
         # Science program time budgets
         self.__time_budgets = self.__get_time_budget_config()
 
-        # Optimize data access
-        self.__calculate_exp_time()
-        self.__calculate_target_visits()
-        self.__cache_targets()
-
         # Build the problem
         self.__create_visits()
         self.__calculate_target_fp_pos()
@@ -818,7 +863,7 @@ class Netflow():
 
         self.__build_ilp_problem()
 
-    def __check_target_visibility(self):
+    def __check_pointing_visibility(self):
         """
         Verify that all pointings are visible in the sky at obs_time.
         """
@@ -862,7 +907,7 @@ class Netflow():
         # Calculate the number of required visits from the exposure time
         # The default is 0 for the non-science targets
         self.__targets['req_visits'] = 0
-        self.__targets['req_visits'][sci] = np.int64(np.ceil(self.__targets['exp_time'][sci] / self.__visit_exp_time))
+        self.__targets.loc[sci, 'req_visits'] = np.int32(np.ceil(self.__targets['exp_time'][sci] / self.__visit_exp_time))
 
         max_req_visits = self.__targets['req_visits'].max()
         for p in self.__pointings:
@@ -871,21 +916,40 @@ class Netflow():
 
     def __cache_targets(self):
         """Extract the contents of the Pandas DataFrame for faster indexed access."""
-    
+
+        # Sort targets by id, if not already
+        if 'id' in self.__targets.columns:
+            self.__targets = self.__targets.set_index('id').sort_index()
+
+        # Determine the target mask that filters out targets
+        # that are outside the field of view
+        mask = self.__filter_targets(self.__targets, self.__pointings)
+        mask_any = np.any(np.stack(mask, axis=-1), axis=-1)
+
+        self.__target_mask = mask
+        self.__target_cache_mask = mask_any
+
+        # Map target index to cache index
+        self.__target_to_cache_map = np.full(len(self.__targets), -1, dtype=np.int32)
+        self.__target_to_cache_map[mask_any] = np.arange(np.sum(mask_any))
+        
+        # Map cache index to target index
+        self.__cache_to_target_map = np.where(mask_any)[0]
+
         self.__target_cache = SimpleNamespace(
-            id = np.array(self.__targets['id'].astype(np.int64)),
-            ra = np.array(self.__targets['RA'].astype(np.float64)),
-            dec = np.array(self.__targets['Dec'].astype(np.float64)),
-            pm = np.array(self.__targets['pm'].astype(np.float64)),
-            pmra = np.array(self.__targets['pmra'].astype(np.float64)),
-            pmdec = np.array(self.__targets['pmdec'].astype(np.float64)),
-            parallax = np.array(self.__targets['parallax'].astype(np.float64)),
-            target_class = np.array(self.__targets['class'].astype(str)),
-            prefix = np.array(self.__targets['prefix'].astype(str)),
-            req_visits = np.array(self.__targets['req_visits'].astype(np.int32)),
-            done_visits = np.array(self.__targets['done_visits'].astype(np.int32)),
-            penalty = np.array(self.__targets['penalty'].astype(np.int32)),
-        )
+                id = np.array(self.__targets.index[mask_any].astype(np.int64)),
+                ra = np.array(self.__targets['RA'][mask_any].astype(np.float64)),
+                dec = np.array(self.__targets['Dec'][mask_any].astype(np.float64)),
+                pm = np.array(self.__targets['pm'][mask_any].astype(np.float64)),
+                pmra = np.array(self.__targets['pmra'][mask_any].astype(np.float64)),
+                pmdec = np.array(self.__targets['pmdec'][mask_any].astype(np.float64)),
+                parallax = np.array(self.__targets['parallax'][mask_any].astype(np.float64)),
+                target_class = np.array(self.__targets['class'][mask_any].astype(str)),
+                prefix = np.array(self.__targets['prefix'][mask_any].astype(str)),
+                req_visits = np.array(self.__targets['req_visits'][mask_any].astype(np.int32)),
+                done_visits = np.array(self.__targets['done_visits'][mask_any].astype(np.int32)),
+                penalty = np.array(self.__targets['penalty'][mask_any].astype(np.int32)),
+            )
 
     def __create_visits(self):
         self.__visits = []
@@ -898,14 +962,34 @@ class Netflow():
                 visit_idx += 1
 
     def __calculate_target_fp_pos(self):
+        """
+        Calculate the focal plane positions for each pointing. Limit the targets to
+        those that are within the field of view of the PFI.
+        """
+
         self.__target_fp_pos = []
-        for p in self.__pointings:
+        self.__fp_pos_to_cache_map = []
+        self.__cache_to_fp_pos_map = []
+
+        for pidx, p in enumerate(self.__pointings):
+            # Select targets that are within the field of view of the pointing
+            mask = self.__target_mask[pidx][self.__target_cache_mask]
+
+            # Create the mappings between the target cache index and the focal plane positions index
+            map1 = np.where(mask)[0]
+            map2 = np.full(len(mask), -1, dtype=np.int32)
+            map2[map1] = np.arange(len(map1))
+            self.__fp_pos_to_cache_map.append(map1)
+            self.__cache_to_fp_pos_map.append(map2)
+            
+            # Calculate the focal plane positions of the targets for the pointing
             fp_pos = self.__calculate_fp_pos(p, 
-                                             self.__target_cache.ra,
-                                             self.__target_cache.dec,
-                                             pmra=self.__target_cache.pmra,
-                                             pmdec=self.__target_cache.pmdec,
-                                             parallax=self.__target_cache.parallax)
+                                             self.__target_cache.ra[mask],
+                                             self.__target_cache.dec[mask],
+                                             pmra=self.__target_cache.pmra[mask],
+                                             pmdec=self.__target_cache.pmdec[mask],
+                                             parallax=self.__target_cache.parallax[mask])
+            
             self.__target_fp_pos.append(fp_pos)
 
     def __check_target_fp_pos(self):
@@ -916,13 +1000,14 @@ class Netflow():
             n = np.sum(np.abs(fp) < 400)
             assert n > 100, f"Pointing contains only {n} targets within the PFI radius."
 
-    def __make_name(self, *parts):
+    def __make_name_full(self, *parts):
         ### SLOW ### 4M calls!
         return "_".join(str(x) for x in parts)
 
-        # name = hex(self.__name_counter)
-        # self.__name_counter += 1
-        # return name
+    def __make_name_short(self, *parts):
+        name = hex(self.__name_counter)
+        self.__name_counter += 1
+        return name
     
     def __init_problem(self):
         self.__problem = self.__problem_type(self.__name, self.__solver_options)
@@ -996,6 +1081,13 @@ class Netflow():
         Construct the ILP problem by defining the variables and constraints.
         """
 
+        use_named_variables = self.__get_netflow_option('use_named_variables', False)
+        if use_named_variables:
+            self.__make_name = self.__make_name_full
+        else:
+            self.__name_counter = 0
+            self.__make_name = self.__make_name_short
+
         # Number of visits
         nvisits = len(self.__visits)
 
@@ -1003,11 +1095,11 @@ class Netflow():
         self.__init_variables()
         self.__init_constraints()
 
-        logging.info("Calculating target visibilities")
+        logger.info("Calculating target visibilities")
 
         vis_targets_elbows, vis_cobras_targets = self.__calculate_visibilities()
 
-        logging.info("Creating network topology")
+        logger.info("Creating network topology")
 
         # Create science target class variables which are independent
         # of visit because we want multiple visits of the same target.
@@ -1021,41 +1113,55 @@ class Netflow():
         
         # Create the variables for each visit of every pointing
         for visit_idx, visit in enumerate(self.__visits):
-            logging.info(f'Processing visit {visit_idx + 1}.')
+            logger.info(f'Processing visit {visit_idx + 1}.')
 
             # Create calibration target class variables and define cost
             # for each calibration target class. These are different for each visit
             # because we don't necessarily need the same calibration targets at each visit.
             # > CTCv_sink_{target_class}_{visit_idx}
-            logging.debug("Creating calibration target class variables.")
+            logger.debug("Creating calibration target class variables.")
             self.__create_calib_target_class_variables(visit)
 
             # > T_Tv_{visit_idx}[target_idx]
             # > CTCv_Tv_{visit_idx}[target_idx]
             # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
-            logging.debug("Creating target and cobra visit variables.")
-            self.__create_visit_variables(visit, vis_targets_elbows[visit.pointing_idx], vis_cobras_targets[visit.pointing_idx])
+            logger.debug("Creating target and cobra visit variables.")
+            self.__create_visit_variables(visit,
+                                          vis_targets_elbows[visit.pointing_idx],
+                                          vis_cobras_targets[visit.pointing_idx])
 
             # > Tv_o_coll_{?}_{?}_{visit_idx} (endpoint collisions)
             # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx} (elbow collisions)
-            logging.debug("Creating cobra collision constraints.")
-            self.__create_cobra_collision_constraints(visit, vis_targets_elbows[visit.pointing_idx])
+            logger.debug("Creating cobra collision constraints.")
+            self.__create_cobra_collision_constraints(visit,
+                                                      vis_targets_elbows[visit.pointing_idx],
+                                                      vis_cobras_targets[visit.pointing_idx])
 
-            logging.debug("Adding cobra non-allocation cost terms.")
+            logger.debug("Adding cobra non-allocation cost terms.")
             self.__add_cobra_non_allocation_cost(visit)
 
             # Add constraints for forbidden targets and forbidden pairs
-            if self.__forbidden_targets is not None and len(self.__forbidden_targets) > 0:
-                # > Tv_o_forb_{tidx}_{tidx}_{visit_idx}
-                logging.debug("Adding forbidden target constraints")
-                self.__create_forbidden_target_constraints(visit)
+            ignore_forbidden_targets = self.__get_debug_option('ignore_forbidden_targets', False)
+            if not ignore_forbidden_targets:
+                if self.__forbidden_targets is not None and len(self.__forbidden_targets) > 0:
+                    # > Tv_o_forb_{tidx}_{tidx}_{visit_idx}
+                    logger.debug("Adding forbidden target constraints")
+                    self.__create_forbidden_target_constraints(visit)
+            else:
+                 logger.debug("Ignored forbidden target constraints")
 
-            if self.__forbidden_pairs is not None and len(self.__forbidden_pairs) > 0:
-                # > Tv_o_forb_{tidx1}_{tidx2}_{visit_idx}
-                logging.debug("Adding forbidden pair constraints")
-                self.__create_forbidden_pair_constraints(visit)
+            ignore_forbidden_pairs = self.__get_debug_option('ignore_forbidden_pairs', False)
+            if not ignore_forbidden_pairs:
+                if self.__forbidden_pairs is not None and len(self.__forbidden_pairs) > 0:
+                    # > Tv_o_forb_{tidx1}_{tidx2}_{visit_idx}
+                    logger.debug("Adding forbidden pair constraints")
+                    self.__create_forbidden_pair_constraints(visit)
+            else:
+                logger.debug("Ignroed forbidden pair constraints")
         
-        logging.info("Adding constraints")
+        logger.info("Adding constraints")
+
+        # TODO: add log message in function beyond this point
 
         # The total number of science targets per target class must be balanced and
         # the minimum and maximum number of targets to be observed within
@@ -1102,9 +1208,20 @@ class Netflow():
     def __calculate_visibilities(self):
         vis_targets_elbows = []
         vis_cobras_targets = []
-        for pointing_idx, pointing in enumerate(self.__pointings):
-            logging.info(f'Processing pointing {pointing_idx + 1}.')
-            vte, vct = self.__get_visibility_and_elbow(self.__target_fp_pos[pointing_idx])
+        for pidx, pointing in enumerate(self.__pointings):
+            logger.info(f'Processing pointing {pidx + 1}.')
+
+            # Get the target visibility and elbow positions for each target roughly within the pointing
+            fp_pos = self.__target_fp_pos[pidx]
+            fpidx_to_tidx_map = self.__fp_pos_to_cache_map[pidx]
+            vte, vct = self.__get_visibility_and_elbow(fp_pos, fpidx_to_tidx_map)
+
+            # vte.keys() -> index into the target_cache
+            # vte values -> (cidx, elbow position)
+            
+            # vct keys() -> cobra index
+            # vct values -> (tidx, elbow position), where tidx is the index into the target_cache
+
             vis_targets_elbows.append(vte)
             vis_cobras_targets.append(vct)
 
@@ -1199,7 +1316,8 @@ class Netflow():
         # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
         for cidx, tidx_elbow in vis_cobras_targets.items():
             tidx = np.array([ ti for ti, _ in tidx_elbow ], dtype=int)
-            self.__create_Tv_Cv_CG(visit, cidx, tidx)
+            tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
+            self.__create_Tv_Cv_CG(visit, cidx, tidx, tidx_to_fpidx_map)
 
     def __create_T_Tv(self, visit, tidx):
         """
@@ -1231,7 +1349,7 @@ class Netflow():
             self.__variables.Tv_i[(ti, visit.visit_idx)].append(f)
             self.__variables.CTCv_o[(target_class, visit.visit_idx)].append(f)
 
-    def __create_Tv_Cv_CG(self, visit, cidx, tidx):
+    def __create_Tv_Cv_CG(self, visit, cidx, tidx, tidx_to_fpidx_map):
         # Calculate the cost for each target - cobra assignment
         cost = np.zeros_like(tidx, dtype=float)
         
@@ -1242,18 +1360,21 @@ class Netflow():
         # Cost of moving the cobra away from the center
         cobra_move_cost = self.__get_netflow_option('cobra_move_cost', None)
         if cobra_move_cost is not None:
-            dist = np.abs(self.__bench.cobras.centers[cidx] - self.__target_fp_pos[visit.pointing_idx][tidx])
+            dist = np.abs(self.__bench.cobras.centers[cidx] - 
+                          self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]])
             cost += cobra_move_cost(dist)
         
         # Cost of closest black dots for each cobra
         if self.__black_dots is not None:
-            dist = np.min(np.abs(self.__black_dots.black_dot_list[cidx] - self.__target_fp_pos[visit.pointing_idx][tidx]))
+            dist = np.min(np.abs(self.__black_dots.black_dot_list[cidx] - 
+                                 self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]]))
             cost += self.__black_dots.black_dot_penalty(dist)
 
         # Create LP variables
         name = self.__make_name("Tv_Cv", visit.visit_idx, cidx)
         vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
 
+        # TODO: can these be created in batch mode?
         for ti in tidx:
             f = vars[ti]
             target_class = self.__target_cache.target_class[ti]
@@ -1284,9 +1405,12 @@ class Netflow():
     #endregion
     #region Constraints
 
-    def __create_cobra_collision_constraints(self, visit, vis_elbow):
+    def __create_cobra_collision_constraints(self, visit, vis_targets_elbows, vis_cobras_targets):
+        ignore_endpoint_collisions = self.__get_debug_option('ignore_endpoint_collisions', False)
+        ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
+        
         # Add constraints 
-        logging.debug(f"Adding constraints for visit {visit.visit_idx}")
+        logger.debug(f"Adding constraints for visit {visit.visit_idx}")
 
         # Avoid endpoint or elbow collisions
         collision_distance = self.__get_netflow_option('collision_distance', 0.0)
@@ -1294,62 +1418,65 @@ class Netflow():
         
         if collision_distance > 0.0:
             if not elbow_collisions:
-                # > Tv_o_coll_{?}_{?}_{visit_idx}
-                logging.debug("Adding endpoint collision constraints")
-                self.__create_endpoint_collision_constraints(visit, vis_elbow, collision_distance)
+                if not ignore_endpoint_collisions:
+                    # > Tv_o_coll_{?}_{?}_{visit_idx}
+                    logger.debug("Adding endpoint collision constraints")
+                    self.__create_endpoint_collision_constraints(visit, vis_targets_elbows, collision_distance)
+                else:
+                    logger.debug("Ignoring endpoint collision constraints")
             else:
-                # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
-                logging.debug("Adding elbow collision constraints")
-                self.__create_elbow_collision_constraints(visit, vis_elbow, collision_distance)
+                if not ignore_elbow_collisions:
+                    # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
+                    logger.debug("Adding elbow collision constraints")
+                    self.__create_elbow_collision_constraints(visit, vis_targets_elbows, vis_cobras_targets, collision_distance)
+                else:
+                    logger.debug("Ignoring elbow collision constraints")
                 
     def __create_endpoint_collision_constraints(self, visit, vis_elbow, collision_distance):
-        ignore_endpoint_collisions = self.__get_debug_option('ignore_endpoint_collisions', False)
+        # Determine target indices visible by this cobra and its neighbors
+        colliding_pairs = self.__get_colliding_pairs(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
+        keys = self.__variables.Tv_o.keys()
+        keys = set(key[0] for key in keys if key[1] == visit.visit_idx)
+        for p in colliding_pairs:
+            if p[0] in keys and p[1] in keys:
+                vars = [ v for v, cidx in self.__variables.Tv_o[(p[0], visit.visit_idx)] ] + \
+                        [ v for v, cidx in self.__variables.Tv_o[(p[1], visit.visit_idx)] ]
+                name = self.__make_name("Tv_o_coll", p[0], p[1], visit.visit_idx)
+                constr = self.__problem.sum(vars) <= 1
+                self.__constraints.Tv_o_coll[(p[0], p[1], visit.visit_idx)] = constr
+                self.__add_constraint(name, constr)
 
-        if not ignore_endpoint_collisions:
-            # Determine target indices visible by this cobra and its neighbors
-            colliding_pairs = self.__get_colliding_pairs(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
-            keys = self.__variables.Tv_o.keys()
-            keys = set(key[0] for key in keys if key[1] == visit.visit_idx)
-            for p in colliding_pairs:
-                if p[0] in keys and p[1] in keys:
-                    vars = [ v for v, cidx in self.__variables.Tv_o[(p[0], visit.visit_idx)] ] + \
-                           [ v for v, cidx in self.__variables.Tv_o[(p[1], visit.visit_idx)] ]
-                    name = self.__make_name("Tv_o_coll", p[0], p[1], visit.visit_idx)
-                    constr = self.__problem.sum(vars) <= 1
-                    self.__constraints.Tv_o_coll[(p[0], p[1], visit.visit_idx)] = constr
-                    self.__add_constraint(name, constr)
-
-    def __create_elbow_collision_constraints(self, visit, vis_elbow, collision_distance):
+    def __create_elbow_collision_constraints(self, visit, vis_targets_elbows, vis_cobras_targets, collision_distance):
         # Determine targets accessible by two different cobras that would cause an elbow collision
         # colliding_elbows contains a list of tidx keyed by cidx and tidx
 
-        ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
-
         ### SLOW ###
 
-        if not ignore_elbow_collisions:
-            colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
-            for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
-                for f, cidx2 in self.__variables.Tv_o[(tidx1, visit.visit_idx)]:
-                    if cidx2 == cidx1:
-                        var0 = f
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
+        colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[visit.pointing_idx],
+                                                        vis_targets_elbows,
+                                                        vis_cobras_targets,
+                                                        collision_distance,
+                                                        tidx_to_fpidx_map)
+        for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
+            for f, cidx2 in self.__variables.Tv_o[(tidx1, visit.visit_idx)]:
+                if cidx2 == cidx1:
+                    var0 = f
 
-                for tidx2 in tidx2_list:
-                    if True:  # idx2 != tidx1:
-                        vars = [ var0 ]
-                        vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, visit.visit_idx)] if cidx2 != cidx1 ]
-            
-                        name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, visit.visit_idx)
-                        constr = self.__problem.sum(vars) <= 1
-                        self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, visit.visit_idx)] = constr
-                        self.__add_constraint(name, constr)
+            for tidx2 in tidx2_list:
+                if True:  # idx2 != tidx1:
+                    vars = [ var0 ]
+                    vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, visit.visit_idx)] if cidx2 != cidx1 ]
+        
+                    name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, visit.visit_idx)
+                    constr = self.__problem.sum(vars) <= 1
+                    self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, visit.visit_idx)] = constr
+                    self.__add_constraint(name, constr)
 
     def __create_forbidden_target_constraints(self, visit):
         """
         Create the constraints prohibiting individual targets being observed in any visit.
         """
-
-        ignore_forbidden_targets = self.__get_debug_option('ignore_forbidden_targets', False)
 
         # All edges of visible targets, relevant for this visit
         tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
@@ -1359,8 +1486,7 @@ class Netflow():
                 name = self.__make_name("Tv_o_forb", tidx, tidx, visit.visit_idx)
                 constr = self.__problem.sum(flows) == 0
                 self.__constraints.Tv_o_forb[(tidx, tidx, visit.visit_idx)] = constr
-                if not ignore_forbidden_targets:
-                    self.__add_constraint(name, constr)
+                self.__add_constraint(name, constr)
 
     def __create_forbidden_pair_constraints(self, visit):
         """
@@ -1369,8 +1495,6 @@ class Netflow():
          
         This constraint is independent of the cobra collision constraints.
         """
-
-        ignore_forbidden_pairs = self.__get_debug_option('ignore_forbidden_pairs', False)
 
         # All edges of visible targets, relevant for this visit
         tidx_set = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == visit.visit_idx)
@@ -1382,8 +1506,7 @@ class Netflow():
                 name = self.__make_name("Tv_o_forb", tidx1, tidx2, visit.visit_idx)
                 constr = self.__problem.sum(flows) <= 1
                 self.__constraints.Tv_o_forb[(tidx1, tidx2, visit.visit_idx)] = constr
-                if not ignore_forbidden_pairs:
-                    self.__add_constraint(name, constr)
+                self.__add_constraint(name, constr)
 
     def __create_science_target_class_constraints(self):
         # Science targets must be either observed or go to the sink
@@ -1613,7 +1736,8 @@ class Netflow():
                         set_assigment(tidx, cidx, vidx)
         else:
             # This also works when only the LP problem is loaded back from a file
-            # but it's much slower
+            # but it's much slower. It also requires that the problem is build with
+            # full variable names.
             for k1, v1 in self.__problem._variables.items():
               if k1.startswith("Tv_Cv_"):
                     if self.__problem.get_value(v1) > 0:
@@ -1724,16 +1848,17 @@ class Netflow():
 
             # Assigned targets
             tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
+            fpidx = self.__cache_to_fp_pos_map[visit.pointing_idx][tidx]
 
             targets = pd.DataFrame(
                 {
-                    'targetid': [ np.int64(self.__targets.iloc[ti]['id']) for ti in tidx ],
+                    'targetid': self.__target_cache.id[tidx],
                     'pointing_idx': visit.pointing_idx,
                     'visit_idx': vidx,
                     'cobraid': np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
                     'fiberid': np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
-                    'fp_x':  self.__target_fp_pos[visit.pointing_idx][tidx].real,
-                    'fp_y':  self.__target_fp_pos[visit.pointing_idx][tidx].imag,
+                    'fp_x':  self.__target_fp_pos[visit.pointing_idx][fpidx].real,
+                    'fp_y':  self.__target_fp_pos[visit.pointing_idx][fpidx].imag,
                     'target_type': self.__target_cache.prefix[tidx],
                     'fiber_status': FiberStatus.GOOD
                 }
@@ -1758,22 +1883,26 @@ class Netflow():
         # Include all columns from the target list data frame, if requested
         # Convert integer columns to nullable to avoid float conversion in join
         if include_target_columns:
-            assignments = assignments.join(pd_to_nullable(self.__targets).set_index('id'), on='targetid', how='left')
+            assignments = assignments.join(pd_to_nullable(self.__targets), on='targetid', how='left')
             assignments = assignments.reset_index(drop=True)
+
+        # Make sure float columns contain NaN instead of None
+        pd_null_to_nan(assignments, in_place=True)
 
         return assignments
     
     def get_target_assignments_masks(self):
         """
-        Returns a list of masks that index the assigned targets within the target list.
+        Returns a list of masks that indexes the assigned targets within the target list.
         """
 
         masks = []
         fiberids = []
         for i, p in enumerate(self.__visits):
-            m = np.full(len(self.__targets), False, dtype=bool)
-            m[list(self.__target_assignments[i].keys())] = True
-            masks.append(m)
+            tidx = self.__cache_to_target_map[np.array(list(self.__target_assignments[i].keys()))]
+            mask = np.full(len(self.__targets), False, dtype=bool)
+            mask[tidx] = True
+            masks.append(mask)
             fiberids.append(np.array(self.__target_assignments[i].values()))
 
         return masks, fiberids
@@ -1791,8 +1920,8 @@ class Netflow():
         num_assignments = np.sum(np.stack(all_assignments, axis=-1), axis=-1)
 
         targets = self.__targets.copy()
-        targets.rename(columns={ 'id': 'targetid' }, inplace=True)
         targets['num_visits'] = num_assignments
+        targets.reset_index(names='targetid', inplace=True)
 
         return targets
 
@@ -1802,54 +1931,5 @@ class Netflow():
                 return c
         
         raise RuntimeError()
-    
-    def get_catalog_assignments(self, catalog):
-        """
-        Cross-references the provided catalog with the target assignments and returns a list of
-        data frames for each visit with two columns: the object IDs and the fiber ID.
-
-        Parameters:
-        -----------
-        catalog: Catalog
-            The catalog to cross-reference with the target assignments.
-        """
-
-        idcol = self.__get_idcol(catalog)
-
-        assignments = []
-        for i, p in enumerate(self.__visits):
-            idx = np.array([ k for k in self.__target_assignments[i] ])                   # Target indices
-
-            targets = pd.DataFrame(
-                    {
-                        f'target_{idcol}': [ np.int64(self.__targets.iloc[ti]['id']) for ti in idx ],
-                        'fiberid': np.array([ self.__target_assignments[i][k] for k in idx ]) 
-                    }
-                ).astype({ 'fiberid': pd.Int32Dtype() }).set_index(f'target_{idcol}')
-
-            # Find the index of each object in the catalog and return the matching fiberid
-            assign = catalog.data[[idcol]].set_index(idcol).join(targets, how='left').reset_index()
-            assignments.append(assign)
-
-        return assignments
-
-    def get_catalog_assignments_masks(self, catalog):
-        """
-        Returns a mask that indexes the selected targets within a catalog.
-        """
-
-        idcol = self.__get_idcol(catalog)
-        assignments = self.get_catalog_assignments(catalog)
-        masks = []
-        fiberids = []
-        for i, p in enumerate(self.__visits):
-            # Boolean array of targets that have fibers assigned to
-            # Join is required because assignments might be ordered differently than catalog.data
-            a = catalog.data[[idcol]].join(assignments[i].set_index(idcol), on=idcol)
-            m = ~pd.isna(a['fiberid'])
-            masks.append(np.array(m))
-            fiberids.append(np.array(np.int32(a['fiberid'][m])))
-
-        return masks, fiberids
 
     
