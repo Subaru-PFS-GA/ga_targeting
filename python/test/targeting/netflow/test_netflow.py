@@ -1,14 +1,19 @@
 import os
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.time import Time
 
 from test_base import TestBase
 
-from pfs.ga.targeting.netflow import Netflow, Pointing
 from ics.cobraOps.TargetGroup import TargetGroup
 from ics.cobraOps.CollisionSimulator import CollisionSimulator
 from ics.cobraOps.Bench import Bench
 from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
+
+import pfs.ga.targeting
+from pfs.ga.targeting.netflow import Netflow, Pointing
+from pfs.ga.targeting.data import Observation
 
 class NetflowTest(TestBase):
     def test_camel_to_snake(self):
@@ -22,157 +27,205 @@ class NetflowTest(TestBase):
 
     def test_check_target_visibility(self):
         # Ursa Minor dSph visible
-        pointing = Pointing(226.3, 67.5, 0, "2024-06-10T00:00:00.0Z")
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"))
         nf = Netflow(f'test', [ pointing ])
         nf._Netflow__check_target_visibility()
 
         # Below horizon
-        pointing = Pointing(0, 0, 0, "2016-04-03T08:00:00Z")
+        pointing = Pointing(0, 0, 0, Time("2016-04-03T08:00:00Z"))
         nf = Netflow(f'test', [ pointing ])
         with self.assertRaises(AssertionError):
             nf._Netflow__check_target_visibility()
 
-    def test_netflow(self):
+    def test_filter_targets(self):
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1)
+        nf = Netflow(f'test', [ pointing ])
+
         obs = self.load_test_observation()
-        cmd, _ = self.get_test_cmd()
-        sel = self.get_test_color_selection(cmd)
+        nf._Netflow__filter_targets(obs.data, [ pointing])
 
-        mask = sel.apply(obs)
+    def test_cache_targets(self):
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        obs = self.load_test_observation()
+        nf = Netflow(f'test', [ pointing ])
+        nf.append_science_targets(obs, exp_time=1200, priority=1)
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
         
-        targets = []
-        ids = obs.get_id(mask=mask)
-        coords = obs.get_coords(mask=mask)
-        for id, ra, dec in zip(ids, *coords):
-            exp_time = 1200
-            priority = 1
-            prefix = 'sci'
-            s = ScienceTarget(id, ra, dec, exp_time, priority, prefix)
+        nf._Netflow__cache_targets()
 
-            targets.append(s)
+    def test_calculate_target_fp_pos(self):
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        obs = self.load_test_observation()
+        nf = Netflow(f'test', [ pointing ])
+        nf.append_science_targets(obs, exp_time=1200, priority=1)
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
 
-        ra = coords[0].mean()
-        dec = coords[1].mean()
-        targets.append(CalibTarget(id, ra, dec, 'cal'))
-        targets.append(CalibTarget(id, ra, dec, 'sky'))
+        nf._Netflow__calculate_target_fp_pos()
+        nf._Netflow__check_target_fp_pos()
 
-        bench = Bench(layout="full")
+    def get_gurobi_options(self):
+        return dict(
+            seed=0,                 # random seed
+            presolve=2,             # agressiveness of presolve which tries to eliminate variables from the LP problem
+            method=3,               # 3 means concurrent, 4 means deterministic concurrent
+            degenmoves=0,           # degenerate simplex moves, set to 0 to prevent too much time to be spent on trying to improve the current solution
+            heuristics=0.5,         # how much of the time to spend by performing heuristics
+            mipfocus=1,             # mipfocus=1 is balanced toward finding more feasible solutions
+                                    # mipfocus=2 is balanced toward proving that the current solution is the best
+                                    # mipfocus=3 is to be used when the objection bound is moving very slowly
+            mipgap=0.01,            # relative stopping criterion for bounds on the objective
+            LogToConsole=1,         # 
+            timelimit=300           # in sec
+        )
+    
+    def get_target_classes(self):
+        target_classes = {
+            # 'sky': dict(
+            #     prefix = 'sky',
+            #     min_targets = 240,
+            #     max_targets = 320,
+            #     non_observation_cost = 0,
+            # ),
+            # 'cal': dict(
+            #     prefix = 'cal',
+            #     min_targets = 40,
+            #     max_targets = 240,
+            #     non_observation_cost = 0,
+            #     calib = True,
+            # ),
+        }
+    
+        for i in range(10):
+            target_classes[f'sci_P{i}'] = dict(
+                prefix = 'sci',
+                min_targets = None,
+                max_targets = None,
+                non_observation_cost = max(20 - 2 * i, 1),
+                partial_observation_cost = 1e5,
+            )
 
-        nvisit = 1
+        target_classes[f'sci_P0']['non_observation_cost'] = 1000
+        target_classes[f'sci_P1']['non_observation_cost'] = 500
+        target_classes[f'sci_P2']['non_observation_cost'] = 200
+        target_classes[f'sci_P3']['non_observation_cost'] = 100
+        target_classes[f'sci_P4']['non_observation_cost'] = 100
+        target_classes[f'sci_P5']['non_observation_cost'] = 100
+        target_classes[f'sci_P6']['non_observation_cost'] = 100
+        target_classes[f'sci_P7']['non_observation_cost'] = 50
+        target_classes[f'sci_P8']['non_observation_cost'] = 10
+        target_classes[f'sci_P9']['non_observation_cost'] = 0
 
-        telescopes = []
-        forbiddenPairs = []
-        for _ in range(nvisit):
-            tra = ra + np.random.normal() * 1e-2
-            tdec = dec + np.random.normal() * 1e-2
-            posang = 0.
-            obs_time = "2016-04-03T08:00:00Z"
-            telescope = Telescope(tra, tdec, posang, obs_time)
-            telescopes.append(telescope)
+        return target_classes
 
-            forbiddenPairs.append([])
+    def get_cobra_groups(self):
+        cobra_groups = {
+            # 'location': dict(
+            #     groups = np.random.randint(4, size=ncobras),
+            #     target_classes = [ 'sky' ],
+            #     min_targets = 40,
+            #     max_targets = 80,
+            #     non_observation_cost = 10,
+            # ),
+            # 'instrument': dict(
+            #     groups = np.random.randint(4, size=ncobras),
+            #     target_classes = [ 'sky' ],
+            #     min_targets = 10,
+            #     max_targets = 25,
+            #     non_observation_cost = 10,
+            # )
+        }
 
-        # get focal plane positions for all targets and all visits
-        fp_pos = [ t.get_fp_positions(targets) for t in telescopes ]
+        return cobra_groups
+    
+    def get_netflow_options(self, target_classes, cobra_groups):
+        netflow_options = dict(
+            # Add a penalty if the target is too close to a black dot
+            black_dot_penalty = None,
+            # black_dot_penalty = lambda dist: 0,
 
-        # create the dictionary containing the costs and constraints for all classes
-        # of targets
-        classdict = {}
-        classdict["sci_P1"] = {"nonObservationCost": 100,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P2"] = {"nonObservationCost": 90,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P3"] = {"nonObservationCost": 80,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P4"] = {"nonObservationCost": 70,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P5"] = {"nonObservationCost": 60,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P6"] = {"nonObservationCost": 50,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sci_P7"] = {"nonObservationCost": 40,
-                            "partialObservationCost": 1e9, "calib": False}
-        classdict["sky"] = {"numRequired": 1,
-                            "nonObservationCost": 1e6, "calib": True}
-        classdict["cal"] = {"numRequired": 1,
-                            "nonObservationCost": 1e6, "calib": True}
+            fiber_non_allocation_cost = 1e5,
+
+            collision_distance = 2.0,
+            elbow_collisions = True,
+            # forbidden_targets = [
+            #     43218108431
+            # ],
+            # forbidden_pairs = [
+            #     [43486543901, 43218108431],
+            # ],
+
+            target_classes = target_classes,
+            cobra_groups = cobra_groups,
+
+            # time_budgets = {
+            #     'science': dict(
+            #         target_classes = [ 'sci_P0', 'sci_P1', 'sci_p2' ],
+            #         budget = 5  # hr
+            #     )
+            # },
+
+            # Do not penalize cobra moves with respect to cobra center
+            cobra_move_cost = lambda dist: 0,
+
+            num_reserved_fibers = 0,
+
+            # This will only be used when netflow is rewritten to step-by-step fiber assignment
+            # constrain_already_observed = False,
+
+            # Allow more visits than minimally required
+            allow_more_visits = True,
+
+            epoch = 2016, # all catalogs must match
+            ignore_proper_motion = True,
+
+            # FPI configuration
+            fiberids_path = os.path.join(os.path.dirname(pfs.utils.__file__), '../../../data/fiberids')
+        )
+
+        return netflow_options
+    
+    def get_debug_options(self):
+        debug_options = dict(
+            ignoreEndpointCollisions = False,
+            ignoreElbowCollisions = False,
+            ignoreForbiddenPairs = False,
+            ignoreForbiddenSingles = False,
+            ignoreCalibTargetClassMinimum = False,
+            ignoreCalibTargetClassMaximum = False,
+            ignoreScienceTargetClassMinimum = False,
+            ignoreScienceTargetClassMaximum = False,
+            ignoreTimeBudget = False,
+            ignoreCobraGroupMinimum = False,
+            ignoreCobraGroupMaximum = False,
+            ignoreReservedFibers = False,
+        )
+
+        return debug_options
+
+    def test_solve(self):
+        gurobi_options = self.get_gurobi_options()
+        target_classes = self.get_target_classes()
+        cobra_groups = self.get_cobra_groups()
+        netflow_options = self.get_netflow_options(target_classes, cobra_groups)
+        debug_options = self.get_debug_options()
+
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        nf = Netflow(f'test', [ pointing ],
+                     netflow_options=netflow_options,
+                     solver_options=gurobi_options,
+                     debug_options=debug_options)
+
+        obs = self.load_test_observation()
+        nf.append_science_targets(obs, exp_time=1200, priority=1)
         
-        # optional: slightly increase the cost for later observations,
-        # to observe as early as possible
-        vis_cost = [i*10. for i in range(nvisit)]
+        nf.build()
+        nf.solve()
 
-
-        # optional: penalize assignments where the cobra has to move far out
-        def cobraMoveCost(dist):
-            return 0.1*dist
-
-
-        # duration of one observation in seconds
-        t_obs = 300.
-
-        gurobiOptions = dict(seed=0, presolve=1, method=4, degenmoves=0,
-                            heuristics=0.8, mipfocus=0, mipgap=1.0e-04)
-
-
-        # let's pretend that most targets have already been completely observed,
-        # and that the rest has been partially observed
-        alreadyObserved={}
-        for t in targets:
-            alreadyObserved[t.ID] = 3
-        for t in targets[::10]:
-            alreadyObserved[t.ID] = 1
-
-        forbiddenPairs = []
-        for i in range(nvisit):
-            forbiddenPairs.append([])
-
-        done = False
-        while not done:
-            # compute observation strategy
-            problem = nf.buildProblem(bench, targets, fp_pos, classdict, t_obs,
-                                vis_cost, cobraMoveCost=cobraMoveCost,
-                                collision_distance=2., elbow_collisions=True,
-                                gurobi=False, gurobiOptions=gurobiOptions,
-                                alreadyObserved=alreadyObserved,
-                                forbiddenPairs=forbiddenPairs)
-
-            print("solving the problem")
-            problem.solve()
-
-            # extract solution
-            res = [{} for _ in range(nvisit)]
-            for k1, v1 in problem._vardict.items():
-                if k1.startswith("Tv_Cv_"):
-                    visited = problem.value(v1) > 0
-                    if visited:
-                        _, _, tidx, cidx, ivis = k1.split("_")
-                        res[int(ivis)][int(tidx)] = int(cidx)
-
-            print("Checking for trajectory collisions")
-            ncoll = 0
-            for ivis, (vis, tp) in enumerate(zip(res, fp_pos)):
-                selectedTargets = np.full(len(bench.cobras.centers), NULL_TARGET_POSITION)
-                ids = np.full(len(bench.cobras.centers), NULL_TARGET_ID)
-                for tidx, cidx in vis.items():
-                    selectedTargets[cidx] = tp[tidx]
-                    ids[cidx] = ""
-                for i in range(selectedTargets.size):
-                    if selectedTargets[i] != NULL_TARGET_POSITION:
-                        dist = np.abs(selectedTargets[i]-bench.cobras.centers[i])
-
-                simulator = CollisionSimulator(bench, TargetGroup(selectedTargets, ids))
-                simulator.run()
-                if np.any(simulator.endPointCollisions):
-                    print("ERROR: detected end point collision, which should be impossible")
-                coll_tidx = []
-                for tidx, cidx in vis.items():
-                    if simulator.collisions[cidx]:
-                        coll_tidx.append(tidx)
-                ncoll += len(coll_tidx)
-                for i1 in range(0,len(coll_tidx)):
-                    for i2 in range(i1+1,len(coll_tidx)):
-                        if np.abs(tp[coll_tidx[i1]]-tp[coll_tidx[i2]])<10:
-                            forbiddenPairs[ivis].append((coll_tidx[i1],coll_tidx[i2]))
-
-            print("trajectory collisions found:", ncoll)
-            done = ncoll == 0
+        assignments = nf.get_target_assignments(include_target_columns=True,
+                                                include_unassigned_fibers=True,
+                                                include_engineering_fibers=True)
         
+        summary = nf.get_target_assignment_summary()

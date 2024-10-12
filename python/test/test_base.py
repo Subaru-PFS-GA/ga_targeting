@@ -2,9 +2,10 @@ import os
 from unittest import TestCase
 from datetime import datetime
 import matplotlib.pyplot as plt
-from pfs.ga.targeting.selection.andselection import AndSelection
 import tensorflow.compat.v2 as tf
 
+import  pfs.ga.targeting
+from pfs.ga.targeting.selection.andselection import AndSelection
 from pfs.ga.targeting.io import TextObservationReader, Hdf5SimulationReader
 from pfs.ga.targeting.data import Observation, Simulation
 from pfs.ga.targeting.photometry import *
@@ -38,6 +39,9 @@ class TestBase(TestCase):
         self.PFS_TARGETING_ROOT = get_env('PFS_TARGETING_ROOT')
         self.PFS_TARGETING_DATA = get_env('PFS_TARGETING_DATA')
         self.PFS_TARGETING_TEMP = get_env('PFS_TARGETING_TEMP')
+
+    def get_test_data_file(self, filename):
+        return os.path.join(pfs.ga.targeting.__file__, '../../../../../data', filename)
 
     def get_filename(self, ext):
         filename = type(self).__name__[:-4] + '_' + self._testMethodName[5:] + ext
