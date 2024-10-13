@@ -211,6 +211,9 @@ class Netflow():
         self.__cache_to_target_map = None           # Maps cache index to target index
         self.__cache_to_fp_pos_map = None           # Maps tidx to fpidx for each pointing
         self.__fp_pos_to_cache_map = None           # Maps fpidx to tidx for each pointing
+
+        self.__visibility = None                    # Visibility and elbow positions for each target for each pointing
+        self.__collisions = None                    # Tip and elbow collision matrices for each pointing
         
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
@@ -635,18 +638,16 @@ class Netflow():
 
         return targets_cobras, cobras_targets
     
-    def __get_colliding_pairs(self, fp_pos, vis_elbow, dist):
+    def __get_colliding_pairs(self, pidx, collision_distance):
         """Return the list of target pairs that would cause fiber
         collision when observed by two neighboring fibers.
         
         Parameters
         ==========
 
-        fp_pos : array
-            Complex focal plane positions of the targets
-        vis_elbow: dict
-            Visibility, dict of (cobra ID, elbow position), keyed by target index.
-        dist:
+        pidx : int
+            Index of the pointing
+        collision_distance:
             Maximum distance causing a collision.
 
         Returns
@@ -654,29 +655,33 @@ class Netflow():
         set : pairs of target indices that would cause fiber top collisions.
         """
 
+        fp_pos = self.__target_fp_pos[pidx]
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
+        visibility = self.__visibility[pidx]
+
         # Collect targets associated with each cobra, for each visit
         fp_pos = np.array(fp_pos)
         ivis = defaultdict(list)
-        for tidx, thing in vis_elbow.items():
-            for (cidx, _) in thing:
+        for tidx, cidx_elbow in visibility.targets_cobras.items():
+            for (cidx, _) in cidx_elbow:
                 ivis[cidx].append(tidx)
 
         pairs = set()
-        for cidx, i1 in ivis.items():
+        for cidx, tidx1 in ivis.items():
             # Determine target indices visible by this cobra and its neighbors
             nb = self.__bench.getCobraNeighbors(cidx)
-            i2 = np.concatenate([ivis[j] for j in nb if j in ivis])
-            i2 = np.concatenate((i1, i2))
-            i2 = np.unique(i2).astype(int)
-            d = np.abs(np.subtract.outer(fp_pos[i1], fp_pos[i2]))
-            for m in range(d.shape[0]):
-                for n in range(d.shape[1]):
-                    if d[m][n] < dist:
-                        if i1[m] < i2[n]:               # Only store pairs once
-                            pairs.add((i1[m], i2[n]))
+            tidx2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+            tidx2 = np.concatenate((tidx1, tidx2))
+            tidx2 = np.unique(tidx2).astype(int)
+            d = np.abs(np.subtract.outer(fp_pos[tidx_to_fpidx_map[tidx1]], fp_pos[tidx_to_fpidx_map[tidx2]]))
+            
+            for m, n in zip(*np.where(d  < collision_distance)):
+                if tidx1[m] < tidx2[n]:               # Only store pairs once
+                    pairs.add((tidx1[m], tidx2[n]))
+
         return pairs
     
-    def __get_colliding_elbows(self, fp_pos, vis_targets_elbows, vis_cobras_targets, collision_distance, tidx_to_fpidx_map):
+    def __get_colliding_elbows(self, pidx, collision_distance):
         """
         For each target-cobra pair, and the corresponding elbow position,
         return the list of other targets that are too close to the "upper arm" of
@@ -685,16 +690,10 @@ class Netflow():
         Parameters
         ==========
 
-        fp_pos : array
-            Complex focal plane positions of the targets
-        vis_targets_elbows: dict
-            Visibility, dict of (cobra ID, elbow position), keyed by target index.
-        vis_cobras_targets
-            Visibility, dict of (target ID, elbow position), keyed by cobra index.
+        pidx : int
+            Index of the pointing
         collision_distance:
             Maximum distance causing a collision.
-        tidx_to_fpidx_map:
-            Mapping of target index to focal plane index.
 
         Returns
         =======
@@ -702,8 +701,12 @@ class Netflow():
                all possible target-cobra pairs.
         """
 
+        visibility = self.__visibility[pidx]
+        fp_pos = self.__target_fp_pos[pidx]
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
+
         res = defaultdict(list)
-        for cidx, tidx_elbow in vis_cobras_targets.items():
+        for cidx, tidx_elbow in visibility.cobras_targets.items():
             # Determine target indices visible by neighbors of this cobra
             
             # List of neighboring cobra_index
@@ -711,7 +714,7 @@ class Netflow():
 
             # All targets and elbow positions visible by neighboring cobras
             # tmp = [ vis_cobras_targets[j] for j in nb if j in vis_cobras_targets ]
-            tmp = [ ti for j in nb if j in vis_cobras_targets for ti, _ in vis_cobras_targets[j] ]
+            tmp = [ ti for j in nb if j in visibility.cobras_targets for ti, _ in visibility.cobras_targets[j] ]
 
             if len(tmp) > 0:
                 # Unique list of target indices visible by neighboring cobras
@@ -1096,8 +1099,10 @@ class Netflow():
         self.__init_constraints()
 
         logger.info("Calculating target visibilities")
+        self.__calculate_visibilities()
 
-        vis_targets_elbows, vis_cobras_targets = self.__calculate_visibilities()
+        logger.info("Calculating cobra collisions")
+        self.__calculate_collisions()
 
         logger.info("Creating network topology")
 
@@ -1126,16 +1131,12 @@ class Netflow():
             # > CTCv_Tv_{visit_idx}[target_idx]
             # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
             logger.debug("Creating target and cobra visit variables.")
-            self.__create_visit_variables(visit,
-                                          vis_targets_elbows[visit.pointing_idx],
-                                          vis_cobras_targets[visit.pointing_idx])
+            self.__create_visit_variables(visit)
 
             # > Tv_o_coll_{?}_{?}_{visit_idx} (endpoint collisions)
             # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx} (elbow collisions)
             logger.debug("Creating cobra collision constraints.")
-            self.__create_cobra_collision_constraints(visit,
-                                                      vis_targets_elbows[visit.pointing_idx],
-                                                      vis_cobras_targets[visit.pointing_idx])
+            self.__create_cobra_collision_constraints(visit)
 
             logger.debug("Adding cobra non-allocation cost terms.")
             self.__add_cobra_non_allocation_cost(visit)
@@ -1206,26 +1207,36 @@ class Netflow():
         self.__create_unassigned_fiber_constraints(nvisits)
 
     def __calculate_visibilities(self):
-        vis_targets_elbows = []
-        vis_cobras_targets = []
+        self.__visibility = []
         for pidx, pointing in enumerate(self.__pointings):
-            logger.info(f'Processing pointing {pidx + 1}.')
+            logger.info(f'Calculating visibility for pointing {pidx + 1}.')
 
             # Get the target visibility and elbow positions for each target roughly within the pointing
             fp_pos = self.__target_fp_pos[pidx]
             fpidx_to_tidx_map = self.__fp_pos_to_cache_map[pidx]
-            vte, vct = self.__get_visibility_and_elbow(fp_pos, fpidx_to_tidx_map)
 
-            # vte.keys() -> index into the target_cache
-            # vte values -> (cidx, elbow position)
+            vis = SimpleNamespace()
+            vis.targets_cobras, vis.cobras_targets = self.__get_visibility_and_elbow(fp_pos, fpidx_to_tidx_map)
+            self.__visibility.append(vis)
+
+            # targets_cobras keys   -> index into the target_cache
+            # targets_cobras values -> (cidx, elbow position)
             
-            # vct keys() -> cobra index
-            # vct values -> (tidx, elbow position), where tidx is the index into the target_cache
+            # cobras_targets keys   -> cobra index
+            # cobras_targets values -> (tidx, elbow position), where tidx is the index into the target_cache
 
-            vis_targets_elbows.append(vte)
-            vis_cobras_targets.append(vct)
+    def __calculate_collisions(self):
+        collision_distance = self.__get_netflow_option('collision_distance', 0.0)
 
-        return vis_targets_elbows, vis_cobras_targets
+        self.__collisions = []
+        for pidx, pointing in enumerate(self.__pointings):
+            logger.info(f'Calculating collisions for pointing {pidx + 1}.')
+
+            # Get the target visibility and elbow positions for each target roughly within the pointing
+            col = SimpleNamespace()
+            col.pairs = self.__get_colliding_pairs(pidx, collision_distance)
+            col.elbows = self.__get_colliding_elbows(pidx, collision_distance)
+            self.__collisions.append(col)
 
     #region Variables and costs
         
@@ -1294,12 +1305,13 @@ class Netflow():
                 self.__variables.CTCv_sink[(target_class, visit.visit_idx)] = f
                 self.__add_cost(f * options.non_observation_cost)
     
-    def __create_visit_variables(self, visit, vis_targets_elbows, vis_cobras_targets):
+    def __create_visit_variables(self, visit):
         """
         Create the variables for the visible variables for a visit.
         """
 
-        tidx = np.array(list(vis_targets_elbows.keys()), dtype=int)
+        visibility = self.__visibility[visit.pointing_idx]
+        tidx = np.array(list(visibility.targets_cobras.keys()), dtype=int)
 
         # Create science targets T_Tv edges in batch
         # > T_Tv_{visit_idx}[target_idx]
@@ -1314,7 +1326,7 @@ class Netflow():
         # For each Cv, generate the incoming Tv_Cv edges
         # These differ in number but can be vectorized for each cobra
         # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
-        for cidx, tidx_elbow in vis_cobras_targets.items():
+        for cidx, tidx_elbow in visibility.cobras_targets.items():
             tidx = np.array([ ti for ti, _ in tidx_elbow ], dtype=int)
             tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
             self.__create_Tv_Cv_CG(visit, cidx, tidx, tidx_to_fpidx_map)
@@ -1379,6 +1391,7 @@ class Netflow():
             f = vars[ti]
             target_class = self.__target_cache.target_class[ti]
 
+            # TODO: consider creating a separate list for each visit
             self.__variables.Cv_i[(cidx, visit.visit_idx)].append(f)
             self.__variables.Tv_o[(ti, visit.visit_idx)].append((f, cidx))
 
@@ -1405,7 +1418,7 @@ class Netflow():
     #endregion
     #region Constraints
 
-    def __create_cobra_collision_constraints(self, visit, vis_targets_elbows, vis_cobras_targets):
+    def __create_cobra_collision_constraints(self, visit):
         ignore_endpoint_collisions = self.__get_debug_option('ignore_endpoint_collisions', False)
         ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
         
@@ -1417,61 +1430,68 @@ class Netflow():
         elbow_collisions = self.__get_netflow_option('elbow_collisions', False)
         
         if collision_distance > 0.0:
-            if not elbow_collisions:
+            # if not elbow_collisions:
                 if not ignore_endpoint_collisions:
                     # > Tv_o_coll_{?}_{?}_{visit_idx}
                     logger.debug("Adding endpoint collision constraints")
-                    self.__create_endpoint_collision_constraints(visit, vis_targets_elbows, collision_distance)
+                    self.__create_endpoint_collision_constraints(visit)
                 else:
                     logger.debug("Ignoring endpoint collision constraints")
-            else:
+            # else:
                 if not ignore_elbow_collisions:
                     # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
                     logger.debug("Adding elbow collision constraints")
-                    self.__create_elbow_collision_constraints(visit, vis_targets_elbows, vis_cobras_targets, collision_distance)
+                    self.__create_elbow_collision_constraints(visit)
                 else:
                     logger.debug("Ignoring elbow collision constraints")
                 
-    def __create_endpoint_collision_constraints(self, visit, vis_elbow, collision_distance):
-        # Determine target indices visible by this cobra and its neighbors
-        colliding_pairs = self.__get_colliding_pairs(self.__target_fp_pos[visit.pointing_idx], vis_elbow, collision_distance)
-        keys = self.__variables.Tv_o.keys()
-        keys = set(key[0] for key in keys if key[1] == visit.visit_idx)
-        for p in colliding_pairs:
-            if p[0] in keys and p[1] in keys:
-                vars = [ v for v, cidx in self.__variables.Tv_o[(p[0], visit.visit_idx)] ] + \
-                        [ v for v, cidx in self.__variables.Tv_o[(p[1], visit.visit_idx)] ]
-                name = self.__make_name("Tv_o_coll", p[0], p[1], visit.visit_idx)
-                constr = self.__problem.sum(vars) <= 1
-                self.__constraints.Tv_o_coll[(p[0], p[1], visit.visit_idx)] = constr
-                self.__add_constraint(name, constr)
+    def __create_endpoint_collision_constraints(self, visit):
+        vidx = visit.visit_idx
+        collisions = self.__collisions[visit.pointing_idx]
 
-    def __create_elbow_collision_constraints(self, visit, vis_targets_elbows, vis_cobras_targets, collision_distance):
-        # Determine targets accessible by two different cobras that would cause an elbow collision
-        # colliding_elbows contains a list of tidx keyed by cidx and tidx
+        # TODO: delete
+        # Collect all targets that are relevant for this visit
+        # TODO: this is not the most optimal because have to iterate over all visits
+        # tidx = set(ti for ti, vi in self.__variables.Tv_o.keys() if vi == vidx)
 
-        ### SLOW ###
+        # TODO: delete
+        # keys = self.__variables.Tv_o.keys()
+        # keys = set(key[0] for key in keys if key[1] == vidx)
+        
+        for p0, p1 in collisions.pairs:
+            # TODO: is this check necessary?
+            # if p0 in tidx and p1 in tidx:
 
-        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
-        colliding_elbows = self.__get_colliding_elbows(self.__target_fp_pos[visit.pointing_idx],
-                                                        vis_targets_elbows,
-                                                        vis_cobras_targets,
-                                                        collision_distance,
-                                                        tidx_to_fpidx_map)
-        for (cidx1, tidx1), tidx2_list in colliding_elbows.items():
-            for f, cidx2 in self.__variables.Tv_o[(tidx1, visit.visit_idx)]:
+            vars = [ v for v, cidx in self.__variables.Tv_o[(p0, vidx)] ] + \
+                   [ v for v, cidx in self.__variables.Tv_o[(p1, vidx)] ]
+            
+            name = self.__make_name("Tv_o_coll", p0, p1, vidx)
+            constr = self.__problem.sum(vars) <= 1
+            self.__constraints.Tv_o_coll[(p0, p1, vidx)] = constr
+            self.__add_constraint(name, constr)
+
+    def __create_elbow_collision_constraints(self, visit):
+        vidx = visit.visit_idx
+        collisions = self.__collisions[visit.pointing_idx]
+
+        for (cidx1, tidx1), tidx2_list in collisions.elbows.items():
+
+            # TODO: inefficient loop
+            for f, cidx2 in self.__variables.Tv_o[(tidx1, vidx)]:
                 if cidx2 == cidx1:
                     var0 = f
 
             for tidx2 in tidx2_list:
-                if True:  # idx2 != tidx1:
-                    vars = [ var0 ]
-                    vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, visit.visit_idx)] if cidx2 != cidx1 ]
-        
-                    name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, visit.visit_idx)
-                    constr = self.__problem.sum(vars) <= 1
-                    self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, visit.visit_idx)] = constr
-                    self.__add_constraint(name, constr)
+                # TODO: is this test necessary
+                # if True:  # idx2 != tidx1:
+                
+                vars = [ var0 ]
+                vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, vidx)] if cidx2 != cidx1 ]
+    
+                name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, vidx)
+                constr = self.__problem.sum(vars) <= 1
+                self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, vidx)] = constr
+                self.__add_constraint(name, constr)
 
     def __create_forbidden_target_constraints(self, visit):
         """
