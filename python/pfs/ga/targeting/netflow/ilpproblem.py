@@ -34,6 +34,9 @@ class ILPProblem():
     def add_lazy_constraint(self, name, constraint):
         raise NotImplementedError()
     
+    def add_linear_constraint(self, name, coeffs, variables, sense, rhs):
+        raise NotImplementedError()
+    
     def solve(self):
         raise NotImplementedError()
     

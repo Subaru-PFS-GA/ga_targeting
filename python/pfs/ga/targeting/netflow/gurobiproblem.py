@@ -1,6 +1,7 @@
 import logging
 try:
     import gurobipy as gbp
+    from gurobipy import LinExpr
 except ModuleNotFoundError:
     logging.warning('Module `gurobipy` is not available.')
     gbp = None
@@ -88,6 +89,9 @@ class GurobiProblem(ILPProblem):
 
     def add_lazy_constraint(self, name, constraint):
         self.add_constraint(name, constraint, lazy=1)
+
+    def add_linear_constraint(self, name, coeffs, variables, sense, rhs):
+        self.__model.addLConstr(LinExpr(coeffs, variables), sense, rhs, name=name)
 
     def solve(self):
         self.__model.setObjective(self.__cost)

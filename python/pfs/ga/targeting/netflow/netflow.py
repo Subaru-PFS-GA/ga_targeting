@@ -1077,7 +1077,10 @@ class Netflow():
 
     def __add_constraint(self, name, constraint):
         self.__constraints.all[name] = constraint
-        self.__problem.add_constraint(name, constraint)
+        if isinstance(constraint, tuple):
+            self.__problem.add_linear_constraint(name, *constraint)
+        else:
+            self.__problem.add_constraint(name, constraint)
 
     def __build_ilp_problem(self):
         """
@@ -1466,7 +1469,8 @@ class Netflow():
                    [ v for v, cidx in self.__variables.Tv_o[(p1, vidx)] ]
             
             name = self.__make_name("Tv_o_coll", p0, p1, vidx)
-            constr = self.__problem.sum(vars) <= 1
+            # constr = self.__problem.sum(vars) <= 1
+            constr = ([1] * len(vars), vars, '<=', 1)
             self.__constraints.Tv_o_coll[(p0, p1, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -1489,7 +1493,8 @@ class Netflow():
                 vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, vidx)] if cidx2 != cidx1 ]
     
                 name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, vidx)
-                constr = self.__problem.sum(vars) <= 1
+                # constr = self.__problem.sum(vars) <= 1
+                constr = ([1] * len(vars), vars, '<=', 1)
                 self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, vidx)] = constr
                 self.__add_constraint(name, constr)
 
@@ -1504,7 +1509,8 @@ class Netflow():
             if tidx in tidx_set:
                 flows = [ v for v, cidx in self.__variables.Tv_o[(tidx, visit.visit_idx)] ]
                 name = self.__make_name("Tv_o_forb", tidx, tidx, visit.visit_idx)
-                constr = self.__problem.sum(flows) == 0
+                # constr = self.__problem.sum(flows) == 0
+                constr = ([1] * len(flows), flows, '==', 0)
                 self.__constraints.Tv_o_forb[(tidx, tidx, visit.visit_idx)] = constr
                 self.__add_constraint(name, constr)
 
@@ -1524,7 +1530,8 @@ class Netflow():
                 flows = [ v for v, cidx in self.__variables.Tv_o[(tidx1, visit.visit_idx)] ] + \
                         [ v for v, cidx in self.__variables.Tv_o[(tidx2, visit.visit_idx)] ]
                 name = self.__make_name("Tv_o_forb", tidx1, tidx2, visit.visit_idx)
-                constr = self.__problem.sum(flows) <= 1
+                # constr = self.__problem.sum(flows) <= 1
+                constr = ([1] * len(flows), flows, '<=', 1)
                 self.__constraints.Tv_o_forb[(tidx1, tidx2, visit.visit_idx)] = constr
                 self.__add_constraint(name, constr)
 
@@ -1543,7 +1550,8 @@ class Netflow():
             # All STC_o edges must be balanced. We don't handle the incoming edges in the model
             # so simply the sum of outgoing edges must add up to the number of targets.
             name = self.__make_name("STC_o_sum", target_class)
-            constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            # constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
             self.__constraints.STC_o_sum[target_class] = constr
             self.__add_constraint(name, constr)
 
@@ -1553,14 +1561,16 @@ class Netflow():
             min_targets = self.__target_classes[target_class].min_targets
             if not ignore_science_target_class_minimum and min_targets is not None:
                 name = self.__make_name("STC_o_min", target_class)
-                constr = self.__problem.sum(vars) >= min_targets
+                # constr = self.__problem.sum(vars) >= min_targets
+                constr = ([1] * len(vars), vars, '>=', min_targets)
                 self.__constraints.STC_o_min[target_class] = constr
                 self.__add_constraint(name, constr)
 
             max_targets = self.__target_classes[target_class].max_targets
             if not ignore_science_target_class_maximum and max_targets is not None:
                 name = self.__make_name("STC_o_max", target_class)
-                constr = self.__problem.sum(vars) <= max_targets
+                # constr = self.__problem.sum(vars) <= max_targets
+                constr = ([1] * len(vars), vars, '<=', max_targets)
                 self.__constraints.STC_o_max[target_class] = constr
                 self.__add_constraint(name, constr)
 
@@ -1576,7 +1586,8 @@ class Netflow():
 
             # The sum of all outgoing edges must be equal the number of calibration targets within each class
             name = self.__make_name("CTCv_o_sum", target_class, vidx)
-            constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            # constr = self.__problem.sum(vars + [ sink ]) == num_targets
+            constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
             self.__constraints.CTCv_o_sum[(target_class, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -1584,7 +1595,8 @@ class Netflow():
             min_targets = self.__target_classes[target_class].min_targets
             if not ignore_calib_target_class_minimum and min_targets is not None:
                 name = self.__make_name("CTCv_o_min", target_class, vidx)
-                constr = self.__problem.sum(vars) >= min_targets
+                # constr = self.__problem.sum(vars) >= min_targets
+                constr = ([1] * len(vars), vars, '>=', min_targets)
                 self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
                 self.__add_constraint(name, constr)
 
@@ -1592,7 +1604,8 @@ class Netflow():
             max_targets = self.__target_classes[target_class].max_targets
             if not ignore_calib_target_class_maximum and max_targets is not None:
                 name = self.__make_name("CTCv_o_max", target_class, vidx)
-                constr = self.__problem.sum(vars) <= max_targets
+                # constr = self.__problem.sum(vars) <= max_targets
+                constr = ([1] * len(vars), vars, '<=', max_targets)
                 self.__constraints.CTCv_o_max[(target_class, vidx)] = constr
                 self.__add_constraint(name, constr)
 
@@ -1620,7 +1633,9 @@ class Netflow():
             if not allow_more_visits:
                 # Require an exact number of visits
                 name = self.__make_name("T_i_T_o_sum", tidx)
-                constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == 0
+                # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == 0
+                constr = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
+                          [ T_i ] + T_o + [ T_sink ], '==', 0)
                 self.__constraints.T_i_T_o_sum[tidx] = constr
                 self.__add_constraint(name, constr)
             else:
@@ -1628,8 +1643,13 @@ class Netflow():
                 name0 = self.__make_name("T_i_T_o_sum_0", tidx)
                 name1 = self.__make_name("T_i_T_o_sum_1", tidx)
 
-                constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
-                constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
+                # constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
+                constr0 = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
+                           [ T_i ] + T_o + [ T_sink ], '<=', 0)
+
+                # constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
+                constr1 = ([ max_visits ] + [ -1 for _ in T_o ] + [ -1 ],
+                           [ T_i ] + T_o + [ T_sink ], '>=', 0)
 
                 self.__constraints.T_i_T_o_sum[(tidx, 0)] = constr0
                 self.__constraints.T_i_T_o_sum[(tidx, 1)] = constr1
@@ -1643,7 +1663,8 @@ class Netflow():
             target_id = self.__target_cache.id[tidx]
 
             name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
-            constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
+            # constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
+            constr = ([1] * len(in_vars) + [-1] * len(out_vars), in_vars + [ v for v, _ in out_vars ], '==', 0)
             self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -1651,7 +1672,8 @@ class Netflow():
         # Every cobra can observe at most one target per visit
         for (cidx, vidx), inflow in self.__variables.Cv_i.items():
             name = self.__make_name("Cv_i_sum", cidx, vidx)
-            constr = self.__problem.sum([ f for f in inflow ]) <= 1
+            # constr = self.__problem.sum([ f for f in inflow ]) <= 1
+            constr = ([1] * len(inflow), inflow, '<=', 1)
             self.__constraints.Cv_i_sum[(cidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -1673,7 +1695,8 @@ class Netflow():
                 # TODO: This assumes a single, per visit exposure time which is fine for now
                 #       but the logic could be extended further
                 name = self.__make_name("Tv_i_sum", budget_name)
-                constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
+                # constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
+                constr = ([self.__visit_exp_time] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
                 self.__constraints.Tv_i_sum[budget_name] = constr
                 self.__add_constraint(name, constr)
 
@@ -1693,13 +1716,15 @@ class Netflow():
                         if len(variables) > 0:
                             if need_min:
                                 name = self.__make_name("Cv_CG_min", name, vidx, gidx)
-                                constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
+                                # constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
+                                constr = ([1] * len(variables), variables, '>=', options.min_targets)
                                 self.__constraints.CG_min[name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
                             if need_max:
                                 name = self.__make_name("Cv_CG_max", name, vidx, gidx)
-                                constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
+                                # constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
+                                constr = ([1] * len(variables), variables, '<=', options.max_targets)
                                 self.__constraints.CG_max[name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
@@ -1717,7 +1742,8 @@ class Netflow():
                 variables = [item for sublist in variables for item in sublist]
 
                 name = self.__make_name("Cv_i_max", vidx)
-                constr = self.__problem.sum(variables) <= max_assigned_fibers
+                # constr = self.__problem.sum(variables) <= max_assigned_fibers
+                constr = ([1] * len(variables), variables, '<=', max_assigned_fibers)
                 self.__constraints.Cv_i_max[vidx] = constr
                 self.__add_constraint(name, constr)
 
