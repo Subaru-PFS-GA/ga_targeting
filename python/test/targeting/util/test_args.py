@@ -5,6 +5,7 @@ from astropy import units as u
 from astropy.units import Quantity
 from astropy.time import Time
 from astropy.coordinates import Angle, SkyCoord
+from astropy.units.core import UnitConversionError
 
 from test_base import TestBase
 from pfs.ga.targeting.util.args import *
@@ -116,6 +117,9 @@ class UtilArgsTest(TestBase):
 
         self.assertEqual(Quantity(10 * u.s), normalize_exp_time(10))
         self.assertEqual(Quantity(10 * u.s), normalize_exp_time(Quantity(10 * u.s)))
+        self.assertEqual(Quantity(60 * u.s), normalize_exp_time(Quantity(1 * u.min)))
+        
+        self.assertRaises(UnitConversionError, normalize_exp_time, Quantity(1 * u.km))
 
     def test_normalize_skycoord(self):
         pos, pm_err, RV_err, obs_time = normalize_skycoord(12, 14, pm=[2, 2], pm_err=[0.2, 0.2], RV=125, RV_err=3)

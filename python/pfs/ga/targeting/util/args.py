@@ -149,7 +149,8 @@ def __normalize_scalar_quantity(name, q, q_err, unit, allow_none=True, cls=Quant
     elif isinstance(q, cls) and q.unit == unit:
         pass
     elif isinstance(q, cls):
-        raise NotImplementedError()
+        # Try to convert to the desired unit
+        q = q.to(unit)
     elif isinstance(q, Number):
         q = cls(np.float64(q), unit=unit)
     else:
@@ -160,7 +161,8 @@ def __normalize_scalar_quantity(name, q, q_err, unit, allow_none=True, cls=Quant
     elif isinstance(q_err, cls) and q_err.unit == unit:
         pass
     elif isinstance(q_err, cls):
-        raise NotImplementedError()
+        # Try to convert to the desired unit
+        q = q.to(unit)
     elif isinstance(q_err, Number):
         q_err = cls(np.float64(q_err), unit)
     else:

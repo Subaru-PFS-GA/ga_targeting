@@ -11,7 +11,7 @@ from pfs.datamodel import TargetType, FiberStatus
 from .setup_logger import logger
 from .util import *
 from ..util.args import *
-from .pointing import Pointing
+from ..projection import Pointing
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
 
@@ -1655,7 +1655,7 @@ class Netflow():
                 #       but the logic could be extended further
                 name = self.__make_name("Tv_i_sum", budget_name)
                 # constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
-                constr = ([self.__visit_exp_time] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
+                constr = ([self.__visit_exp_time.value] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
                 self.__constraints.Tv_i_sum[budget_name] = constr
                 self.__add_constraint(name, constr)
 

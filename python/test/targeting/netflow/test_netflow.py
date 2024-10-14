@@ -12,26 +12,27 @@ from ics.cobraOps.Bench import Bench
 from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 
 import pfs.ga.targeting
-from pfs.ga.targeting.netflow import Instrument, Netflow, Pointing
+from pfs.ga.targeting.projection import Pointing
+from pfs.ga.targeting.netflow import Instrument, Netflow
 from pfs.ga.targeting.data import Observation
 
 class NetflowTest(TestBase):
     def test_check_pointing_visibility(self):
         # Ursa Minor dSph visible
         instrument = Instrument()
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"))
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
         nf = Netflow(f'test', instrument, [ pointing ])
         nf._Netflow__check_pointing_visibility()
 
         # Below horizon
-        pointing = Pointing(0, 0, 0, Time("2016-04-03T08:00:00Z"))
+        pointing = Pointing(0, 0, posang=0, obs_time=Time("2016-04-03T08:00:00Z"))
         nf = Netflow(f'test', instrument, [ pointing ])
         with self.assertRaises(AssertionError):
             nf._Netflow__check_pointing_visibility()
 
     def test_filter_targets(self):
         instrument = Instrument()
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1)
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1)
         nf = Netflow(f'test', instrument, [ pointing ])
 
         obs = self.load_test_observation()
@@ -39,7 +40,7 @@ class NetflowTest(TestBase):
 
     def test_cache_targets(self):
         instrument = Instrument()
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
         nf = Netflow(f'test', instrument, [ pointing ])
         nf.append_science_targets(obs, exp_time=1200, priority=1)
@@ -50,7 +51,7 @@ class NetflowTest(TestBase):
 
     def test_calculate_target_fp_pos(self):
         instrument = Instrument()
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
         nf = Netflow(f'test', instrument, [ pointing ])
         nf.append_science_targets(obs, exp_time=1200, priority=1)
@@ -211,7 +212,7 @@ class NetflowTest(TestBase):
         debug_options = self.get_debug_options()
 
         instrument = Instrument(instrument_options=instrument_options)
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=2, exp_time=1200)
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=2, exp_time=1200)
         nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=netflow_options,
                      solver_options=gurobi_options,
