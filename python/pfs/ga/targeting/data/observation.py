@@ -1,9 +1,9 @@
-import logging
 import pandas as pd
 
 from astropy import units as u
 from astropy.coordinates import SkyCoord, Distance
 
+from ..setup_logger import logger
 from ..util import *
 from ..photometry import Photometry, Color, Magnitude
 from .catalog import Catalog
@@ -91,7 +91,7 @@ class Observation(Catalog):
                     if ext is not None:
                         mag = mag - ext
                     else:
-                        logging.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
+                        logger.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
             else:
                 mag = get_value(magnitude.get_name('obs_'), mask)
         else:
@@ -101,7 +101,7 @@ class Observation(Catalog):
                 if ext is not None:
                     mag = mag - ext
                 else:
-                    logging.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
+                    logger.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
             else:
                 mag = get_value(magnitude.get_name(), mask)
 

@@ -14,9 +14,9 @@ from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 import pfs.instdata
 from ics.cobraOps.Bench import Bench
 from pfs.utils.fiberids import FiberIds
-from ics.cobraCharmer.pfiDesign import PFIDesign
-from ics.cobraOps.BlackDotsCalibrationProduct import BlackDotsCalibrationProduct
-from ics.cobraCharmer.cobraCoach.cobraCoach import CobraCoach
+from ..external import BlackDotsCalibrationProduct
+from ..external import PFIDesign
+from ..external import CobraCoach
 
 from ..setup_logger import logger
 from ..util import *
@@ -174,7 +174,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         logger.info("Cobras with too long link lengths: %i" % np.sum(tooLongLinkLengths))
 
         # Limit spectral modules
-        gfm = self.__get_grand_fiber_map()
+        gfm = self.__get_fiber_map()
         cobra_ids_use = np.array([], dtype=np.uint16)
         for sm in spectgrograph_modules:
             cobra_ids_use = np.append(cobra_ids_use, gfm.cobrasForSpectrograph(sm))
@@ -306,7 +306,10 @@ class SubaruPFI(Instrument, FiberAllocator):
     def __plot_corners(self, ax):
         pass
 
-    def __get_outline(self, ids, res, native_frame=None):
+    def __get_outline(self, ids, res, native_frame=None, projection=None):
+        
+        projection = projection if projection is not None else self.__projection
+
         # Calculate corners
         xy = []
         for i in ids:
@@ -322,14 +325,14 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         axy = np.concatenate(axy)
         if native_frame == 'world':
-            coords, mask = self.__projection.pixel_to_world(axy)
+            coords, mask = projection.pixel_to_world(axy)
         elif native_frame == 'pixel':
             coords = axy
             mask = np.full(axy.shape[:-1], True, dtype=bool)
         
         return coords, mask
 
-    def plot_focal_plane(self, ax: plt.Axes, diagram, res=None, **kwargs):
+    def plot_focal_plane(self, ax: plt.Axes, diagram, res=None, projection=None, **kwargs):
         corners = kwargs.pop('corners', False)
         blocks = kwargs.pop('blocks', False)
 
@@ -339,7 +342,7 @@ class SubaruPFI(Instrument, FiberAllocator):
 
         def plot_outline(ids):
             for ii in ids:
-                xy, mask = self.__get_outline(ii, res, native_frame=native_frame)
+                xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
                 diagram.plot(ax, xy, mask=mask, native_frame=native_frame, **style)
 
         if corners:
@@ -372,6 +375,8 @@ class SubaruPFI(Instrument, FiberAllocator):
             # TODO: This projects cobras into FP coordinates so it won't work 
             #       when we draw a FOV plot with some projection defines on the axis
 
+            # TODO: review plotting broken cobras
+
             xy = (self.__bench.cobras.centers[i].real, self.__bench.cobras.centers[i].imag)
             rr = (self.__bench.cobras.centers[i].real + self.__bench.cobras.rMax[i], self.__bench.cobras.centers[i].imag)
             xy = diagram.project_coords(ax, xy, native_frame='pixel')
@@ -387,6 +392,8 @@ class SubaruPFI(Instrument, FiberAllocator):
             ax.add_patch(c)
 
         return ScalarMappable(cmap=cmap, norm=Normalize(vmin, vmax))
+
+    # TODO: plot black dots
 
     def plot_fiber_numbers(self, ax, **kwargs):
 

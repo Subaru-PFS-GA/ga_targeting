@@ -1,5 +1,4 @@
-import logging
-
+from ..setup_logger import logger
 from ..util import *
 from .projection import Projection
 
@@ -30,7 +29,7 @@ class Transformation():
             xy, _ = self.__projection.world_to_pixel(coords)
             return ctype, xy
         else:
-            logging.warning('No projection is set for pixel frame transformation.')
+            logger.warning('No projection is set for pixel frame transformation.')
             return ctype, coords
 
     def _pixel_to_world(self, ctype, xy):

@@ -1,9 +1,10 @@
-import logging
+from .setup_logger import logger
+
 try:
     import gurobipy as gbp
     from gurobipy import LinExpr
 except ModuleNotFoundError:
-    logging.warning('Module `gurobipy` is not available.')
+    logger.warning('Module `gurobipy` is not available.')
     gbp = None
 
 from .ilpproblem import ILPProblem
