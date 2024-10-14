@@ -14,7 +14,7 @@ class FOVTest(TestBase):
         fov = FOV(projection=p)
         
         f, ax = self.get_test_plot(projection=p.wcs)
-        fov.plot(ax, ra, dec)
+        fov.plot(ax, ra, dec, native_frame='world')
         ax.grid()
 
         self.save_fig(f)
@@ -50,7 +50,7 @@ class FOVTest(TestBase):
         fov = FOV(projection=p)
         
         f, ax = self.get_test_plot(projection=p.wcs)
-        fov.scatter(ax, ra, dec)
+        fov.scatter(ax, ra, dec, native_frame='world')
         ax.grid()
         
         self.save_fig(f)

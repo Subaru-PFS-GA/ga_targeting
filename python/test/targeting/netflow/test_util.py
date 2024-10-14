@@ -1,6 +1,6 @@
 import os
 
-from pfs.ga.targeting.netflow.util import *
+from pfs.ga.targeting.util.config import *
 from test_base import TestBase
 
 class InstrumentTest(TestBase):

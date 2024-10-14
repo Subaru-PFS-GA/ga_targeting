@@ -1,8 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-
-from ics.cobraOps.Bench import Bench
+from astropy.time import Time
 
 from test_base import TestBase
 
@@ -11,8 +10,46 @@ from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC
 from pfs.ga.targeting.diagram import FOV
 
 class SubaruPFITest(TestBase):
+    def test_init(self):
+        inst = SubaruPFI()
+        inst = SubaruPFI(instrument_options={})
+
+    def test_get_grand_fiber_map(self):
+        inst = SubaruPFI()
+        inst._SubaruPFI__get_grand_fiber_map()
+
+    def test_get_fiber_map(self):
+        inst = SubaruPFI()
+        inst.get_fiber_map()
+
+    def test_get_configured_bench(self):
+        inst = SubaruPFI()
+        inst._Instrument__get_configured_bench()
+
+    def test_get_bench(self):
+        inst = SubaruPFI()
+        inst.get_bench()
+
+        inst = SubaruPFI(instrument_options={'layout': 'full'})
+        inst.get_bench()
+
+        inst = SubaruPFI(instrument_options={'layout': 'calibration'})
+        inst.get_bench()
+
+    def test_radec_to_altaz(self):
+        inst = SubaruPFI()
+        inst.radec_to_altaz(226.3, 67.5, 0.0, Time("2016-04-03T08:00:00Z"))
+
+    def test_radec_to_fp_pos(self):
+        inst = SubaruPFI()
+        pointing = Pointing(226.3, 67.5, posang=0, Time("2024-06-10T00:00:00.0Z"))
+        inst.radec_to_fp_pos(pointing,
+                             np.array(226.3),
+                             np.array(67.5))
+
     def test_find_associations(self):
-        b = Bench(layout='full')
+        inst = SubaruPFI()
+        b = int.bench
         obs = self.load_test_observation()
         ra, dec = obs.get_coords()
         mask = np.full_like(ra, True, dtype=bool)

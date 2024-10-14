@@ -43,7 +43,7 @@ class BrightnessTest(TestBase):
                    (226.0, 66.9, 0),
                    (228.1, 66.955, 40)]:
 
-            wfc = SubaruWFC(pointing=Pointing(*pp))
+            wfc = SubaruWFC(pointing=Pointing(*pp[:2], posang=pp[2]))
             pfi = SubaruPFI(projection=wfc)
 
             cmd, _ = self.get_test_cmd()

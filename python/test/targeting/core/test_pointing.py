@@ -16,4 +16,4 @@ class PointingTest(TestBase):
         self.assertEqual(0.0, pointing.ra)
         self.assertEqual(0.0, pointing.dec)
         self.assertEqual(15.0, pointing.posang)
-        self.assertEqual(900, pointing.exp_time)
+        self.assertEqual(900, pointing.exp_time.value)

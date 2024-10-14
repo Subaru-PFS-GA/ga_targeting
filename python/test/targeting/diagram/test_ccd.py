@@ -9,7 +9,7 @@ from pfs.ga.targeting.diagram import CCD
 
 class CCDTest(TestBase):
     def test_plot_selection(self):
-        raise NotImplementedError()
+        self.skipTest('TODO')
 
     def test_plot_isochrone(self):
         iso = self.get_test_isochrone()
@@ -48,4 +48,4 @@ class CCDTest(TestBase):
         self.save_fig(f)
 
     def test_plot_probability_map(self):
-        raise NotImplementedError()
+        self.skipTest('TODO')

@@ -11,6 +11,7 @@ from pfs.datamodel import TargetType, FiberStatus
 from .setup_logger import logger
 from .util import *
 from ..util.args import *
+from ..util.config import *
 from ..projection import Pointing
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
@@ -180,8 +181,8 @@ class Netflow():
 
         # Internally used variables
 
-        self.__bench = instrument.get_bench()           # Bench object
-        self.__fiber_map = instrument.get_fiber_map()   # Grand fiber map
+        self.__bench = instrument.bench             # Bench object
+        self.__fiber_map = instrument.fiber_map     # Grand fiber map
 
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped

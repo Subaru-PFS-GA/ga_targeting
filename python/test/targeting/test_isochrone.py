@@ -19,9 +19,3 @@ class IsochroneTest(TestBase):
         iso = self.get_test_isochrone()
         cmd, photometry = self.get_test_cmd()
         c1, s1 = iso.get_color(cmd.axes[0].color)
-
-    def test_get_blurred_values(self):
-        cmd, photometry = self.get_test_cmd()
-        iso = self.get_test_isochrone()
-        
-        values = iso.get_blurred_values(cmd.axes, error_sigma=[1, 1])

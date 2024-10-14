@@ -30,4 +30,4 @@ class DiagramTest(TestBase):
         self.save_fig(f)
 
     def test_imshow(self):
-        self.skipTest()
+        self.skipTest('TODO')

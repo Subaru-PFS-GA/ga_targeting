@@ -130,8 +130,8 @@ class TestBase(TestCase):
         photometry = SubaruHSC.photometry()
 
         name_mappings = {
-            'hsc_g': 'hsc_g2',
-            'hsc_i': 'hsc_i2'
+            # 'hsc_g': 'hsc_g2',
+            # 'hsc_i': 'hsc_i2'
         }
 
         iso = Isochrone()
