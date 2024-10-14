@@ -12,42 +12,36 @@ from ics.cobraOps.Bench import Bench
 from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 
 import pfs.ga.targeting
-from pfs.ga.targeting.netflow import Netflow, Pointing
+from pfs.ga.targeting.netflow import Instrument, Netflow, Pointing
 from pfs.ga.targeting.data import Observation
 
 class NetflowTest(TestBase):
-    def test_camel_to_snake(self):
-        self.assertIsNone(Netflow._Netflow__camel_to_snake(None))
-        self.assertEqual(Netflow._Netflow__camel_to_snake('Camel'), 'camel')
-        self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCase'), 'camel_case')
-        self.assertEqual(Netflow._Netflow__camel_to_snake('CamelCaseCase'), 'camel_case_case')
-        self.assertEqual(Netflow._Netflow__camel_to_snake('camel'), 'camel')
-        self.assertEqual(Netflow._Netflow__camel_to_snake('camelCase'), 'camel_case')
-        self.assertEqual(Netflow._Netflow__camel_to_snake('camelCaseCase'), 'camel_case_case')
-
-    def test_check_target_visibility(self):
+    def test_check_pointing_visibility(self):
         # Ursa Minor dSph visible
+        instrument = Instrument()
         pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"))
-        nf = Netflow(f'test', [ pointing ])
-        nf._Netflow__check_target_visibility()
+        nf = Netflow(f'test', instrument, [ pointing ])
+        nf._Netflow__check_pointing_visibility()
 
         # Below horizon
         pointing = Pointing(0, 0, 0, Time("2016-04-03T08:00:00Z"))
-        nf = Netflow(f'test', [ pointing ])
+        nf = Netflow(f'test', instrument, [ pointing ])
         with self.assertRaises(AssertionError):
-            nf._Netflow__check_target_visibility()
+            nf._Netflow__check_pointing_visibility()
 
     def test_filter_targets(self):
+        instrument = Instrument()
         pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1)
-        nf = Netflow(f'test', [ pointing ])
+        nf = Netflow(f'test', instrument, [ pointing ])
 
         obs = self.load_test_observation()
         nf._Netflow__filter_targets(obs.data, [ pointing])
 
     def test_cache_targets(self):
+        instrument = Instrument()
         pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
-        nf = Netflow(f'test', [ pointing ])
+        nf = Netflow(f'test', instrument, [ pointing ])
         nf.append_science_targets(obs, exp_time=1200, priority=1)
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
@@ -55,9 +49,10 @@ class NetflowTest(TestBase):
         nf._Netflow__cache_targets()
 
     def test_calculate_target_fp_pos(self):
+        instrument = Instrument()
         pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
-        nf = Netflow(f'test', [ pointing ])
+        nf = Netflow(f'test', instrument, [ pointing ])
         nf.append_science_targets(obs, exp_time=1200, priority=1)
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
@@ -143,8 +138,10 @@ class NetflowTest(TestBase):
     def get_netflow_options(self, target_classes, cobra_groups):
         netflow_options = dict(
             # Add a penalty if the target is too close to a black dot
-            black_dot_penalty = None,
-            # black_dot_penalty = lambda dist: 0,
+            black_dot_penalty = lambda dist: 1.0,
+
+            # Penalize cobra moves with respect to cobra center
+            cobra_move_cost = lambda dist: 1.0,
 
             fiber_non_allocation_cost = 1e5,
 
@@ -160,15 +157,12 @@ class NetflowTest(TestBase):
             target_classes = target_classes,
             cobra_groups = cobra_groups,
 
-            # time_budgets = {
-            #     'science': dict(
-            #         target_classes = [ 'sci_P0', 'sci_P1', 'sci_p2' ],
-            #         budget = 5  # hr
-            #     )
-            # },
-
-            # Do not penalize cobra moves with respect to cobra center
-            cobra_move_cost = lambda dist: 0,
+            time_budgets = {
+                'science': dict(
+                    target_classes = [ 'sci_P0', 'sci_P1', 'sci_p2' ],
+                    budget = 5  # hr
+                )
+            },
 
             num_reserved_fibers = 0,
 
@@ -206,20 +200,45 @@ class NetflowTest(TestBase):
         return debug_options
 
     def test_solve(self):
+        # This is a full coverage test, does not validate the results and
+        # correctness of the individual features.
+
+        instrument_options = {}
         gurobi_options = self.get_gurobi_options()
         target_classes = self.get_target_classes()
         cobra_groups = self.get_cobra_groups()
         netflow_options = self.get_netflow_options(target_classes, cobra_groups)
         debug_options = self.get_debug_options()
 
-        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
-        nf = Netflow(f'test', [ pointing ],
+        instrument = Instrument(instrument_options=instrument_options)
+        pointing = Pointing(226.3, 67.5, 0, Time("2024-06-10T00:00:00.0Z"), nvisits=2, exp_time=1200)
+        nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=netflow_options,
                      solver_options=gurobi_options,
                      debug_options=debug_options)
 
         obs = self.load_test_observation()
         nf.append_science_targets(obs, exp_time=1200, priority=1)
+
+        # Ignore some targets, this is to test the target index mappings
+        # This is for testing, do not access the target cache directly
+
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+
+        # Pick the first and last target that's inside the pointings
+        id1, id2 = nf._Netflow__target_cache.id[0], nf._Netflow__target_cache.id[-1]
+        print(id1, id2)
+
+        # Pick the first and last target
+        id3, id4 = nf._Netflow__targets.index[0], nf._Netflow__targets.index[-1]
+        print(id3, id4)
+
+        nf.netflow_options['forbidden_targets'] = [ id1, id2, id3, id4 ]
+        nf.netflow_options['forbidden_pairs'] = [ [ id1, id2 ], [ id3, id4 ] ]
+
+        nf._Netflow__targets.reset_index(names='id', inplace=True)
         
         nf.build()
         nf.solve()

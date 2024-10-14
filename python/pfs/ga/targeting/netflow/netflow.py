@@ -7,12 +7,7 @@ import numpy as np
 import pandas as pd
 from types import SimpleNamespace  
 
-from ics.cobraOps.Bench import Bench
-from pfs.utils.coordinates import DistortionCoefficients as DCoeff
-from pfs.utils.coordinates.CoordTransp import CoordinateTransform
-from pfs.utils.fiberids import FiberIds
 from pfs.datamodel import TargetType, FiberStatus
-
 from .setup_logger import logger
 from .util import *
 from ..util.args import *
@@ -162,6 +157,7 @@ class Netflow():
     
     def __init__(self, 
                  name,
+                 instrument,
                  pointings,
                  workdir=None,
                  filename_prefix=None,
@@ -172,18 +168,20 @@ class Netflow():
         # Configurable options
 
         self.__name = name                          # Problem name
+        self.__instrument = instrument              # Instrument object
         self.__pointings = pointings                # List of pointings
         self.__visits = None                        # List of visits
         
         self.__workdir = workdir if workdir is not None else os.getcwd()
         self.__filename_prefix = filename_prefix if filename_prefix is not None else ''
         self.__solver_options = solver_options
-        self.__netflow_options = Netflow.__camel_to_snake(netflow_options)
-        self.__debug_options = Netflow.__camel_to_snake(debug_options)
+        self.__netflow_options = camel_to_snake(netflow_options)
+        self.__debug_options = camel_to_snake(debug_options)
 
         # Internally used variables
 
-        self.__bench = Bench(layout='full')
+        self.__bench = instrument.get_bench()           # Bench object
+        self.__fiber_map = instrument.get_fiber_map()   # Grand fiber map
 
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped
@@ -371,26 +369,6 @@ class Netflow():
 
     #endregion
     #region Configuration
-
-    @staticmethod
-    def __camel_to_snake(s):
-        """
-        If a dictionary (of settings) is provided with camelCase keys, convert them to snake_case.
-        """
-
-        if s is None:
-            return None
-        elif isinstance(s, dict):
-            return { Netflow.__camel_to_snake(k): v for k, v in s.items() }
-        elif isinstance(s, list):
-            return s
-        elif isinstance(s, str):
-            if '_' in s:
-                return s
-            else:
-                return re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
-        else:
-            raise NotImplementedError()
         
     def __get_target_class_config(self):
         target_classes = {}
@@ -529,62 +507,40 @@ class Netflow():
     #endregion
     #region PFI functions
 
-    def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None):
+    def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None, rv=None):
 
         epoch = self.__get_netflow_option('epoch', 2016.0)
         ignore_proper_motion = self.__get_netflow_option('ignore_proper_motion', False)
 
-        cent = np.array([[ pointing.ra ], [ pointing.dec ]])
-        pa = pointing.posang
-
-        # Input coordinates. Namely. (Ra, Dec) in unit of degree for sky with shape (2, N)
-        coords = np.stack([ra, dec], axis=-1)
-        xyin = coords.T
-
         # The proper motion of the targets used for sky_pfi transformation.
         # The unit is mas/yr, the shape is (2, N)
-        if not ignore_proper_motion and  pmra is not None and pmdec is not None:
-            pm = np.stack([ pmra, pmdec ], axis=0)
-        else:
-            pm = None
+        if ignore_proper_motion:
+            pmra = pmdec = None
 
         # The parallax of the coordinates used for sky_pfi transformation.
         # The unit is mas, the shape is (1, N)
-        if not ignore_proper_motion and parallax is not None:
-            parallax = parallax.copy()
-        else:
+        if ignore_proper_motion:
             parallax = None
+            pmra = pmdec = None
+            rv = None
 
-        # Set pms and parallaxes to 0 if any of them is Nan
-        if not ignore_proper_motion and pm is not None and parallax is not None:
-            mask = np.any(np.isnan(pm), axis=0) | np.isnan(parallax)
-            pm[:, mask] = 0
-            parallax[mask] = 0.0000001
-
-        # Observation time UTC in format of %Y-%m-%d %H:%M:%S
-        obs_time = pointing.obs_time.to_value('iso')
-
-        fp_pos = CoordinateTransform(xyin=xyin,
-                                     mode="sky_pfi",
-                                     # za=0.0, inr=0.0,     # These are overriden by function
-                                     cent=cent,
-                                     pa=pa,
-                                     pm=pm,
-                                     par=parallax,
-                                     time=obs_time,
-                                     epoch=epoch)
+        fp_pos = self.__instrument.radec_to_fp_pos(pointing, ra, dec,
+                                                   epoch=epoch,
+                                                   pmra=pmra, pmdec=pmdec, parallax=parallax, rv=rv)
                 
-        xy = fp_pos[:2, :].T
-        return xy[..., 0] + 1j * xy[..., 1]
+        return fp_pos
 
     def __get_closest_black_dots(self):
         """
         For each cobra, return the list of focal plane black dot positions.
         
         Returns
-        =======
-        list : List of arrays of complex focal plane positions.
+        -------
+        list:
+            List of arrays of complex focal plane positions that include the black dots
+            of the cobra and its neighbors.
         """
+
         res = []
         for cidx in range(len(self.__bench.cobras.centers)):
             nb = self.__bench.getCobraNeighbors(cidx)
@@ -873,9 +829,8 @@ class Netflow():
 
         for p in self.__pointings:
             # Convert pointing center into azimuth and elevation (+ instrument rotator angle)
-            az, el, inr = DCoeff.radec_to_subaru(p.ra, p.dec, p.posang, p.obs_time,
-                                                 2000.0, pmra=0.0, pmdec=0.0, par=1e-6)
-            assert el > 0, f"Pointing is below the horizon."
+            alt, az, inr = self.__instrument.radec_to_altaz(p.ra, p.dec, p.posang, p.obs_time)
+            assert az > 0, f"Pointing is below the horizon."
                     
     def __calculate_exp_time(self):
         """
@@ -1027,11 +982,11 @@ class Netflow():
             CTCv_o = defaultdict(list),      # Calibration target class visit outflows, key: (target_class, visit_idx)
             CTCv_sink = dict(),              # Calibration target class sink, key: (target_class, visit_idx)
             
-            T_i = dict(),                    # Target inflows (only science targets), key: (target_idx)
+            T_i = dict(),                    # Target inflow (only science targets), key: (target_idx)
             T_o = defaultdict(list),         # Target outflows (only science targets), key: (target_idx)
             T_sink = dict(),                 # Target sinks (only science targets) key: (target_idx)
 
-            Tv_i = defaultdict(list),        # Target visit inflows, key: (target_idx, visit_idx)
+            Tv_i = dict(),                   # Target visit inflow, key: (target_idx, visit_idx)
             Tv_o = defaultdict(list),        # Target visit outflows, key: (target_idx, visit_idx)
             Cv_i = defaultdict(list),        # Cobra visit inflows, key: (cobra_idx, visit_idx)            
 
@@ -1331,8 +1286,7 @@ class Netflow():
         # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
         for cidx, tidx_elbow in visibility.cobras_targets.items():
             tidx = np.array([ ti for ti, _ in tidx_elbow ], dtype=int)
-            tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
-            self.__create_Tv_Cv_CG(visit, cidx, tidx, tidx_to_fpidx_map)
+            self.__create_Tv_Cv_CG(visit, cidx, tidx)
 
     def __create_T_Tv(self, visit, tidx):
         """
@@ -1351,7 +1305,7 @@ class Netflow():
         for ti in tidx:
             f = vars[ti]
             self.__variables.T_o[ti].append(f)
-            self.__variables.Tv_i[(ti, visit.visit_idx)].append(f)
+            self.__variables.Tv_i[(ti, visit.visit_idx)] = f
             
     def __create_CTCv_Tv(self, visit, tidx):
         cost = self.__target_cache.penalty[tidx]
@@ -1361,10 +1315,13 @@ class Netflow():
         for ti in tidx:
             f = vars[ti]
             target_class = self.__target_cache.target_class[ti]
-            self.__variables.Tv_i[(ti, visit.visit_idx)].append(f)
+            self.__variables.Tv_i[(ti, visit.visit_idx)] = f
             self.__variables.CTCv_o[(target_class, visit.visit_idx)].append(f)
 
-    def __create_Tv_Cv_CG(self, visit, cidx, tidx, tidx_to_fpidx_map):
+    def __create_Tv_Cv_CG(self, visit, cidx, tidx):
+        
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
+        
         # Calculate the cost for each target - cobra assignment
         cost = np.zeros_like(tidx, dtype=float)
         
@@ -1381,9 +1338,11 @@ class Netflow():
         
         # Cost of closest black dots for each cobra
         if self.__black_dots is not None:
-            dist = np.min(np.abs(self.__black_dots.black_dot_list[cidx] - 
-                                 self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]]))
-            cost += self.__black_dots.black_dot_penalty(dist)
+            # Distance of all targets within the patrol radius to the nearby black dots
+            dist = np.abs(self.__black_dots.black_dot_list[cidx] - 
+                          self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]][:, None])
+            # Take minimum distance from each target
+            cost += self.__black_dots.black_dot_penalty(np.min(dist, axis=-1))
 
         # Create LP variables
         name = self.__make_name("Tv_Cv", visit.visit_idx, cidx)
@@ -1658,13 +1617,13 @@ class Netflow():
 
     def __create_Tv_i_Tv_o_constraints(self):
         # Inflow and outflow at every Tv node must be balanced
-        for (tidx, vidx), in_vars in self.__variables.Tv_i.items():
+        for (tidx, vidx), in_var in self.__variables.Tv_i.items():
             out_vars = self.__variables.Tv_o[(tidx, vidx)]
             target_id = self.__target_cache.id[tidx]
 
             name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
             # constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
-            constr = ([1] * len(in_vars) + [-1] * len(out_vars), in_vars + [ v for v, _ in out_vars ], '==', 0)
+            constr = ([ 1 ] + [ -1 ] * len(out_vars), [ in_var ] + [ v for v, _ in out_vars ], '==', 0)
             self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -1828,9 +1787,6 @@ class Netflow():
 
         assignments : pd.DataFrame = None
 
-        # Map cobra ids to fiber ids using the grand fiber table
-        mapper = FiberIds(path=self.__get_netflow_option('fiberids_path', None))
-
         # There are 2394 cobras in total
         # There are 2604 fibers, 2394 assigned to cobras, 64 engineering fibers and 146 empty fibers
         # The design files contain 2458 rows, for the cobras plus the 64 engineering fibers
@@ -1844,7 +1800,7 @@ class Netflow():
 
         # Should have the size of 2394
         cobraids = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
-        fiberids = mapper.cobraIdToFiberId(cobraids)
+        fiberids = self.__fiber_map.cobraIdToFiberId(cobraids)
 
         # TODO: add fiber status, this should come from the bench config
         
@@ -1879,7 +1835,7 @@ class Netflow():
                         'pointing_idx': visit.pointing_idx,
                         'visit_idx': vidx,
                         'cobraid': -1,
-                        'fiberid': np.where(mapper.data['scienceFiberId'] == mapper.ENGINEERING)[0] + 1,
+                        'fiberid': np.where(self.__fiber_map.data['scienceFiberId'] == self.__fiber_map.ENGINEERING)[0] + 1,
                         'fp_x': np.nan,
                         'fp_y': np.nan,
                         'target_type': 'eng',
@@ -1977,5 +1933,3 @@ class Netflow():
                 return c
         
         raise RuntimeError()
-
-    
