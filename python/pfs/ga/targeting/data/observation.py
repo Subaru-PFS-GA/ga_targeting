@@ -9,13 +9,13 @@ from ..photometry import Photometry, Color, Magnitude
 from .catalog import Catalog
 
 class Observation(Catalog):
-    def __init__(self, name=None, frame='icrs', equinox='J2000', orig=None):
+    def __init__(self, data: pd.DataFrame = None, name=None, frame='icrs', equinox='J2000', orig=None):
         super().__init__(name=name, frame=frame, equinox=equinox, orig=orig)
 
         if not isinstance(orig, Observation):
-            self.__data: pd.DataFrame = None
+            self.__data: pd.DataFrame = data
         else:
-            self.__data = safe_deep_copy(orig.__data)
+            self.__data: pd.DataFrame = data if data is not None else safe_deep_copy(orig.__data)
 
     def __len__(self):
         return len(self.__data)
@@ -33,15 +33,55 @@ class Observation(Catalog):
 
     data = property(__get_data)
 
-    def get_data(self, mask=None, filter=None):
-        if mask is not None and filter is not None:
-            raise RuntimeError('Either `mask` or `filter` can be not None.')
+    def get_data(self, mask=None, filter=None, selection=None) -> pd.DataFrame:
+        """
+        Return all or a subset of the catalog as a data frame. Only one of the
+        arguments `mask`, `func` and `selection` can be specified at a time.
+
+        Arguments
+        ---------
+        mask : array-like
+            Boolean mask to select rows.
+        func : callable
+            Function to apply to the data to select rows.
+        selection : Selection
+            Selection object to apply to the data to select rows.
+        """
+
+        not_none = 0
+        for i in [mask, filter, selection]:
+            if i is not None:
+                not_none += 1
+
+        if not_none > 1:
+            raise RuntimeError('Only one of `mask`, `func` and `selection` can be not None.')
         elif mask is not None:
             return self.__data[mask]
         elif filter is not None:
             return filter(self.__data)
+        elif selection is not None:
+            mask = selection.apply(self)
+            return self.__data[mask]
         else:
             return self.__data
+        
+    def filter(self, *, mask=None, filter=None, selection=None):
+        """
+        Return all or a subser of the catalog as a new catalog. Only one of the
+        arguments `mask`, `func` and `selection` can be specified at a time.
+
+        Arguments
+        ---------
+        mask : array-like
+            Boolean mask to select rows.
+        func : callable
+            Function to apply to the data to select rows.
+        selection : Selection
+            Selection object to apply to the data to select rows.
+        """
+
+        data = self.get_data(mask=mask, filter=filter, selection=selection)
+        return type(self)(data=data, orig=self)
 
     def __get_observed(self):
         return True

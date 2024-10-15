@@ -703,11 +703,11 @@ class Netflow():
 
         return mask
         
-    def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None):
+    def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
         
         # Make sure that we convert to the right data type everywhere
                        
-        df = catalog.get_data(mask=mask, filter=filter)
+        df = catalog.get_data(mask=mask, filter=filter, selection=selection)
 
         # Create the formatted dataset from the input catalog
         data = {
@@ -770,20 +770,20 @@ class Netflow():
         else:
             self.__targets = pd.concat([self.__targets, targets])
             
-    def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None,):
+    def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None, selection=None):
         """Add science targets"""
 
-        self.__append_targets(catalog, 'objid', 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter)
+        self.__append_targets(catalog, 'objid', 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
 
-    def append_sky_targets(self, sky, mask=None, filter=None):
+    def append_sky_targets(self, sky, mask=None, filter=None, selection=None):
         """Add sky positions"""
 
-        self.__append_targets(sky, 'skyid', prefix='sky', mask=mask, filter=filter)
+        self.__append_targets(sky, 'skyid', prefix='sky', mask=mask, filter=filter, selection=selection)
 
-    def append_fluxstd_targets(self, fluxstd, mask=None, filter=None):
+    def append_fluxstd_targets(self, fluxstd, mask=None, filter=None, selection=None):
         """Add flux standard positions"""
 
-        self.__append_targets(fluxstd, 'objid', prefix='cal', mask=mask, filter=filter)
+        self.__append_targets(fluxstd, 'objid', prefix='cal', mask=mask, filter=filter, selection=selection)
 
     def build(self):
         """Construct the ILP problem"""
