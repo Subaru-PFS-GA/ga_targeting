@@ -35,7 +35,7 @@ if [[ -f "./configs/envs/$PFS_TARGETING_ENV.sh" ]]; then
     echo "Sourcing environment file $PFS_TARGETING_ENV"
     source "./configs/envs/$PFS_TARGETING_ENV.sh"
 else
-    ech "Environment file for $PFS_TARGETING_ENV not found. "
+    echo "Environment file for $PFS_TARGETING_ENV not found. "
     exit 1
 fi
 
