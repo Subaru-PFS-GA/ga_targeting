@@ -51,7 +51,7 @@ class NGC6822(DSphGalaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
-    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=18, faint=23.5):
+    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=18, faint=23.0):
         """Return true for objects within sharp magnitude cuts."""
 
         # TODO: add Keyi's cut
@@ -60,17 +60,24 @@ class NGC6822(DSphGalaxy):
         ccd = self.__hsc_ccd
 
         # Broadband colors
-        mask = ColorSelection(cmd.axes[0], 0.12, 2.0).apply(catalog, observed=observed)
+        mask = ColorSelection(cmd.axes[0], None, 2.75).apply(catalog, observed=observed)
 
         # Narrow band
         if nb:
             mask &= (
-                ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
+                #ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
 
-                | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
-                & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed)
+                #| ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
+                #& ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed)
                 
-                | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
+                #| LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
+                ColorSelection(ccd.axes[0], None, 0.0).apply(catalog, observed=observed)
+
+                | LinearSelection(ccd.axes, [0.25, 1.0], 0.25, None).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], 0.1, 1.5).apply(catalog, observed=observed)
+                
+                | LinearSelection(ccd.axes, [-0.33, 1.0], -0.62, None).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], 1.5, None).apply(catalog, observed=observed)
             )
 
         # Probability-based cut (map) - nonzero membership probability
@@ -88,7 +95,7 @@ class NGC6822(DSphGalaxy):
 
         return mask
 
-    def assign_priorities(self, catalog: Catalog, mask=None):
+    def assign_priorities(self, catalog: Catalog, selection=None, mask=None):
         """Assign priority classes based on photometry"""
 
         mask = mask if mask is not None else np.s_[:]
@@ -114,40 +121,29 @@ class NGC6822(DSphGalaxy):
             priority[w] = 9
             code[w] = 0
         else:
-            predicted_y1 = -(0.65 / 0.6) * gi0 + 22.4
-            predicted_y2 = -(1.75 / 0.9) * gi0 + 23.5
-            predicted_y3 = -(5.75 / 0.3) * gi0 + 33.25
-            predicted_y4 = -(5.75 / 0.65) * gi0 + 28.38
+            w = (g0 > 18) & (g0 < 23)
+            priority[w] = 9
 
-            w = (g0 > 16) & (g0 < 23)
-            top_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
-            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(bot_pri[w] - top_pri[w]).astype(int), 0), 9)
-            
-            w = (gi0 < 0.6) & ((i0 < predicted_y1) | (i0 > predicted_y2))
-            priority[w] = 9
-            
-            w = (gi0 >= 0.6) & ((i0 < predicted_y3) | (i0 > predicted_y4))
-            priority[w] = 9
-                
-            w = (g0 <= 16)
-            priority[w] = 9
-            
-            w = (g0 >= 23)
-            priority[w] = 9
+            #young, blue main sequence stars
+            w = selection & (g0 > 18) & (g0 < 23) & (gi0 <= 0.0)
+            priority[w] = np.minimum(np.maximum(8 - np.rint(4*(g0[w]-23)/(18-23)).astype(int), 0), 8)
+
+            #red giants
+            w = selection & (g0 > 18) & (g0 < 23) & (gi0 > 0.0)
+            priority[w] = np.minimum(np.maximum(4 - np.rint(4*(g0[w]-23)/(18-23)).astype(int), 0), 8)
 
         # Blue Horizontal Branch
-        w = (g0 > 19.6) & (g0 < 20.2) & (gi0 > -0.5) & (gi0 < 0.2) & (cli <= 0.5) & (clg < 0.5)
-        priority[w] = 6
-        code[w] = 0
+        #w = (g0 > 19.6) & (g0 < 20.2) & (gi0 > -0.5) & (gi0 < 0.2) & (cli <= 0.5) & (clg < 0.5)
+        #priority[w] = 6
+        #code[w] = 0
         
         # Very bright stars
-        w = (i0 <= 16) & (cli <= 0.5) & (clg <= 0.5)
+        w = (g0 <= 18) & (cli <= 0.5) & (clg <= 0.5)
         priority[w] = 9
         code[w] = 1
         
         # Very faint stars with lowest priority
-        w = (i0 >= 23.0) & (cli <= 0.5) & (clg <= 0.5)
+        w = (g0 >= 23.0) & (cli <= 0.5) & (clg <= 0.5)
         priority[w] = 9
         code[w] = 2
 
