@@ -395,13 +395,14 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     # TODO: plot black dots
 
-    def plot_fiber_numbers(self, ax, **kwargs):
+    def plot_fiber_numbers(self, ax, diagram, **kwargs):
 
         # TODO: figure out what coordinates and projections to use
 
         for i in range(len(self.__bench.cobras.centers)):
             x, y = (self.__bench.cobras.centers[i].real, self.__bench.cobras.centers[i].imag)
-            ax.text(x, y, str(i), ha='center', va='center', fontsize=5)
+            x, y = diagram.project_coords(ax, x, y, native_frame='pixel')
+            ax.text(x, y, str(i), ha='center', va='center', **kwargs)
 
     def plot_corners(self, ax, **kwargs):
         pass
