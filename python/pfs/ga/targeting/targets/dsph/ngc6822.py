@@ -14,7 +14,7 @@ class NGC6822(DSphGalaxy):
     def __init__(self):
         ID = 'ngc6822'
         pos = [ 296.234, -14.7976 ] * u.deg
-        rad = np.nan * u.arcmin
+        rad = 120. * u.arcmin
         DM, DM_err = np.nan, np.nan
         pm = [ np.nan, np.nan ] * u.mas / u.yr     
         pm_err = [ 0.122, 0.098 ] * u.mas / u.yr
@@ -50,3 +50,131 @@ class NGC6822(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+
+    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=18, faint=23.5):
+        """Return true for objects within sharp magnitude cuts."""
+
+        # TODO: add Keyi's cut
+        
+        cmd = self.__hsc_cmd
+        ccd = self.__hsc_ccd
+
+        # Broadband colors
+        mask = ColorSelection(cmd.axes[0], 0.12, 2.0).apply(catalog, observed=observed)
+
+        # Narrow band
+        if nb:
+            mask &= (
+                ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
+
+                | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed)
+                
+                | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
+            )
+
+        # Probability-based cut (map) - nonzero membership probability
+        if probcut is not None:
+            mask &= probcut.apply(catalog, observed=observed)
+
+        # Allow blue
+        if blue:
+            mask |= (
+                ColorSelection(ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
+            )
+
+        # Always impose faint and bright magnitude cuts
+        mask &= MagnitudeSelection(cmd.axes[1], bright, faint).apply(catalog, observed=observed)
+
+        return mask
+
+    def assign_priorities(self, catalog: Catalog, mask=None):
+        """Assign priority classes based on photometry"""
+
+        mask = mask if mask is not None else np.s_[:]
+
+        g0, i0, gi0 = self._get_hsc_dered_mags_colors(catalog, mask)
+        clg = catalog.data['clg'][mask]
+        cli = catalog.data['cli'][mask]
+
+        priority = np.full(g0.shape, -1, np.int32)
+
+        code = np.full(g0.shape, 0, dtype=np.int32)
+        if (False & ('p_member' in catalog.data)):
+            prob = catalog.data['p_member'][mask]
+
+            top_pri = np.maximum(np.floor((i0 - 16)/(21.5 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((i0 - 16)/(21.5 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+            
+            w = ~np.isnan(prob)
+            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
+            
+            # Everything without membership probability
+            w = np.isnan(prob) | (prob == 0.0)
+            priority[w] = 9
+            code[w] = 0
+        else:
+            predicted_y1 = -(0.65 / 0.6) * gi0 + 22.4
+            predicted_y2 = -(1.75 / 0.9) * gi0 + 23.5
+            predicted_y3 = -(5.75 / 0.3) * gi0 + 33.25
+            predicted_y4 = -(5.75 / 0.65) * gi0 + 28.38
+
+            w = (g0 > 16) & (g0 < 23)
+            top_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(bot_pri[w] - top_pri[w]).astype(int), 0), 9)
+            
+            w = (gi0 < 0.6) & ((i0 < predicted_y1) | (i0 > predicted_y2))
+            priority[w] = 9
+            
+            w = (gi0 >= 0.6) & ((i0 < predicted_y3) | (i0 > predicted_y4))
+            priority[w] = 9
+                
+            w = (g0 <= 16)
+            priority[w] = 9
+            
+            w = (g0 >= 23)
+            priority[w] = 9
+
+        # Blue Horizontal Branch
+        w = (g0 > 19.6) & (g0 < 20.2) & (gi0 > -0.5) & (gi0 < 0.2) & (cli <= 0.5) & (clg < 0.5)
+        priority[w] = 6
+        code[w] = 0
+        
+        # Very bright stars
+        w = (i0 <= 16) & (cli <= 0.5) & (clg <= 0.5)
+        priority[w] = 9
+        code[w] = 1
+        
+        # Very faint stars with lowest priority
+        w = (i0 >= 23.0) & (cli <= 0.5) & (clg <= 0.5)
+        priority[w] = 9
+        code[w] = 2
+
+        # Possible extended sources, regardless of magnitude
+        w = (cli > 0.5) | (clg > 0.5)
+        priority[w] = 9
+        code[w] = 3
+
+        # Assign minimum priority to non-members based on Gaia proper motions but within the probability cut
+        # These are stars typically a bit bluer than the dSph RGB
+        if 'pmra' in catalog.data.columns:
+            pmra = catalog.data['pmra'][mask]
+            pmra_err = catalog.data['err_pmra'][mask]
+            pmdec = catalog.data['pmdec'][mask]
+            pmdec_err = catalog.data['err_pmdec'][mask]
+
+            nonmem = (code == 0) & \
+                (np.sqrt((pmra - self.pmra.value) ** 2 / (pmra_err ** 2 + self.pmra_err ** 2) +
+                            (pmdec - self.pmdec.value) ** 2 / (pmdec_err ** 2 + self.pmdec_err ** 2)) > 3) & \
+                (pmra_err >= 0.0) & (pmdec_err >= 0.0) & ~np.isnan(pmra) & ~np.isnan(pmdec)
+            priority[nonmem] = 9
+
+        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * ((i0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)
+        keep = (g0 < 23) & (priority <= 9) & (code == 0)
+
+        catalog.data['priority'] = -1
+        catalog.data['priority'][mask][keep] = priority[keep]
+
+        catalog.data['exp_time'] = np.nan
+        catalog.data['exp_time'][mask][keep] = exp_time[keep]
