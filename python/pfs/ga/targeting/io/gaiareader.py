@@ -44,6 +44,7 @@ class GaiaReader(CatalogReader):
             FROM gaiadr3.gaia_source
             WHERE CONTAINS(POINT('ICRS', gaiadr3.gaia_source.ra, gaiadr3.gaia_source.dec),
                            CIRCLE('ICRS', {pos.ra.degree:0.8f}, {pos.dec.degree:0.8f}, {rad.degree:0.8f})) = 1;"""
+        print(query)
         job = Gaia.launch_job_async(query, dump_to_file=False)
         gaia = job.get_results()
         df = gaia.to_pandas()
