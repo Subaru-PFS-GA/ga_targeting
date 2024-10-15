@@ -50,3 +50,37 @@ class Fornax(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+
+    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
+        
+        cmd = self.__hsc_cmd
+        ccd = self.__hsc_ccd
+        
+        # Broadband colors
+        mask = ColorSelection(ccd.axes[0], -0.75, 2.0).apply(catalog, observed=observed)
+
+        # Narrow band
+        if nb:
+            mask &= (
+                ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
+
+                | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed)
+                
+                | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
+            )
+
+        # Probability-based cut (map) - nonzero membership probability
+        if probcut is not None:
+            mask &= probcut.apply(catalog, observed=observed)
+
+        # Allow blue
+        if blue:
+            mask |= (
+                ColorSelection(ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
+            )
+
+        # Always impose faint and bright magnitude cuts
+        mask &= MagnitudeSelection(cmd.axes[1], bright, faint).apply(catalog, observed=observed)
+
+        return mask
