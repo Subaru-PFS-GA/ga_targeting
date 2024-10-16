@@ -116,7 +116,7 @@ class Fornax(DSphGalaxy):
             code[w] = 0
             
             # blue stars
-            w = (g0 < 0.12) & (clg <= 0.5)
+            w = (gi0 < 0.12) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 0
             
