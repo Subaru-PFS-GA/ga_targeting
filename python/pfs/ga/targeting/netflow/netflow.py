@@ -1320,6 +1320,18 @@ class Netflow():
             self.__variables.CTCv_o[(target_class, visit.visit_idx)].append(f)
 
     def __create_Tv_Cv_CG(self, visit, cidx, tidx):
+        """
+        Create the Tv -> Cv variables for a given visit and a cobra and a list of accessible targets.
+
+        Parameters:
+        -----------
+        visit : Visit
+            The visit object
+        cidx : int
+            The cobra index
+        tidx : array
+            The target indices visible by the cobra
+        """
         
         tidx_to_fpidx_map = self.__cache_to_fp_pos_map[visit.pointing_idx]
         
@@ -1349,6 +1361,7 @@ class Netflow():
         name = self.__make_name("Tv_Cv", visit.visit_idx, cidx)
         vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
 
+        # For each accessible target, save the Tv -> Cv variable to the respective lists
         # TODO: can these be created in batch mode?
         for ti in tidx:
             f = vars[ti]
@@ -1666,26 +1679,26 @@ class Netflow():
         ignore_cobra_group_minimum = self.__get_debug_option('ignore_cobra_group_minimum', False)
         ignore_cobra_group_maximum = self.__get_debug_option('ignore_cobra_group_maximum', False)
 
-        for name, options in self.__cobra_groups.items():
+        for cg_name, options in self.__cobra_groups.items():
             need_min = not ignore_cobra_group_minimum and options.min_targets is not None
             need_max = not ignore_cobra_group_maximum and options.max_targets is not None
             if need_min or need_max:                
                 for vidx in range(nvisits):
                     for gidx in range(options.ngroups):
-                        variables = self.__variables.CG_i[(name, vidx, gidx)]
+                        variables = self.__variables.CG_i[(cg_name, vidx, gidx)]
                         if len(variables) > 0:
                             if need_min:
-                                name = self.__make_name("Cv_CG_min", name, vidx, gidx)
+                                name = self.__make_name("Cv_CG_min", cg_name, vidx, gidx)
                                 # constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
                                 constr = ([1] * len(variables), variables, '>=', options.min_targets)
-                                self.__constraints.CG_min[name, vidx, gidx] = constr
+                                self.__constraints.CG_min[cg_name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
                             if need_max:
-                                name = self.__make_name("Cv_CG_max", name, vidx, gidx)
+                                name = self.__make_name("Cv_CG_max", cg_name, vidx, gidx)
                                 # constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
                                 constr = ([1] * len(variables), variables, '<=', options.max_targets)
-                                self.__constraints.CG_max[name, vidx, gidx] = constr
+                                self.__constraints.CG_max[cg_name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
     def __create_unassigned_fiber_constraints(self, nvisits):
