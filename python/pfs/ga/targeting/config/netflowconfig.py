@@ -3,6 +3,7 @@ from typing import List, Dict
 import numpy as np
 
 import pfs.utils
+from pfs.utils.fibers import fiberHoleFromFiberId
 
 from .config import Config
 from .fieldconfig import FieldConfig
@@ -127,39 +128,13 @@ class NetflowConfig(Config):
 
         pfi = SubaruPFI(instrument_options=instrument_options)
 
-        # Get the focal plane coordinates of the cobras
-        ncobras = len(pfi.bench.cobras.centers)
-        x, y = pfi.bench.cobras.centers[:].real, pfi.bench.cobras.centers[:].imag
-
-        # Convert to polar coordinates around the center of the focal plane
-        r = np.sqrt(x**2 + y**2)
-        theta = np.arctan2(y, x)
-
-        # Assign labels to the cobras based on the polar coordinate
-        # Use 6 sector in theta and four bins in r
-        ntheta = 6
-        theta_bins = np.linspace(-np.pi, np.pi, ntheta + 1)
-        r_bins = np.array([0, 150, 240])
-
-        theta_labels = np.digitize(theta, theta_bins, right=False) - 1
-        r_labels = np.digitize(r, r_bins, right=False) - 1
-        cobra_sky_labels = (r_bins.size - 1) * theta_labels + r_labels
-
-        # Add one more label in the center
-        cobra_sky_labels[r < 60] = cobra_sky_labels.max() + 1
-
-        cobra_instrument_labels = np.zeros(ncobras, dtype=int)
-
-        # For each spectrograph, get the corresponding cobra
-        for s in np.arange(4) + 1:
-            cobra_ids = pfi.fiber_map.cobrasForSpectrograph(s)
-            mask = cobra_ids != 65534
-            cobra_instrument_labels[cobra_ids[mask]] = s - 1
+        cobra_location_labels = self.__create_cobra_location_labels(pfi, ntheta=6)
+        cobra_instrument_labels = self.__create_cobra_instrument_labels(pfi, ngroups=16)
 
         cobra_groups = {
             'sky_location': dict(
                 # groups = np.random.randint(8, size=ncobras),
-                groups = cobra_sky_labels,
+                groups = cobra_location_labels,
                 target_classes = [ 'sky' ],
                 min_targets = 20,
                 max_targets = 80,
@@ -169,21 +144,63 @@ class NetflowConfig(Config):
                 # groups = np.random.randint(8, size=ncobras),
                 groups = cobra_instrument_labels,
                 target_classes = [ 'sky' ],
-                min_targets = 60,
-                max_targets = 80,
+                min_targets = 3,
+                max_targets = 20,
                 non_observation_cost = 100,
             ),
-            'cal_instrument': dict(
+            'cal_location': dict(
                 # groups = np.random.randint(8, size=ncobras),
-                groups = cobra_instrument_labels,
+                groups = cobra_location_labels,
                 target_classes = [ 'cal' ],
-                min_targets = 10,
-                max_targets = 60,
+                min_targets = 5,
+                max_targets = 10,
                 non_observation_cost = 1000,
             ),
+            # 'cal_instrument': dict(
+            #     # groups = np.random.randint(8, size=ncobras),
+            #     groups = cobra_instrument_labels,
+            #     target_classes = [ 'cal' ],
+            #     min_targets = 10,
+            #     max_targets = 60,
+            #     non_observation_cost = 1000,
+            # ),
         }
 
         return cobra_groups
+    
+    def __create_cobra_location_labels(self, pfi, ntheta=6):
+
+        # Get the focal plane coordinates of the cobras
+        x, y = pfi.bench.cobras.centers[:].real, pfi.bench.cobras.centers[:].imag
+
+        # Convert to polar coordinates around the center of the focal plane
+        r = np.sqrt(x**2 + y**2)
+        theta = np.arctan2(y, x)
+
+        # Assign labels to the cobras based on the polar coordinate
+        theta_bins = np.linspace(-np.pi, np.pi, ntheta + 1)
+        r_bins = np.array([0, 150, 240])
+
+        theta_labels = np.digitize(theta, theta_bins, right=False) - 1
+        r_labels = np.digitize(r, r_bins, right=False) - 1
+        cobra_location_labels = (r_bins.size - 1) * theta_labels + r_labels
+
+        # Add one more label in the center
+        cobra_location_labels[r < 60] = cobra_location_labels.max() + 1
+
+        return cobra_location_labels
+    
+    def __create_cobra_instrument_labels(self, pfi, ngroups=8):
+        ncobras = len(pfi.bench.cobras.centers)
+        cobra_instrument_labels = np.zeros(ncobras, dtype=int)
+        mask = pfi.fiber_map.cobraId != 65535
+
+        fiber_hole_group_size = pfi.fiber_map.fiberHoleId.max() / ngroups
+        cobra_instrument_labels[pfi.fiber_map.cobraId[mask] - 1] = \
+            (pfi.fiber_map.spectrographId[mask] - 1) * ngroups \
+            + (np.round(pfi.fiber_map.fiberHoleId[mask] - 1) / fiber_hole_group_size).astype(int)
+
+        return cobra_instrument_labels
 
     def __create_target_classes(self):
         target_classes = {
