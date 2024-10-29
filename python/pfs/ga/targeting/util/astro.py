@@ -1,7 +1,7 @@
 import numpy as np
 
 def ABmag_to_flux(mag, mag_err=None, zero=0):
-    """Convert AB mags to flux"""
+    """Convert AB mags to flux in cgs units"""
     flux = 10**(-0.4 * (mag - zero + 48.6))
     if mag_err is not None:
         flux_err = 0.4 * np.log(10) * flux * mag_err
@@ -10,7 +10,7 @@ def ABmag_to_flux(mag, mag_err=None, zero=0):
         return flux
 
 def flux_to_ABmag(flux, zero=0):
-    """Convert flux to AB mags"""
+    """Convert flux in cgs units to AB mags"""
     return -2.5 * np.log10(flux) - 48.6 + zero
 
 def ABmag_to_sigma(mag, conversion, sky, sky_sigma=None, zero=0, softening=0):

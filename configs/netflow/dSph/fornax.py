@@ -1,0 +1,88 @@
+from datetime import datetime, timedelta
+from pfs.ga.targeting.targets.dsph import Fornax
+from pfs.ga.targeting.instrument import SubaruHSC
+
+config = dict(
+    field = dict(
+        key = "for",
+        name = "fornax",
+        # definition = Fornax,
+        pointings = [
+            dict(ra=40.4, dec=-34.1, posang=30.0),
+        ],
+        arms = 'bmn',
+        nvisits = 1,
+        exp_time = 6 * 30 * 60.,
+        obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
+    ),
+    targets = {
+        "dsph": dict(
+            path = "/datascope/subaru/user/dobos/netflow/fornax_1_visit/for_obs.feather",
+            # reader = None
+            reader_args = dict(),
+            column_map = {'objid': 'targetid'},
+            prefix = "sci",
+            epoch = "J2000.0",
+            catid = 15001,
+            proposalid = "PFS-2024-001",
+            filters = {
+                "g_hsc": dict(
+                    mag = 'obs_hsc_g',
+                    mag_err = 'err_hsc_g',
+                    # flux = "g_hsc_flux",
+                    # flux_err = "g_hsc_flux_err",
+                    # psf_mag = "g_hsc",
+                    # psf_mag_err = "g_hsc_err",
+                    # psf_flux = "g_hsc_flux",
+                    # psf_flux_err = "g_hsc_flux_err",
+                    # fiber_mag = "g_hsc",
+                    # fiber_mag_err = "g_hsc_err",
+                    # fiber_flux = "g_hsc_flux",
+                    # fiber_flux_err = "g_hsc_flux_err",
+                    # total_mag = "g_hsc",
+                    # total_mag_err = "g_hsc_err",
+                    # total_flux = "g_hsc_flux",
+                    # total_flux_err = "g_hsc_flux_err",
+                ),
+                "i_hsc": dict(
+                    mag = 'obs_hsc_i',
+                    mag_err = 'err_hsc_i',
+                ),
+                "nb515_hsc": dict(
+                    mag = 'obs_hsc_nb515',
+                    mag_err = 'err_hsc_nb515',
+                ),
+            }
+        ),
+        "sky": dict(
+            path = "/datascope/subaru/data/catalogs/dSph/sky_fornax.feather",
+            reader_args = dict(),
+            column_map = {
+                'sky_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+            },
+            prefix = "sky"
+        ),
+        "fluxstd": dict(
+            path = "/datascope/subaru/data/catalogs/dSph/Fornax_GaiaFstar.csv",
+            reader_args = dict(),
+            column_map = {
+                'obj_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+            },
+            prefix = "cal",
+            bands = {
+                b: dict(
+                    filter = f'filter_{b}',                   # Column storing filter names
+                    psf_mag = f'psf_mag_{b}',
+                    psf_mag_err = f'psf_mag_error_{b}',
+                    psf_flux = f'psf_flux_{b}',
+                    psf_flux_err = f'psf_flux_error_{b}',
+                ) for b in 'gri'
+            }
+        ),
+    },
+    netflow_options = dict()
+)
