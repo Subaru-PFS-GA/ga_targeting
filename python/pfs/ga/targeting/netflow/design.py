@@ -13,7 +13,8 @@ class Design():
         for catalog in catalogs:
             assignments = assignments.merge(catalog, on='targetid', how='left')
 
-    def create_pfsDesign_visit(visit, assignments):
+    def create_pfsDesign_visit(visit, assignments,
+                               arms='bmn'):
         """
         Generate a PfsDesign object for a given visit.
         """
@@ -43,10 +44,10 @@ class Design():
             raBoresight = visit.pointing.ra,
             decBoresight = visit.pointing.dec,
             posAng = visit.pointing.posang,
-            arms = 'bmn',
+            arms = arms,
             fiberId = np.array(fiber_assignments.index.astype(np.int32)),
-            tract = np.array(fiber_assignments['tract'].astype(np.int32)),
-            patch = np.array(fiber_assignments['patch'].astype(str)),
+            tract = np.array(fiber_assignments['tract'].fillna(-1).astype(np.int32)),
+            patch = np.array(fiber_assignments['patch'].fillna('0,0').astype(str)),
             ra = np.array(fiber_assignments['RA'].astype(np.float64)),
             dec = np.array(fiber_assignments['Dec'].astype(np.float64)),
             catId = np.array(fiber_assignments['catid'].fillna(-1).astype(np.int32)),
@@ -67,6 +68,12 @@ class Design():
 
             guideStars = None,
         )
+
+        # Substitute na values with empty lists, it's a bit hacky because pandas
+        # does not support passing lists to fillna
+        for c in ['filter', 'fiber_flux', 'fiber_flux_err', 'psf_flux', 'psf_flux_err', 'total_flux', 'total_flux_err']:
+            isna = fiber_assignments[c].isna()
+            fiber_assignments[c][isna] = fiber_assignments[c][isna].apply(lambda x: [])
 
         # Add the fluxes
         # Convert the rows of column `filter` into a list
