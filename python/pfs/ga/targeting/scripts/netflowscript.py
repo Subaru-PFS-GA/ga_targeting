@@ -1,5 +1,6 @@
 import os
 import commentjson as json
+from datetime import datetime, timedelta, tzinfo
 import pandas as pd
 import astropy.units as u
 
@@ -13,17 +14,73 @@ from .script import Script
 
 from ..setup_logger import logger
 
-class Assign(Script):
+class NetflowScript(Script):
     """
     Command-line script to execute netflow optimazion and generate
     the target list and design files.
+
+    This script loads the configuration file and reads the target lists. At least
+    one science target list must be provided, in addition to a mandatory calibration
+    target list and a list of sky positions.
+
+    The target lists must already contain the necessary columns for the netflow
+    optimization. The column names are case sensitive.
+
+        * Magnitudes and/or fluxes and their errors for each filter, measured for
+            the PSF, fiber aperture and/or total. The column names are analyzed in
+            this particular order, if any of the columns is not found, it will be
+            calculated from the available columns. For example, if the fiber flux is
+            missing, but the PSF flux is available, the PSF flux will be copied.
+            If the flux is not available, but the magnitude is available, the flux
+            will be calculated from the magnitude. AB magnitudes and fluxes in nJy are
+            assumed everywhere. The magnitude and flux names, as well as the filter
+            names can be listed two different ways, see below.
+        * epoch: epoch of the coordinates, default is J2000.0. It has no effect if
+            the proper motion components are not provided. Note that this is not the
+            equinox of the coordinate system.
+        * catid: int32, catalog id, default is -1 for calibration targets and sky targets.
+            It must have a unique value in the database.
+        * proposalid: string, proposal id, default is empty string.
+        * tract: int32, tract number, computed from the coordinates.
+        * patch: string, patch number, computed from the coordinates.
+        * targetid: int64, must be unique for each target in the target list and across all
+            target lists. Can be -1 for sky positions.        
+        * obcode: string, must be unique for each target in the target list and across all
+            target lists and must be unique across all visits.
+        * RA, Dec, float64, target coordinates in degrees.
+        * pmra, pmdec, parallax: float64, proper motion components in mas/yr and parallax in mas.
+            pmra is assumed to be multiplied by cos(Dec).
+        * prefix: string, prefix for the target type, must be one of `sci`, `cal`, `sky`.
+        * priority: int32, priority of the target, only for science targets
+
+
+    Magnitudes/fluxes and filter names can be provided in two different ways:
+        1. If the configuration entry `filters` is provided, the filter names are listed in
+            the configuration file as a dictionary, where the keys are the filter names.
+            The columns corresponding to the various fluxes and magnitudes must be listed
+            individually in the configuration.
+        2. If the configuration entry `bands` is provided, the band names are listed in
+            the configuration file as a dictionary, where the keys are the band names.
+            The columns corresponding to the various fluxes and magnitudes must be listed
+            individually in the configuration for each band. In addition, a column must be
+            defined that contains the filter name for each band. This method is typically
+            used for calibration target lists where the targets might come from different
+            photometric catalogs.
+
+    The pointings are defined in the configuration file but the number of visits, the
+    observation time and the exposure time can be overridden with the command-line arguments
+    `--nvisits`, `--obs-time` and `--exp-time`. The default is always what is in the
+    configuration file.
     """
 
     def __init__(self):
         super().__init__()
 
         self.__outdir = None
-
+        self.__nvisits = None
+        self.__exp_time = None
+        self.__obs_time = None
+        
         self.__config = None
 
     def _add_args(self):
@@ -31,6 +88,9 @@ class Assign(Script):
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
+        self.add_arg('--nvisits', type=int, help='Number of visits for each pointing.')
+        self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
+        self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
 
     def _init_from_args(self, args):
         super()._init_from_args(args)
@@ -43,6 +103,9 @@ class Assign(Script):
         self.__config.load(config_files, ignore_collisions=True)
 
         self.__outdir = self.get_arg('out', args, self.__outdir)
+        self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
+        self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
+        self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
 
     def prepare(self):
         super().prepare()
@@ -387,16 +450,26 @@ class Assign(Script):
             pp = self.__config.field.definition.get_pointings(SubaruPFI)
         else:
             raise NotImplementedError()
+        
+        # The number of visits can be overridden from the command-line argument
+        nvisits = self.__nvisits if self.__nvisits is not None else self.__config.field.nvisits
+        exp_time = self.__exp_time if self.__exp_time is not None else self.__config.field.exp_time
+
+        if self.__obs_time is not None:
+            obs_time = datetime.fromisoformat(self.__obs_time)
+        else:
+            obs_time = self.__config.field.obs_time
+        
 
         # Create new pointing objects with obs_time, exp_time etc.
         pointings = []
         for p in pp:   
             pointings.append(Pointing(
                 p.ra, p.dec,
-                posang=p.posang,
-                obs_time=self.__config.field.obs_time,
-                exp_time=self.__config.field.exp_time,
-                nvisits=self.__config.field.nvisits))
+                posang = p.posang,
+                obs_time = obs_time,
+                exp_time = exp_time,
+                nvisits = nvisits))
             
         return pointings
     
@@ -563,5 +636,5 @@ class Assign(Script):
             logger.info(f'Saved design {d.pfsDesignId:016x} to `{d.filename}`.')
 
 if __name__ == '__main__':
-    assign = Assign()
-    assign.execute()
+    script = NetflowScript()
+    script.execute()

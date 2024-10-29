@@ -86,6 +86,8 @@ class NetflowConfig(Config):
             fiberids_path = os.path.join(os.path.dirname(pfs.utils.__file__), '../../../data/fiberids'),
 
             # Generate full gurobi variable names instead of numbered ones (slow to build problem)
+            # It is necessary only, when the netflow solution will be loaded from a file to
+            # extract assignments based on variable names.
             use_named_variables = False,
         )
 
