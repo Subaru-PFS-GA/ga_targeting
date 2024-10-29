@@ -4,3 +4,5 @@
 #       - Isochrone
 #       - ProbabilityMap
 #       - Catalog ?
+
+from ..projection import Pointing
