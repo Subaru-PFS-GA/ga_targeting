@@ -12,6 +12,7 @@ from .setup_logger import logger
 from .util import *
 from ..util.args import *
 from ..util.config import *
+from ..data import Catalog
 from ..projection import Pointing
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
@@ -216,6 +217,9 @@ class Netflow():
         
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
+
+        # Run a few sanity checks
+        self.__check_pointing_visibility()
 
     #region Property accessors
 
@@ -627,8 +631,12 @@ class Netflow():
         for cidx, tidx1 in ivis.items():
             # Determine target indices visible by this cobra and its neighbors
             nb = self.__bench.getCobraNeighbors(cidx)
-            tidx2 = np.concatenate([ivis[j] for j in nb if j in ivis])
-            tidx2 = np.concatenate((tidx1, tidx2))
+            ivis_nb = [ivis[j] for j in nb if j in ivis]
+            if len(ivis_nb) > 0:
+                tidx2 = np.concatenate([ivis[j] for j in nb if j in ivis])
+                tidx2 = np.concatenate((tidx1, tidx2))
+            else:
+                tidx2 = tidx1
             tidx2 = np.unique(tidx2).astype(int)
             d = np.abs(np.subtract.outer(fp_pos[tidx_to_fpidx_map[tidx1]], fp_pos[tidx_to_fpidx_map[tidx2]]))
             
@@ -703,15 +711,30 @@ class Netflow():
 
         return mask
         
-    def __append_targets(self, catalog, id_column, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
+    def __append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
+        
+        if isinstance(catalog, Catalog):
+            # id_column
+            df = catalog.get_data(mask=mask, filter=filter, selection=selection)
+        elif isinstance(catalog, pd.DataFrame):
+            df = catalog
+        
+        if 'targetid' in df:
+            id_column = 'targetid'
+        elif prefix == 'sci':
+            id_column = 'objid'
+        elif prefix == 'cal':  
+            id_column = 'objid'
+        elif prefix == 'sky':
+            id_column = 'skyid'
+        else:
+            raise ValueError(f"Cannot determine identity column for catalog with prefix `{prefix}`.")   
         
         # Make sure that we convert to the right data type everywhere
-                       
-        df = catalog.get_data(mask=mask, filter=filter, selection=selection)
-
+        
         # Create the formatted dataset from the input catalog
         data = {
-            'id': df[id_column].astype(np.int64).reset_index(drop=True),
+            'targetid': df[id_column].astype(np.int64).reset_index(drop=True),
             'RA': df['RA'].astype(np.float64).reset_index(drop=True),
             'Dec': df['Dec'].astype(np.float64).reset_index(drop=True)
         }
@@ -743,7 +766,7 @@ class Netflow():
         else:
             pd_append_column(targets, 'penalty', 0, np.int32)
 
-        pd_append_column(targets, 'prefix', prefix, str)
+        pd_append_column(targets, 'prefix', prefix, 'string')
 
         if prefix == 'sci':
             if exp_time is not None:
@@ -756,9 +779,9 @@ class Netflow():
             else:
                 pd_append_column(targets, 'priority', df['priority'], np.int32)
 
-            targets['class'] = targets[['prefix', 'priority']].apply(lambda r: f"{r['prefix']}_P{r['priority']}", axis=1)
+            targets['class'] = targets[['prefix', 'priority']].apply(lambda r: f"{r['prefix']}_P{r['priority']}", axis=1).astype('string')
         else:
-            pd_append_column(targets, 'class', prefix, str)
+            pd_append_column(targets, 'class', prefix, 'string')
 
             # Calibration targets have no prescribed exposure time and priority
             pd_append_column(targets, 'exp_time', np.nan, np.float64)
@@ -769,29 +792,28 @@ class Netflow():
             self.__targets = targets
         else:
             self.__targets = pd.concat([self.__targets, targets])
+
+        logger.info(f'Added {len(targets)} targets with prefix `{prefix}` to the target list.')
             
     def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None, selection=None):
         """Add science targets"""
 
-        self.__append_targets(catalog, 'objid', 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
+        self.__append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
 
     def append_sky_targets(self, sky, mask=None, filter=None, selection=None):
         """Add sky positions"""
 
-        self.__append_targets(sky, 'skyid', prefix='sky', mask=mask, filter=filter, selection=selection)
+        self.__append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
 
     def append_fluxstd_targets(self, fluxstd, mask=None, filter=None, selection=None):
         """Add flux standard positions"""
 
-        self.__append_targets(fluxstd, 'objid', prefix='cal', mask=mask, filter=filter, selection=selection)
+        self.__append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
 
     def build(self):
         """Construct the ILP problem"""
         # Load configuration
         logger.info("Processing netflow configuration")
-
-        # Run a few sanity checks
-        self.__check_pointing_visibility()
 
         # Optimize data access
         self.__calculate_exp_time()
@@ -876,9 +898,9 @@ class Netflow():
     def __cache_targets(self):
         """Extract the contents of the Pandas DataFrame for faster indexed access."""
 
-        # Sort targets by id, if not already
-        if 'id' in self.__targets.columns:
-            self.__targets = self.__targets.set_index('id').sort_index()
+        # Sort targets by targetid, if not already
+        if 'targetid' in self.__targets.columns:
+            self.__targets = self.__targets.set_index('targetid').sort_index()
 
         # Determine the target mask that filters out targets
         # that are outside the field of view
@@ -1196,6 +1218,8 @@ class Netflow():
             col.pairs = self.__get_colliding_pairs(pidx, collision_distance)
             col.elbows = self.__get_colliding_elbows(pidx, collision_distance)
             self.__collisions.append(col)
+
+            logger.info(f'Found {len(col.pairs)} colliding fibers and {len(col.elbows)} elbows for pointing {pidx + 1}.')
 
     #region Variables and costs
         
@@ -1823,19 +1847,16 @@ class Netflow():
             cidx = np.where(self.__cobra_assignments[vidx] == -1)[0]
 
             if include_unassigned_fibers:
-                unassigned = pd.DataFrame(
-                    {
-                        'targetid': -1,
-                        'pointing_idx': visit.pointing_idx,
-                        'visit_idx': vidx,
-                        'cobraid': cobraids[cidx],
-                        'fiberid': fiberids[cidx],
-                        'fp_x': np.nan,
-                        'fp_y': np.nan,
-                        'target_type': 'na',
-                        'fiber_status': FiberStatus.GOOD
-                    }
-                )
+                unassigned = pd.DataFrame()
+                pd_append_column(unassigned, 'fiberid', fiberids[cidx], np.int32)
+                pd_append_column(unassigned, 'targetid', -1, np.int64)
+                pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
+                pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
+                pd_append_column(unassigned, 'cobraid', cobraids[cidx], np.int32)
+                pd_append_column(unassigned, 'fp_x', np.nan, np.float64)
+                pd_append_column(unassigned, 'fp_y', np.nan, np.float64)
+                pd_append_column(unassigned, 'target_type', 'na', 'string')
+                pd_append_column(unassigned, 'fiber_status', FiberStatus.GOOD, np.int32)
 
                 if assignments is None:
                     assignments = unassigned
@@ -1843,19 +1864,18 @@ class Netflow():
                     assignments = pd.concat([ assignments, unassigned ])
 
             if include_engineering_fibers:
-                engineering = pd.DataFrame(
-                    {
-                        'targetid': -1,
-                        'pointing_idx': visit.pointing_idx,
-                        'visit_idx': vidx,
-                        'cobraid': -1,
-                        'fiberid': np.where(self.__fiber_map.data['scienceFiberId'] == self.__fiber_map.ENGINEERING)[0] + 1,
-                        'fp_x': np.nan,
-                        'fp_y': np.nan,
-                        'target_type': 'eng',
-                        'fiber_status': FiberStatus.GOOD
-                    }
-                )
+                engineering = pd.DataFrame()
+                pd_append_column(engineering, 'fiberid', 
+                                 np.where(self.__fiber_map.data['scienceFiberId'] == self.__fiber_map.ENGINEERING)[0] + 1,
+                                 np.int32)
+                pd_append_column(engineering, 'targetid', -1, np.int64)
+                pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
+                pd_append_column(engineering, 'visit_idx', vidx, np.int32)
+                pd_append_column(engineering, 'cobraid', -1, np.int32)
+                pd_append_column(engineering, 'fp_x', np.nan, np.float64)
+                pd_append_column(engineering, 'fp_y', np.nan, np.float64)
+                pd_append_column(engineering, 'target_type', 'eng', 'string')
+                pd_append_column(engineering, 'fiber_status', FiberStatus.GOOD, np.int32)
 
                 if assignments is None:
                     assignments = engineering
@@ -1866,19 +1886,20 @@ class Netflow():
             tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
             fpidx = self.__cache_to_fp_pos_map[visit.pointing_idx][tidx]
 
-            targets = pd.DataFrame(
-                {
-                    'targetid': self.__target_cache.id[tidx],
-                    'pointing_idx': visit.pointing_idx,
-                    'visit_idx': vidx,
-                    'cobraid': np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
-                    'fiberid': np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ]),
-                    'fp_x':  self.__target_fp_pos[visit.pointing_idx][fpidx].real,
-                    'fp_y':  self.__target_fp_pos[visit.pointing_idx][fpidx].imag,
-                    'target_type': self.__target_cache.prefix[tidx],
-                    'fiber_status': FiberStatus.GOOD
-                }
-            )
+            targets = pd.DataFrame()
+            pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
+            pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
+            pd_append_column(targets, 'visit_idx', vidx, np.int32)
+            pd_append_column(targets, 'cobraid',
+                             np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ], dtype=int),
+                             np.int32)
+            pd_append_column(targets, 'fiberid',
+                                np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ], dtype=int),
+                                np.int32)
+            pd_append_column(targets, 'fp_x', self.__target_fp_pos[visit.pointing_idx][fpidx].real, np.float64)
+            pd_append_column(targets, 'fp_y', self.__target_fp_pos[visit.pointing_idx][fpidx].imag, np.float64)
+            pd_append_column(targets, 'target_type', self.__target_cache.prefix[tidx], 'string')
+            pd_append_column(targets, 'fiber_status', FiberStatus.GOOD, np.int32)
 
             if assignments is None:
                 assignments = targets
@@ -1894,7 +1915,8 @@ class Netflow():
             'sci': TargetType.SCIENCE,
             'eng': TargetType.ENGINEERING,
         }
-        assignments['target_type'] = assignments['target_type'].map(target_type_map)
+
+        assignments['target_type'] = assignments['target_type'].map(target_type_map).astype(np.int32)
 
         # Include all columns from the target list data frame, if requested
         # Convert integer columns to nullable to avoid float conversion in join
