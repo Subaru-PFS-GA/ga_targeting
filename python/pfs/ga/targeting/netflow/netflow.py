@@ -259,6 +259,9 @@ class Netflow():
     def __get_targets(self):
         return self.__targets
     
+    def _set_targets(self, value):
+        self.__targets = value
+    
     targets = property(__get_targets)
 
     def __get_target_classes(self):
@@ -1747,8 +1750,15 @@ class Netflow():
     #endregion
 
     def solve(self):
-        self.__problem.solve()
-        self.__extract_assignments()
+        if self.__problem.solve():
+            self.__extract_assignments()
+        else:
+            if len(self.__problem.infeasible_constraints) > 0:
+                # TODO: Find the infeasible constraints and give detailed information about them
+                pass
+
+            raise RuntimeError("Failed to solve the netflow problem.")
+
 
     def __extract_assignments(self):
         """

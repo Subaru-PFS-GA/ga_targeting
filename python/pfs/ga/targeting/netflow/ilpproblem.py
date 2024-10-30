@@ -4,6 +4,7 @@ class ILPProblem():
         self.__solver_options = solver_options if solver_options is not None else {}
         self._variables = {}
         self._constraints = {}
+        self._infeasible_constraints = {}
 
     def __get_name(self):
         return self.__name
@@ -24,6 +25,11 @@ class ILPProblem():
         return self._constraints
     
     constraints = property(__get_constraints)
+
+    def __get_infeasible_constraints(self):
+        return self._infeasible_constraints
+    
+    infeasible_constraints = property(__get_infeasible_constraints)
 
     def add_variable(self, name, lo, hi):
         raise NotImplementedError()

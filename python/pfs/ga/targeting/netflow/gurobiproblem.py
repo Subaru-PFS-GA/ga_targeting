@@ -1,3 +1,5 @@
+import numpy as np
+
 from .setup_logger import logger
 
 try:
@@ -98,6 +100,20 @@ class GurobiProblem(ILPProblem):
         self.__model.setObjective(self.__cost)
         self.__model.update()
         self.__model.optimize()
+
+        if self.__model.Status == gbp.GRB.INFEASIBLE:
+            logger.error('Model is infeasible which means certain constraints are not satisfiable. '
+                         'Below is the list of constraints that are not satisfiable. Turn on the '
+                         '`use_named_variables` config option to see the names of the constraints.')
+
+            self.__model.computeIIS()
+            constrs = self.__model.getConstrs()
+            iisidx = np.where(self.__model.IISConstr)[0]
+            for i in iisidx:
+                self._infeasible_constraints[constrs[i].ConstrName] = constrs[i]
+                logger.error(f'Infeasible constraint: `{constrs[i].ConstrName}`.')
+
+        return self.__model.Status == gbp.GRB.OPTIMAL
     
     def update(self):
         self.__model.update()
