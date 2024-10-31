@@ -966,7 +966,7 @@ class Netflow():
 
         self.__append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
 
-    def build_problem(self, resume=False, save=True):
+    def build(self, resume=False, save=True):
         """Construct the ILP problem"""
 
         logger.info("Processing netflow configuration")

@@ -525,7 +525,7 @@ class NetflowScript(Script):
     
     def __run_netflow(self, netflow):
         logger.info('Building netflow model.')
-        netflow.build_problem(resume=self.__resume, save=True)
+        netflow.build(resume=self.__resume, save=True)
 
         logger.info('Solving netflow model.')
         netflow.solve()
