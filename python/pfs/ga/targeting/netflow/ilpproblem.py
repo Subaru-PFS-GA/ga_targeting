@@ -34,6 +34,9 @@ class ILPProblem():
     def add_variable(self, name, lo, hi):
         raise NotImplementedError()
     
+    def get_variables(self):
+        raise NotImplementedError()
+    
     def add_constraint(self, name, constraint):
         raise NotImplementedError()
     
@@ -41,6 +44,12 @@ class ILPProblem():
         raise NotImplementedError()
     
     def add_linear_constraint(self, name, coeffs, variables, sense, rhs):
+        raise NotImplementedError()
+    
+    def get_constraints(self):
+        raise NotImplementedError()
+    
+    def set_objective(self, expr):
         raise NotImplementedError()
     
     def solve(self):

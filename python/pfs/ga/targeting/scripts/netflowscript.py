@@ -5,6 +5,7 @@ import pandas as pd
 import astropy.units as u
 
 from ..config import NetflowConfig
+from ..targets.dsph import GALAXIES
 from ..instrument import SubaruPFI
 from ..netflow import Netflow, Design
 from ..netflow.util import *
@@ -77,17 +78,21 @@ class NetflowScript(Script):
         super().__init__()
 
         self.__outdir = None
+        self.__resume = False
         self.__nvisits = None
         self.__exp_time = None
         self.__obs_time = None
         
+        self.__field = None
         self.__config = None
 
     def _add_args(self):
         super()._add_args()
 
+        self.add_arg('--dsph', type=str, help='Name of a predefined target.')
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
+        self.add_arg('--resume', action='store_true', help='Resume from a previous run.')
         self.add_arg('--nvisits', type=int, help='Number of visits for each pointing.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
@@ -95,14 +100,21 @@ class NetflowScript(Script):
     def _init_from_args(self, args):
         super()._init_from_args(args)
 
-        # Read the configuration file, assuming it a python file
+        if self.is_arg('dsph', args):
+            self.__field = GALAXIES[self.get_arg('dsph', args)]
+              
         self.__config = NetflowConfig()
 
-        # Load the configuration template file
+        # If a field is specified, load its default configuration
+        if self.__field is not None:
+            self.__config.load(self.__field.get_netflow_config())
+
+        # Load the configuration template files
         config_files = self.get_arg('config', args)
         self.__config.load(config_files, ignore_collisions=True)
 
         self.__outdir = self.get_arg('out', args, self.__outdir)
+        self.__resume = self.get_arg('resume', args, self.__resume)
         self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
@@ -111,9 +123,11 @@ class NetflowScript(Script):
         super().prepare()
 
         # Create the output directory
-        if os.path.isdir(self.__outdir):
+        if not self.__resume and os.path.isdir(self.__outdir):
             raise Exception(f'Output directory already exists: {self.__outdir}')
-        else:
+        elif self.__resume and not os.path.isdir(self.__outdir):
+            raise Exception(f'Output directory does not exist: {self.__outdir}, cannot resume.')
+        elif not self.__resume:
             os.makedirs(self.__outdir)
 
         # Update log file path to point to the output directory
@@ -121,26 +135,12 @@ class NetflowScript(Script):
 
         # Save the active configuration to the output directory
         command = self.get_command_name()
-        self.__config.save(os.path.join(self.__outdir, f'{command}_{self.timestamp}.config.json'))
+        self.__config.save(os.path.join(self.__outdir, f'{command}_{self.timestamp}.config'))
 
     def run(self):
         logger.info(f'Found {len(self.__config.targets)} target lists in the configuration.')
 
-        target_lists = {}
-        for k, target_list_config in self.__config.targets.items():
-            target_list = self.__load_target_list(target_list_config)
-            self.__validate_target_list(k, target_list_config, target_list)
-            self.__calculate_target_list_flux(k, target_list)
-            self.__append_target_list_extra_columns(k, target_list)
-            target_lists[k] = target_list
-
-        self.__validate_all_target_lists(target_lists)
-
-        # Save the preprocessed target lists to the output direcotory
-        for k, target_list_config in self.__config.targets.items():
-            self.__save_target_list(k, target_lists[k])
-
-        # TODO: plot the sky with PFI footprints
+        # Load instrument calibration data
         instrument = self.__create_instrument()
 
         # Generate the list of pointings
@@ -155,27 +155,22 @@ class NetflowScript(Script):
             netflow_options = self.__config.netflow_options,
             solver_options = self.__config.gurobi_options,
             debug_options = self.__config.debug_options)
-        
-        # TODO: add functions to append targets as DataFrame,
-        #       without using Catalog or Observation classes
-        
-        # Append the targets
-        for k, target_list in target_lists.items():
-            if self.__config.targets[k].prefix == 'sci':
-                netflow.append_science_targets(target_list)
-            elif self.__config.targets[k].prefix == 'cal':
-                netflow.append_fluxstd_targets(target_list)
-            elif self.__config.targets[k].prefix == 'sky':
-                netflow.append_sky_targets(target_list)
-            else:
-                raise NotImplementedError()
+
+        # Load the original target list files or, if resuming the processing,
+        # load the preprocessed target lists from the output directory.
+        target_lists = self.__load_source_target_lists()
+
+        # Look for duplicates, etc.
+        self.__validate_source_target_lists(target_lists)
+
+        # Append the source target lists to the netflow object
+        self.__append_source_target_lists(netflow, target_lists)
             
         # TODO: plot the sky with PFI footprints
-
-        for prefix in ['sci', 'cal', 'sky']:
-            self.__save_netflow_targets(netflow, prefix)
             
         self.__run_netflow(netflow)
+
+        # We do not implement resume logic beyond this point because it's not worth it timewise.
         
         # Extract the assignments from the netflow solution
         assignments = self.__extract_assignments(netflow)
@@ -200,8 +195,27 @@ class NetflowScript(Script):
 
     def __create_instrument(self):
         return SubaruPFI(instrument_options=self.__config.instrument_options)
+    
+    def __load_source_target_lists(self):
+        target_lists = {}
+        for k, target_list_config in self.__config.targets.items():
+            # Check if the preprocessed target lists are available
+            path = self.__get_preprocessed_target_list_path(k)
 
-    def __load_target_list(self, target_list_config):
+            if self.__resume and os.path.isfile(path):
+                target_lists[k] = self.__load_preprocessed_target_list(k, path)
+            else:
+                target_list = self.__load_source_target_list(target_list_config)
+                self.__validate_target_list(k, target_list_config, target_list)
+                self.__calculate_target_list_flux(k, target_list)
+                self.__append_target_list_extra_columns(k, target_list)
+                target_lists[k] = target_list
+
+                self.__save_preprocessed_target_list(k, target_lists[k], path)
+
+        return target_lists
+
+    def __load_source_target_list(self, target_list_config):
         if target_list_config.reader is not None:
             # TODO: implement custom reader function
             raise NotImplementedError()
@@ -223,11 +237,6 @@ class NetflowScript(Script):
         logger.info(f'Read {len(df)} targets from target list.')
 
         return df
-    
-    def __save_target_list(self, key, target_list):
-        fn = os.path.join(self.__outdir, f'{self.__config.field.name}_targets_{key}.feather')
-        logger.info(f'Saving target list to `{fn}`.')
-        target_list.to_feather(fn)
     
     def __calculate_target_list_flux(self, key, target_list):
         # Calculate the missing flux columns
@@ -375,7 +384,7 @@ class NetflowScript(Script):
         else:
             target_list['epoch'] = target_list['epoch'].astype('string')
 
-        if self.__config.targets[key].catid is not None:    
+        if self.__config.targets[key].catid is not None:
             pd_append_column(target_list, 'catid', self.__config.targets[key].catid, pd.Int32Dtype())
         elif 'catid' not in target_list.columns:
             pd_append_column(target_list, 'catid', -1, pd.Int32Dtype())
@@ -438,16 +447,57 @@ class NetflowScript(Script):
 
         logger.info(f'Successfully validated target list {key}.')
 
-    def __validate_all_target_lists(self, target_lists):
+    def __validate_source_target_lists(self, target_lists):
         # TODO: make sure all targetids are unique across all target lists
         pass
 
+    def __validate_fluxstd_targets(self, target_lists):
+        # TODO: make sure cobra group constraints are satisfiable
+        pass
+
+    def __validate_sky_targets(self, target_lists):
+        # TODO: make sure cobra group constraints are satisfiable
+        pass
+
+    def __append_source_target_lists(self, netflow, target_lists):
+        for k, target_list in target_lists.items():
+            if self.__config.targets[k].prefix == 'sci':
+                netflow.append_science_targets(target_list)
+            elif self.__config.targets[k].prefix == 'cal':
+                netflow.append_fluxstd_targets(target_list)
+                        
+                # Make sure cobra location/instrument group constraints are satisfiable
+                self.__validate_fluxstd_targets(target_lists)
+            elif self.__config.targets[k].prefix == 'sky':
+                netflow.append_sky_targets(target_list)
+
+                # Make sure cobra location/instrument group constraints are satisfiable
+                self.__validate_sky_targets(target_lists)
+            else:
+                raise NotImplementedError()
+    
+    def __get_preprocessed_target_list_path(self, key):
+        return os.path.join(self.__outdir, f'{self.__config.field.name}_targets_{key}.feather')
+
+    def __save_preprocessed_target_list(self, key, target_list, path):
+        logger.info(f'Saving preprocessed target list to `{path}`.')
+        target_list.to_feather(path)
+
+    def __load_preprocessed_target_list(self, key, path):
+        logger.info(f'Loading preprocessed target list to `{path}`.')
+        target_list = pd.read_feather(path)
+        return target_list
+
     def __generate_pointings(self):
-        if self.__config.field.pointings is not None:
-            pp = [ p.get_pointing() for p in self.__config.field.pointings ]
-        elif self.__config.field.definition is not None:
+
+        # The list of pointings can be defined in the config file, which then
+        # override the pointings defined for the field in the library source code.
+
+        if self.__config.pointings is not None:
+            pp = [ p.get_pointing() for p in self.__config.pointings ]
+        elif self.__field is not None:
             # Load from the class
-            pp = self.__config.field.definition.get_pointings(SubaruPFI)
+            pp = self.__field.get_pointings(SubaruPFI)
         else:
             raise NotImplementedError()
         
@@ -473,18 +523,9 @@ class NetflowScript(Script):
             
         return pointings
     
-    def __save_netflow_targets(self, netflow, prefix):
-        fn = os.path.join(self.__outdir, f'netflow_targets_{prefix}.feather')
-        logger.info(f'Saving targets with prefix `{prefix}` to `{fn}`.')
-        mask = netflow.targets['prefix'] == prefix
-        netflow.targets[mask].to_feather(fn)
-    
     def __run_netflow(self, netflow):
         logger.info('Building netflow model.')
-        netflow.build()
-        
-        logger.info('Saving netflow model.')
-        netflow.save_problem()
+        netflow.build_problem(resume=self.__resume, save=True)
 
         logger.info('Solving netflow model.')
         netflow.solve()
@@ -507,10 +548,18 @@ class NetflowScript(Script):
 
         return assignments
     
+    def __get_assignments_path(self):
+        return os.path.join(self.__outdir, f'{self.__config.field.name}_assignments.feather')
+    
     def __save_assignments(self, assignments):
-        fn = os.path.join(self.__outdir, f'{self.__config.field.name}_assignments.feather')
-        logger.info(f'Saving fiber assignments to `{fn}`.')
-        assignments.to_feather(fn)
+        path = self.__get_assignments_path()
+        logger.info(f'Saving fiber assignments to `{path}`.')
+        assignments.to_feather(path)
+
+    def __load_assignments(self):
+        path = self.__get_assignments_path()
+        logger.info(f'Loading fiber assignments from `{path}`.')
+        return pd.read_feather(path)
 
     def __append_flux_filter_lists(self, assignments, target_lists):
         """

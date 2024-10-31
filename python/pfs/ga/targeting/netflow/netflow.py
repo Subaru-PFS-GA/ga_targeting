@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 import numpy as np
 import pandas as pd
+import pickle
 from types import SimpleNamespace  
 
 from pfs.datamodel import TargetType, FiberStatus
@@ -179,6 +180,7 @@ class Netflow():
         self.__solver_options = solver_options
         self.__netflow_options = camel_to_snake(netflow_options)
         self.__debug_options = camel_to_snake(debug_options)
+        self.__resume = False                        # Resume flag
 
         # Internally used variables
 
@@ -338,23 +340,174 @@ class Netflow():
         fn = self.__get_prefixed_filename(filename, 'netflow_solution.sol')
         fn = self.__append_extension(fn, '.sol')
         return fn
-    
-    def save_targets(self, filename=None):
-        """Save the target list to a file"""
-
-        raise NotImplementedError()
-
-    def load_targets(self, filename=None):
-        """Load the target list from a file"""
-
-        raise NotImplementedError()
 
     def load_problem(self, filename=None, options=None):
         """Read the LP problem from a file"""
 
         fn = self.__get_problem_filename(filename)
-        self.__problem = self.__problem_type(extraOptions=options)
-        self.__problem.read_problem(fn)
+        if os.path.exists(fn):
+            self.__problem = self.__problem_type(self.__name, self.__solver_options)
+            self.__problem.read_problem(fn)
+        else:
+            raise FileNotFoundError(f"Problem file `{fn}` not found.")
+
+        self.__restore_variables()
+        self.__restore_constraints()
+
+    def __restore_variables(self):
+        self.__init_variables()        
+        vars = self.__problem.get_variables()
+
+        for i, f in enumerate(vars):
+            if f.varName == 'cost':
+                continue
+            elif f.varName.startswith('STC_sink'):        # STC_sink_sci_P0
+                m = re.match(r'STC_sink_(\w+)', f.varName)
+                target_class = m.group(1)
+                self.__variables.STC_sink[target_class] = f
+            elif f.varName.startswith('STC_T'):           # STC_T[202700]
+                m = re.match(r'STC_T\[(\d+)\]', f.varName)
+                tidx = int(m.group(1))
+                target_class = self.__target_cache.target_class[tidx]
+                self.__variables.T_i[tidx] = f
+                self.__variables.STC_o[target_class].append(f)
+            elif f.varName.startswith('CTCv_sink'):     # CTCv_sink_sky_0
+                m = re.match(r'CTCv_sink_(\w+)_(\d+)', f.varName)
+                target_class = m.group(1)
+                vidx = int(m.group(2))
+                self.__variables.CTCv_sink[(target_class, vidx)] = f
+            elif f.varName.startswith('CTCv_Tv'):       # CTCv_Tv_0[22810]
+                m = re.match(r'CTCv_Tv_(\d+)\[(\d+)\]', f.varName)
+                vidx = int(m.group(1))
+                tidx = int(m.group(2))
+                target_class = self.__target_cache.target_class[tidx]
+                self.__variables.Tv_i[(tidx, vidx)] = f
+                self.__variables.CTCv_o[(target_class, vidx)].append(f)
+            elif f.varName.startswith('T_sink'):        # T_sink[202611]
+                m = re.match(r'T_sink\[(\d+)\]', f.varName)
+                tidx = int(m.group(1))
+                self.__variables.T_sink[tidx] = f
+            elif f.varName.startswith('T_Tv'):          # T_Tv_0[249940]
+                m = re.match(r'T_Tv_(\d+)\[(\d+)\]', f.varName)
+                vidx = int(m.group(1))
+                tidx = int(m.group(2))
+                self.__variables.T_o[tidx].append(f)
+                self.__variables.Tv_i[(tidx, vidx)] = f
+            elif f.varName.startswith('Tv_Cv'):         # Tv_Cv_0_0[22810]
+                m = re.match(r'Tv_Cv_(\d+)_(\d+)\[(\d+)\]', f.varName)
+                vidx = int(m.group(1))
+                cidx = int(m.group(2))
+                tidx = int(m.group(3))
+                target_class = self.__target_cache.target_class[tidx]
+                self.__variables.Cv_i[(cidx, vidx)].append(f)
+                self.__variables.Tv_o[(tidx, vidx)].append((f, cidx))
+                for cg_name, options in self.__cobra_groups.items():
+                    if target_class in options.target_classes:
+                        self.__variables.CG_i[(cg_name, vidx, options.groups[cidx])].append(f)
+            else:
+                raise NotImplementedError()
+            
+            self.__variables.all[f.varName] = f
+
+    def __restore_constraints(self):
+        self.__init_constraints()        
+        constrs = self.__problem.get_constraints()
+
+        for i, c in enumerate(constrs):
+            if c.constrName.startswith('Tv_o_coll'):
+                m = re.match(r'Tv_o_coll_(\d+)_(\d+)_(\d+)', c.constrName)
+                if m is not None:
+                    tidx1 = int(m.group(1))
+                    tidx2 = int(m.group(2))
+                    vidx = int(m.group(3))
+                    self.__constraints.Tv_o_coll[(tidx1, tidx2, vidx)] = c
+                else:
+                    m = re.match(r'Tv_o_coll_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)', c.constrName)
+                    tidx1 = int(m.group(1))
+                    cidx1 = int(m.group(2))
+                    tidx2 = int(m.group(3))
+                    cidx2 = int(m.group(4))
+                    vidx = int(m.group(5))
+                    self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, vidx)] = c
+            elif c.constrName.startswith('Tv_o_forb'):
+                m = re.match(r'Tv_o_forb_(\d+)_(\d+)_(\d+)', c.constrName)
+                tidx1 = int(m.group(1))
+                tidx2 = int(m.group(2))
+                vidx = int(m.group(3))
+                self.__constraints.Tv_o_forb[(tidx1, tidx2, vidx)] = c
+            elif c.constrName.startswith('STC_o_sum'):
+                m = re.match(r'STC_o_sum_(\w+)', c.constrName)
+                target_class = m.group(1)
+                self.__constraints.STC_o_sum[target_class] = c
+            elif c.constrName.startswith('STC_o_min'):
+                m = re.match(r'STC_o_min_(\w+)', c.constrName)
+                target_class = m.group(1)
+                self.__constraints.STC_o_min[target_class] = c
+            elif c.constrName.startswith('STC_o_max'):
+                m = re.match(r'STC_o_max_(\w+)', c.constrName)
+                target_class = m.group(1)
+                self.__constraints.STC_o_max[target_class] = c
+            elif c.constrName.startswith('CTCv_o_sum'):
+                m = re.match(r'CTCv_o_sum_(\w+)_(\d+)', c.constrName)
+                target_class = m.group(1)
+                vidx = int(m.group(2))
+                self.__constraints.CTCv_o_sum[(target_class, vidx)] = c
+            elif c.constrName.startswith('CTCv_o_min'):
+                m = re.match(r'CTCv_o_min_(\w+)_(\d+)', c.constrName)
+                target_class = m.group(1)
+                vidx = int(m.group(2))
+                self.__constraints.CTCv_o_min[(target_class, vidx)] = c
+            elif c.constrName.startswith('CTCv_o_max'):
+                m = re.match(r'CTCv_o_max_(\w+)_(\d+)', c.constrName)
+                target_class = m.group(1)
+                vidx = int(m.group(2))
+                self.__constraints.CTCv_o_max[(target_class, vidx)] = c
+            elif c.constrName.startswith('T_i_T_o_sum_0'):
+                m = re.match(r'T_i_T_o_sum_0_(\d+)', c.constrName)
+                tidx = int(m.group(1))
+                self.__constraints.T_i_T_o_sum[(tidx, 0)] = c
+            elif c.constrName.startswith('T_i_T_o_sum_1'):
+                m = re.match(r'T_i_T_o_sum_1_(\d+)', c.constrName)
+                tidx = int(m.group(1))
+                self.__constraints.T_i_T_o_sum[(tidx, 1)] = c
+            elif c.constrName.startswith('T_i_T_o_sum'):
+                m = re.match(r'T_i_T_o_sum_(\d+)', c.constrName)
+                tidx = int(m.group(1))
+                self.__constraints.T_i_T_o_sum[tidx] = c
+            elif c.constrName.startswith('Tv_i_Tv_o_sum'):
+                m = re.match(r'Tv_i_Tv_o_sum_(\d+)_(\d+)', c.constrName)
+                tidx = int(m.group(1))
+                vidx = int(m.group(2))
+                self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = c
+            elif c.constrName.startswith('Cv_i_sum'):
+                m = re.match(r'Cv_i_sum_(\d+)_(\d+)', c.constrName)
+                cidx = int(m.group(1))
+                vidx = int(m.group(2))
+                self.__constraints.Cv_i_sum[(cidx, vidx)] = c
+            elif c.constrName.startswith('Tv_i_sum'):
+                m = re.match(r'Tv_i_sum_(\w+)', c.constrName)
+                budget_name = m.group(1)
+                self.__constraints.Tv_i_sum[budget_name] = c
+            elif c.constrName.startswith('Cv_CG_min'):
+                m = re.match(r'Cv_CG_min_(\w+)_(\d+)_(\d+)', c.constrName)
+                cg_name = m.group(1)
+                vidx = int(m.group(2))
+                cidx = int(m.group(3))
+                self.__constraints.Cv_CG_min[(cg_name, vidx, cidx)] = c
+            elif c.constrName.startswith('Cv_CG_max'):
+                m = re.match(r'Cv_CG_max_(\w+)_(\d+)_(\d+)', c.constrName)
+                cg_name = m.group(1)
+                vidx = int(m.group(2))
+                cidx = int(m.group(3))
+                self.__constraints.Cv_CG_min[(cg_name, vidx, cidx)] = c
+            elif c.constrName.startswith('Cv_i_max'):
+                m = re.match(r'Cv_i_max_(\d+)', c.constrName)
+                vidx = int(m.group(1))
+                self.__constraints.Cv_i_max[vidx] = c
+            else:
+                raise NotImplementedError()
+
+            self.__constraints.all[c.constrName] = c
 
     def save_problem(self, filename=None):
         """Save the LP problem to a file"""
@@ -813,15 +966,27 @@ class Netflow():
 
         self.__append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
 
-    def build(self):
+    def build_problem(self, resume=False, save=True):
         """Construct the ILP problem"""
-        # Load configuration
+
         logger.info("Processing netflow configuration")
 
-        # Optimize data access
         self.__calculate_exp_time()
         self.__calculate_target_visits()
-        self.__cache_targets()
+
+        # Create a cache of target properties to optimize data access
+        cache_loaded = False
+        if resume:
+            try:
+                self.__load_target_cache()
+                cache_loaded = True
+            except FileNotFoundError as e:
+                pass
+
+        if not cache_loaded:
+            self.__cache_targets()
+            if save:
+                self.__save_target_cache()
 
         # Target classes
         self.__target_classes = self.__get_target_class_config()
@@ -839,14 +1004,65 @@ class Netflow():
         # Science program time budgets
         self.__time_budgets = self.__get_time_budget_config()
 
-        # Build the problem
+        # Generate the list of visits
         self.__create_visits()
-        self.__calculate_target_fp_pos()
+
+        target_fp_pos_loaded = False
+        if resume:
+            try:
+                self.__load_target_fp_pos()
+                target_fp_pos_loaded = True
+            except FileNotFoundError as e:
+                pass
+
+        if not target_fp_pos_loaded:
+            self.__calculate_target_fp_pos()
+            if save:
+                self.__save_target_fp_pos()
 
         # Run a few sanity checks
         self.__check_target_fp_pos()
 
-        self.__build_ilp_problem()
+        # Calculate visibility and collisions
+        visibilities_loaded = False
+        if resume:
+            try:
+                self.__load_visibility()
+                visibilities_loaded = True
+            except FileNotFoundError as e:
+                pass
+        
+        if not visibilities_loaded:
+            self.__calculate_visibility()
+            if save:
+                self.__save_visibility()
+
+        collisions_loaded = False
+        if resume:
+            try:
+                self.__load_collisions()
+                collisions_loaded = True
+            except FileNotFoundError as e:
+                pass
+
+        if not collisions_loaded:
+            self.__calculate_collisions()
+            if save:
+                self.__save_collisions()
+
+        # Convert the netflow graph into a linear program
+        problem_loaded = False
+        if resume:
+            try:
+                self.load_problem()
+                problem_loaded = True
+            except FileNotFoundError as e:
+                pass
+
+        if not problem_loaded:
+            self.__build_ilp_problem()
+            if save:
+                self.save_problem()
 
     def __check_pointing_visibility(self):
         """
@@ -934,6 +1150,32 @@ class Netflow():
                 done_visits = np.array(self.__targets['done_visits'][mask_any].astype(np.int32)),
                 penalty = np.array(self.__targets['penalty'][mask_any].astype(np.int32)),
             )
+        
+    def __get_target_cache_filename(self, filename=None):
+        return self.__get_prefixed_filename(filename, 'netflow_target_cache.pkl')
+        
+    def __save_target_cache(self, filename=None):
+        filename = self.__get_target_cache_filename(filename)
+        
+        with open(filename, 'wb') as f:
+            data = (self.__target_cache,
+                    self.__target_mask,
+                    self.__target_cache_mask,
+                    self.__target_to_cache_map,
+                    self.__target_to_cache_map,
+                    self.__cache_to_target_map)
+            pickle.dump(data, f)
+
+    def __load_target_cache(self, filename=None):
+        filename = self.__get_target_cache_filename(filename)
+
+        with open(filename, 'rb') as f:
+            (self.__target_cache,
+             self.__target_mask,
+             self.__target_cache_mask,
+             self.__target_to_cache_map,
+             self.__target_to_cache_map,
+             self.__cache_to_target_map) = pickle.load(f)
 
     def __create_visits(self):
         self.__visits = []
@@ -975,6 +1217,21 @@ class Netflow():
                                              parallax=self.__target_cache.parallax[mask])
             
             self.__target_fp_pos.append(fp_pos)
+
+    def __get_target_fp_pos_filename(self, filename=None):
+        return self.__get_prefixed_filename(filename, 'netflow_target_fp_pos.pkl')
+
+    def __save_target_fp_pos(self, filename=None):
+        filename = self.__get_target_fp_pos_filename(filename)
+        
+        with open(filename, 'wb') as f:
+            pickle.dump((self.__target_fp_pos, self.__fp_pos_to_cache_map, self.__cache_to_fp_pos_map), f)
+
+    def __load_target_fp_pos(self, filename=None):
+        filename = self.__get_target_fp_pos_filename(filename)
+        
+        with open(filename, 'rb') as f:
+            self.__target_fp_pos, self.__fp_pos_to_cache_map, self.__cache_to_fp_pos_map = pickle.load(f)
 
     def __check_target_fp_pos(self):
         # Verify if each pointing contains a reasonable number of targets
@@ -1046,8 +1303,8 @@ class Netflow():
                                             #      key: (cidx1, cidx2, visit_idx) if elbow collisions -- why?
             Tv_o_forb = dict(),             # Forbidden pairs, key: (tidx1, tidx2, visit_idx)
 
-            CG_min = dict(),                # Cobra group minimum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
-            CG_max = dict(),                # Cobra group maximum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
+            Cv_CG_min = dict(),             # Cobra group minimum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
+            Cv_CG_max = dict(),             # Cobra group maximum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
             Cv_i_sum = dict(),              # At most one target per cobra, key: (cobra_idx, visit_idx)
             Cv_i_max = dict(),              # Hard upper limit on the number of assigned fibers, key (visit_idx)
             Tv_i_Tv_o_sum = dict(),         # Target visit nodes must be balanced, key: (target_id, visit_idx)
@@ -1081,12 +1338,6 @@ class Netflow():
         self.__init_problem()
         self.__init_variables()
         self.__init_constraints()
-
-        logger.info("Calculating target visibilities")
-        self.__calculate_visibilities()
-
-        logger.info("Calculating cobra collisions")
-        self.__calculate_collisions()
 
         logger.info("Creating network topology")
 
@@ -1190,7 +1441,13 @@ class Netflow():
         # > Cv_i_max_{visit_idx}
         self.__create_unassigned_fiber_constraints(nvisits)
 
-    def __calculate_visibilities(self):
+        # Set the objective function
+        self.__model.set_objective(self.__cost)
+
+    def __calculate_visibility(self):
+
+        logger.info("Calculating target visibilities")
+
         self.__visibility = []
         for pidx, pointing in enumerate(self.__pointings):
             logger.info(f'Calculating visibility for pointing {pidx + 1}.')
@@ -1209,7 +1466,26 @@ class Netflow():
             # cobras_targets keys   -> cobra index
             # cobras_targets values -> (tidx, elbow position), where tidx is the index into the target_cache
 
+    def __get_visibility_filename(self, filename=None):
+        return self.__get_prefixed_filename(filename, 'netflow_visibilities.pkl')
+
+    def __save_visibility(self, filename=None):
+        filename = self.__get_visibility_filename(filename)
+        
+        # Save the visibility data using pickle
+        with open(filename, 'wb') as f:
+            pickle.dump(self.__visibility, f)
+
+    def __load_visibility(self, filename=None):
+        filename = self.__get_visibility_filename(filename)
+        
+        # Load the visibility data using pickle
+        with open(filename, 'rb') as f:
+            self.__visibility = pickle.load(f)
+
     def __calculate_collisions(self):
+        logger.info("Calculating cobra collisions")
+
         collision_distance = self.__get_netflow_option('collision_distance', 0.0)
 
         self.__collisions = []
@@ -1223,6 +1499,21 @@ class Netflow():
             self.__collisions.append(col)
 
             logger.info(f'Found {len(col.pairs)} colliding fibers and {len(col.elbows)} elbows for pointing {pidx + 1}.')
+
+    def __get_collisions_filename(self, filename=None):
+        return self.__get_prefixed_filename(filename, 'netflow_collisions.pkl')
+
+    def __save_collisions(self, filename=None):
+        filename = self.__get_collisions_filename(filename)
+
+        with open(filename, 'wb') as f:
+            pickle.dump(self.__collisions, f)
+
+    def __load_collisions(self, filename=None):        
+        filename = self.__get_collisions_filename(filename)
+
+        with open(filename, 'rb') as f:
+            self.__collisions = pickle.load(f)
 
     #region Variables and costs
         
@@ -1385,7 +1676,7 @@ class Netflow():
             cost += self.__black_dots.black_dot_penalty(np.min(dist, axis=-1))
 
         # Create LP variables
-        name = self.__make_name("Tv_Cv", visit.visit_idx, cidx)
+        name = self.__make_name('Tv_Cv', visit.visit_idx, cidx)
         vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
 
         # For each accessible target, save the Tv -> Cv variable to the respective lists
@@ -1426,7 +1717,7 @@ class Netflow():
         ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
         
         # Add constraints 
-        logger.debug(f"Adding constraints for visit {visit.visit_idx}")
+        logger.debug(f"Adding constraints for visit {visit.visit_idx + 1}")
 
         # Avoid endpoint or elbow collisions
         collision_distance = self.__get_netflow_option('collision_distance', 0.0)
@@ -1718,14 +2009,14 @@ class Netflow():
                                 name = self.__make_name("Cv_CG_min", cg_name, vidx, gidx)
                                 # constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
                                 constr = ([1] * len(variables), variables, '>=', options.min_targets)
-                                self.__constraints.CG_min[cg_name, vidx, gidx] = constr
+                                self.__constraints.Cv_CG_min[cg_name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
                             if need_max:
                                 name = self.__make_name("Cv_CG_max", cg_name, vidx, gidx)
                                 # constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
                                 constr = ([1] * len(variables), variables, '<=', options.max_targets)
-                                self.__constraints.CG_max[cg_name, vidx, gidx] = constr
+                                self.__constraints.Cv_CG_max[cg_name, vidx, gidx] = constr
                                 self.__add_constraint(name, constr)
 
     def __create_unassigned_fiber_constraints(self, nvisits):

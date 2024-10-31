@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 from .setup_logger import logger
@@ -71,6 +72,9 @@ class GurobiProblem(ILPProblem):
             
         self._variables[name] = vars
         return vars
+
+    def get_variables(self):
+        return self.__model.getVars()
     
     def get_value(self, variable):
         return variable.X
@@ -96,8 +100,13 @@ class GurobiProblem(ILPProblem):
     def add_linear_constraint(self, name, coeffs, variables, sense, rhs):
         self.__model.addLConstr(LinExpr(coeffs, variables), sense, rhs, name=name)
 
+    def get_constraints(self):
+        return self.__model.getConstrs()
+    
+    def set_objective(self, expr):
+        self.__model.setObjective(expr)
+
     def solve(self):
-        self.__model.setObjective(self.__cost)
         self.__model.update()
         self.__model.optimize()
 
@@ -119,10 +128,16 @@ class GurobiProblem(ILPProblem):
         self.__model.update()
 
     def write_problem(self, filename):
+        # Assume that file extension is of a model file (such as mps),
+        # otherwise, Gurobi will write something else to the file.
         self.__model.write(filename)
 
     def read_problem(self, filename):
-        self.__model.read(filename)
+        if os.path.isfile(filename):
+            self.__model = gbp.read(filename)
+        else:
+            raise FileNotFoundError(f'File `{filename}` does not exist.')
+        
         # TODO: populate variable list
 
     def write_solution(self, filename):
