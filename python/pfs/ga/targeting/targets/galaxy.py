@@ -9,12 +9,13 @@ from .target import Target
 class Galaxy(Target):
     def __init__(self,
                  ID,
+                 name,
                  pos,
                  rad=None,
                  pointings=None,
                  **kwargs):
         
-        super().__init__(ID, pos, **kwargs)
+        super().__init__(ID, name, pos, **kwargs)
 
         # Bounding radius
         self.__rad = normalize_angle(rad, u.arcmin)

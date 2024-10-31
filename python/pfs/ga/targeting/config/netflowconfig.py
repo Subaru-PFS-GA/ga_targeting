@@ -7,15 +7,18 @@ from pfs.utils.fibers import fiberHoleFromFiberId
 
 from .config import Config
 from .fieldconfig import FieldConfig
+from .pointingconfig import PointingConfig
 from .targetlistconfig import TargetListConfig
 from ..instrument import SubaruHSC, SubaruPFI
 
 class NetflowConfig(Config):
     def __init__(self,
                  field: FieldConfig = FieldConfig(),
+                 pointings: List[PointingConfig] = None,
                  targets: Dict[str, TargetListConfig] = {}):
         
         self.field = field
+        self.pointings = pointings
         self.targets = targets
 
         self.instrument_options = dict(
@@ -88,7 +91,7 @@ class NetflowConfig(Config):
             # Generate full gurobi variable names instead of numbered ones (slow to build problem)
             # It is necessary only, when the netflow solution will be loaded from a file to
             # extract assignments based on variable names.
-            use_named_variables = False,
+            use_named_variables = True,
         )
 
         self.gurobi_options = dict(
@@ -154,8 +157,8 @@ class NetflowConfig(Config):
                 # groups = np.random.randint(8, size=ncobras),
                 groups = cobra_location_labels,
                 target_classes = [ 'cal' ],
-                min_targets = 5,
-                max_targets = 10,
+                min_targets = 3,
+                max_targets = 20,
                 non_observation_cost = 1000,
             ),
             # 'cal_instrument': dict(
@@ -171,7 +174,6 @@ class NetflowConfig(Config):
         return cobra_groups
     
     def __create_cobra_location_labels(self, pfi, ntheta=6):
-
         # Get the focal plane coordinates of the cobras
         x, y = pfi.bench.cobras.centers[:].real, pfi.bench.cobras.centers[:].imag
 

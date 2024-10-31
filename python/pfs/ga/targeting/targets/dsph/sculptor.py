@@ -12,6 +12,7 @@ from .dsphgalaxy import DSphGalaxy
 class Sculptor(DSphGalaxy):
     def __init__(self):
         ID = 'scl'
+        name = 'Sculptor'
         pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
         # pos = [ 15.0392, -33.7089 ] * u.deg               # Evan
         rad = 120 * u.arcmin
@@ -29,7 +30,7 @@ class Sculptor(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

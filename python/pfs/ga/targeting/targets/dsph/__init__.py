@@ -19,6 +19,7 @@ GALAXIES = {
     'scl': Sculptor,
     'dra': Draco,
     'for': Fornax,
+    'fornax': Fornax,
     'booi': Bootes,
     'ngc6822': NGC6822,
 }

@@ -233,7 +233,7 @@ class Config():
         # Save configuration to a file
 
         config = self._save_impl()
-        Config._save_dict_to_file(config, path)
+        Config._save_dict_to_file(config, path, format='.json')
 
     def _save_impl(self):
         """
@@ -281,22 +281,29 @@ class Config():
             return obj
           
     @staticmethod
-    def _save_dict_to_file(config, path):
+    def _save_dict_to_file(config, path, format=None):
         """
         Depending on the file extension, save the configuration file
         """
 
         dir, filename = os.path.split(path)
-        _, ext = os.path.splitext(filename)
-        if ext == 'py':
+
+        if format is None:
+            _, ext = os.path.splitext(filename)
+            if ext in [ '.py', '.json', '.yaml' ]:
+                format = ext
+            else:
+                raise ValueError(f'Unknown configuration file extension `{ext}`')
+        
+        if format == '.py':
             Config.__save_dict_py(config, path)
-        if ext == '.json':
+        if format == '.json':
             Config.__save_dict_json(config, path)
-        elif ext == '.yaml':
+        elif format == '.yaml':
             Config.__save_dict_yaml(config, path)
         else:
-            raise ValueError(f'Unknown configuration file extension `{ext}`')
-        
+            raise ValueError(f'Unknown file format `{format}`')
+
     @staticmethod
     def __save_dict_py(config, filename):
         # Save a python file with the configuration

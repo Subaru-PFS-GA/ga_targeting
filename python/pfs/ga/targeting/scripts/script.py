@@ -426,7 +426,7 @@ class Script():
 
         logger.debug(f'Environment variables saved to `{path}`.')
 
-    def __dump_args(self, path):
+    def __dump_args(self, path, format=None):
         """
         Save the command-line arguments to a file. The arguments that are
         saved are the effective ones, ie. they might have been modified
@@ -451,11 +451,16 @@ class Script():
                     return obj.item()
             return "(not serialized)"
 
-        _, ext = os.path.splitext(path)
+        if format is None:
+            _, ext = os.path.splitext(path)
+            with open(path, 'w') as f:
+                if ext in [ '.json', '.yaml' ]:
+                    format = ext
+
         with open(path, 'w') as f:
-            if ext == '.json':
+            if format == '.json':
                 json.dump(self.__args, f, default=default, indent=4)
-            elif ext == '.yaml':
+            elif format == '.yaml':
                 yaml.dump(self.__args, f, indent=4)
 
         logger.debug(f'Arguments saved to `{path}`.')
@@ -487,7 +492,7 @@ class Script():
             logdir = os.path.dirname(self.__log_file)
             command = self.get_command_name()
             self.__dump_env(os.path.join(logdir, f'{command}_{self.__timestamp}.env'))
-            self.__dump_args(os.path.join(logdir, f'{command}_{self.__timestamp}.args.json'))
+            self.__dump_args(os.path.join(logdir, f'{command}_{self.__timestamp}.args'), format='.json')
             self.__dump_cmdline(os.path.join(logdir, f'{command}_{self.__timestamp}.cmd'))
 
     def execute(self):

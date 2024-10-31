@@ -12,6 +12,7 @@ from .dsphgalaxy import DSphGalaxy
 class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
+        name = 'Ursa Minor'
         pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]
         # pos = [ 227.29725, 67.21436111 ] * u.deg                    # Evan
         rad = 120 * u.arcmin
@@ -28,7 +29,7 @@ class UrsaMinor(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa) ]
         }
 
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

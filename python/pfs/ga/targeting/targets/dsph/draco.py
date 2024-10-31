@@ -13,6 +13,7 @@ from .dsphgalaxy import DSphGalaxy
 class Draco(DSphGalaxy):
     def __init__(self):
         ID = 'dra'
+        name = 'Draco'
         pos = [ 260.051666667, 57.9152777778 ] * u.deg
         rad = np.nan * u.arcmin
         DM, DM_err = 19.55, 0.0                                 # Wikipedia
@@ -28,7 +29,7 @@ class Draco(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

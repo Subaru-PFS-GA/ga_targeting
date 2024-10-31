@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as u
+from datetime import datetime, timedelta, tzinfo
 
 from ...util.args import *
 from ...instrument import *
@@ -13,6 +14,7 @@ from .dsphgalaxy import DSphGalaxy
 class Fornax(DSphGalaxy):
     def __init__(self):
         ID = 'for'
+        name = 'Fornax'
         pos = [ 39.9971, -34.4492 ] * u.deg                     # Evan
         rad = 240 * u.arcmin
         DM, DM_err = 20.77, 0.05                                # Oakes et al. (2022)
@@ -28,7 +30,7 @@ class Fornax(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
@@ -50,6 +52,18 @@ class Fornax(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+
+    def get_netflow_config(self):
+        return dict(
+            field = dict(
+                key = self.ID,
+                name = self.name.lower(),
+                arms = 'bmn',
+                nvisits = 1,
+                exp_time = 6 * 30 * 60.,        # 3 hr total
+                obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
+            )
+        )
         
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.0):
         """Return true for objects within sharp magnitude cuts."""

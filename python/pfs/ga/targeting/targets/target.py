@@ -4,7 +4,8 @@ from ..util.args import *
 from ..projection import Pointing
 
 class Target():
-    def __init__(self, ID,
+    def __init__(self,
+                 ID, name,
                  pos,
                  DM=None, DM_err=None,
                  dist=None, dist_err=None,
@@ -17,6 +18,7 @@ class Target():
                  target_class=None):
 
         self.__ID = ID
+        self.__name = name
 
         # Sky position, including pm and rv
         # SkyCoords doesn't support errors so store them separately
@@ -40,6 +42,12 @@ class Target():
         return self.__ID
     
     ID = property(__get_ID)
+
+    def __get_name(self):
+        """name of the object : str"""
+        return self.__name
+    
+    name = property(__get_name)
         
     def __get_pos(self):
         return self.__pos

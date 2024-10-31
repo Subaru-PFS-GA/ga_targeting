@@ -13,7 +13,7 @@ from ..galaxy import Galaxy
 
 class DSphGalaxy(Galaxy):
     def __init__(self,
-                 ID,
+                 ID, name,
                  pos, rad=None,
                  DM=None, DM_err=None,
                  pm=None, pm_err=None,
@@ -21,7 +21,7 @@ class DSphGalaxy(Galaxy):
                  pointings=None,
                  **kwargs):
         
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

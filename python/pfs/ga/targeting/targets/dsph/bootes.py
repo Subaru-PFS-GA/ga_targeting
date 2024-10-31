@@ -13,6 +13,7 @@ from .dsphgalaxy import DSphGalaxy
 class Bootes(DSphGalaxy):
     def __init__(self):
         ID = 'booi'
+        name = 'Bootes I'
         pos = [ 210.025, 14.5 ] * u.deg                       # Evan
         rad = np.nan * u.arcmin
         DM, DM_err = 19.11, 0.008                             # Oakes et al. (2022)
@@ -28,7 +29,7 @@ class Bootes(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID,
+        super().__init__(ID, name,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
