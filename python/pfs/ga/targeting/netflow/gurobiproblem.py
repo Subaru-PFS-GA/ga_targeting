@@ -36,10 +36,15 @@ class GurobiProblem(ILPProblem):
         model = gbp.Model(self.name)
         model.ModelSense = 1  # Minimize
         if self.solver_options is not None:
-            for key, value in self.solver_options.items():
+            if isinstance(self.solver_options, dict):
+                solver_options = self.solver_options
+            else:
+                solver_options = self.solver_options.to_dict()
+                
+            for key, value in solver_options.items():
                 model.setParam(key, value)
 
-        self.__cost = model.addVar(name="cost", vtype=gbp.GRB.CONTINUOUS)
+        self.__cost = gbp.LinExpr()
         self.__sum = gbp.quicksum
         self.__model = model
 
@@ -56,9 +61,6 @@ class GurobiProblem(ILPProblem):
         return var
     
     def add_variable_array(self, name, indexes, lo, hi, cost=None):
-        if cost is None:
-            cost = 0.0
-
         if lo is None:
             lo = -gbp.GRB.INFINITY
 
@@ -66,9 +68,12 @@ class GurobiProblem(ILPProblem):
             hi = gbp.GRB.INFINITY
 
         if lo == 0 and hi == 1:
-            vars = self.__model.addVars(indexes, name=name, obj=cost, vtype=gbp.GRB.BINARY)
+            vars = self.__model.addVars(indexes, name=name, vtype=gbp.GRB.BINARY)
         else:
-            vars = self.__model.addVars(indexes, lb=lo, ub=hi, name=name, obj=cost, vtype=gbp.GRB.INTEGER)
+            vars = self.__model.addVars(indexes, lb=lo, ub=hi, name=name, vtype=gbp.GRB.INTEGER)
+
+        if cost is not None:
+            self.add_cost(gbp.LinExpr(cost, [ vars[i] for i in indexes ]))
             
         self._variables[name] = vars
         return vars
@@ -102,11 +107,9 @@ class GurobiProblem(ILPProblem):
 
     def get_constraints(self):
         return self.__model.getConstrs()
-    
-    def set_objective(self, expr):
-        self.__model.setObjective(expr)
 
     def solve(self):
+        self.__model.setObjective(self.__cost)
         self.__model.update()
         self.__model.optimize()
 
