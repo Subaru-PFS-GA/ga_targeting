@@ -79,6 +79,7 @@ CUDA_VISIBLE_DEVICES=""     # Hide all GPUs from TensorFlow
 PFSSPEC_DATA="$PFSSPEC_DATA"
 CMDFIT_DATA="$CMDFIT_DATA"
 
+PFS_TARGETING_DEBUGPORT="$PFS_TARGETING_DEBUGPORT"
 PFS_TARGETING_ROOT="$PFS_TARGETING_ROOT"
 PFS_TARGETING_DATA="$PFS_TARGETING_DATA"
 PFS_TARGETING_TEMP="$PFS_TARGETING_TEMP"
@@ -91,3 +92,9 @@ echo "Data directory is $PFS_TARGETING_DATA"
 
 pushd . > /dev/null
 
+# Register command-line scripts
+
+# Search and show information about PFS data products
+function ga-netflow() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflowscript" "$@"
+}

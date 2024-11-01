@@ -1,0 +1,47 @@
+#!/bin/env bash
+
+PARAMS=()
+COMMAND="$1"
+shift
+
+RUNMODE="run"
+PYTHON_DEBUG=0
+
+while (( "$#" )); do
+    case "$1" in
+        --debug)
+            PYTHON_DEBUG=1
+            shift
+            ;;
+        --) # end argument parsing
+            shift
+            break
+            ;;
+        #-*|--*=) # unsupported flags
+            #  echo "Error: Unsupported flag $1" >&2
+            #  exit 1
+            #  ;;
+        *) # preserve all other arguments with quotes
+            PARAMS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [[ $PYTHON_DEBUG == "1" ]]; then
+    DEBUGGER="-m debugpy --listen 0.0.0.0:$PFS_TARGETING_DEBUGPORT --wait-for-client --configure-subProcess True"
+    PARAMS+=("--debug")
+else
+    DEBUGGER=""
+fi
+
+set -o noglob
+if [[ $RUNMODE == "run" ]]; then
+    if [[ $PYTHON_DEBUG == "1" ]]; then
+        echo "Press F5 to start debugging on port $PFS_TARGETING_DEBUGPORT"
+    fi
+    exec python $DEBUGGER $COMMAND "${PARAMS[@]}"
+else
+    echo "Invalid RUNMODE: $RUNMODE"
+fi
+set +o noglob
