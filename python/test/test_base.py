@@ -2,6 +2,7 @@ import os
 from unittest import TestCase
 from datetime import datetime
 import matplotlib.pyplot as plt
+import pandas as pd
 import tensorflow.compat.v2 as tf
 
 import  pfs.ga.targeting
@@ -57,9 +58,9 @@ class TestBase(TestCase):
         f.savefig(os.path.join(self.PFS_TARGETING_TEMP, filename))
 
     def load_test_observation(self) -> Observation:
-        fn = '/datascope/subaru/data/cmdfit/dSph/umi_tpall3e_g24.cat'
-        r = SubaruHSC.text_observation_reader()
-        return r.read(fn)
+        fn =  os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi.feather')
+        df = pd.read_feather(fn)
+        return Observation(df, 'umi')
 
     def load_test_simulation(self) -> Simulation:
         fn = '/datascope/subaru/data/cmdfit/run/umi/sim/mix_bin_200k_hsc_007/sample.h5'

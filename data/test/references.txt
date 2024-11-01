@@ -1,0 +1,3 @@
+CFHT photometry for the Ursa Minor dSph: Munoz et al. 2018
+Flux standard list from Ishigaki M., based on PS1 photometry
+Sky position from Ishigaki M.
