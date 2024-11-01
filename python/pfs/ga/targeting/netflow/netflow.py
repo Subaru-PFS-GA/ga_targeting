@@ -70,8 +70,8 @@ class Netflow():
         options are supported:
         * ignore_endpoint_collisions
         * ignore_elbow_collisions
+        * ignore_forbidden_targets
         * ignore_forbidden_pairs
-        * ignore_forbidden_singles
         * ignore_calib_target_class_minimum
         * ignore_calib_target_class_maximum
         * ignore_science_target_class_minimum
@@ -115,7 +115,7 @@ class Netflow():
     turn contain a Pandas dataframe in the variables `data`. The targets are added
     with the function `append_targets` and its wrappers. The input dataframe is converted
     into a uniform format with the following columns:
-    * ID          - must be unique across all targets
+    * targetid     - must be unique across all targets
     * RA          - right ascension in degrees
     * Dec         - declination in degrees
     * penalty     - penalty for observing the target, smaller for higher priory targets
@@ -178,8 +178,8 @@ class Netflow():
         self.__workdir = workdir if workdir is not None else os.getcwd()
         self.__filename_prefix = filename_prefix if filename_prefix is not None else ''
         self.__solver_options = solver_options
-        self.__netflow_options = camel_to_snake(netflow_options)
-        self.__debug_options = camel_to_snake(debug_options)
+        self.__netflow_options = netflow_options
+        self.__debug_options = debug_options
         self.__resume = False                        # Resume flag
 
         # Internally used variables
@@ -195,12 +195,9 @@ class Netflow():
         self.__variables = None
         self.__constraints = None
 
-        self.__target_classes = None
         self.__forbidden_targets = None             # List of forbidden individual target, identified by target_idx
         self.__forbidden_pairs = None               # List of forbidden target pairs, identified by target_idx
         self.__black_dots = None
-        self.__cobra_groups = None
-        self.__time_budgets = None
 
         self.__visit_exp_time = None                # Exposure time of a single visit in integer seconds
         self.__targets = None                       # DataFrame of targets
@@ -220,8 +217,7 @@ class Netflow():
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
 
-        # Run a few sanity checks
-        self.__check_pointing_visibility()
+        self.__validate_options()
 
     #region Property accessors
 
@@ -267,7 +263,7 @@ class Netflow():
     targets = property(__get_targets)
 
     def __get_target_classes(self):
-        return self.__target_classes
+        return self.__netflow_options.target_classes
     
     target_classes = property(__get_target_classes)
 
@@ -283,25 +279,29 @@ class Netflow():
 
     #endregion
 
-    def __get_netflow_option(self, key, default=None):
+    def __validate_options(self):
+
+        for name, options in self.__netflow_options.target_classes.items():                
+            # Sanity check for science targets: make sure that partialObservationCost
+            # is larger than nonObservationCost
+            if options.prefix == 'sci' \
+                and options.non_observation_cost is not None \
+                and options.partial_observation_cost is not None \
+                and options.partial_observation_cost < options.non_observation_cost:
+                
+                raise ValueError(
+                    f"Found target class `{name}` where partial_observation_cost "
+                    "is smaller than non_observation_cost")
+
+    def __get_netflow_option(self, value, default=None):
         """
-        Return an option from the netflow_options dictionary, if it exists,
-        otherwise return the default value.
+        Substitute the default value if value is None. This function
+        is kept for compatibility after switching to config classes
+        from simple dictionaries.
         """
 
-        if self.__netflow_options is not None and key in self.__netflow_options:
-            return self.__netflow_options[key]
-        else:
-            return default
-        
-    def __get_debug_option(self, key, default=None):
-        """
-        Return an option from the debug_options dictionary, if it exists,
-        otherwise return the default value
-        """
-
-        if self.__debug_options is not None and key in self.__debug_options:
-            return self.__debug_options[key]
+        if value is not None:
+            return value
         else:
             return default
         
@@ -530,45 +530,13 @@ class Netflow():
 
     #endregion
     #region Configuration
-        
-    def __get_target_class_config(self):
-        target_classes = {}
-
-        for name, options in self.__get_netflow_option('target_classes', {}).items():
-            
-            prefix = options['prefix'] if 'prefix' in options else False
-            min_targets = options['min_targets'] if 'min_targets' in options else None
-            max_targets = options['max_targets'] if 'max_targets' in options else None
-            non_observation_cost = options['non_observation_cost'] if 'non_observation_cost' in options else None
-            partial_observation_cost = options['partial_observation_cost'] if 'partial_observation_cost' in options else None
-            
-            # Sanity check for science targets: make sure that partialObservationCost
-            # is larger than nonObservationCost
-            if prefix == 'sci' \
-                and non_observation_cost is not None \
-                and partial_observation_cost is not None \
-                and partial_observation_cost < non_observation_cost:
-                
-                raise ValueError(
-                    f"Found target class `{name}` where partialObservationCost "
-                    "is smaller than nonObservationCost")
-
-            target_classes[name] = SimpleNamespace(
-                prefix = prefix,
-                min_targets = min_targets,
-                max_targets = max_targets,
-                non_observation_cost = non_observation_cost,
-                partial_observation_cost = partial_observation_cost,
-            )
-
-        return target_classes
     
     def __get_forbidden_targets_config(self):
         """
         Look up the target index based on the target id of forbidden targets.
         """
 
-        forbidden_targets = self.__get_netflow_option('forbidden_targets', None)
+        forbidden_targets = self.__netflow_options.forbidden_targets
         fpp = []
         wrong_id_count = 0
         if forbidden_targets is not None:
@@ -589,7 +557,7 @@ class Netflow():
         Look up the target indices based on the target ids of forbidden pairs.
         """
 
-        forbidden_pairs = self.__get_netflow_option('forbidden_pairs', None)
+        forbidden_pairs = self.__netflow_options.forbidden_pairs
         fpp = []
         wrong_id_count = 0
         if forbidden_pairs is not None:
@@ -609,7 +577,7 @@ class Netflow():
         return fpp
 
     def __get_black_dot_config(self):
-        black_dot_penalty = self.__get_netflow_option('black_dot_penalty', None)
+        black_dot_penalty = self.__netflow_options.black_dot_penalty
         
         if black_dot_penalty is not None:
             black_dots = SimpleNamespace(
@@ -622,56 +590,13 @@ class Netflow():
 
         return black_dots
     
-    def __get_cobra_groups_config(self):
-        cobra_groups = {}
-        
-        for name, options in self.__get_netflow_option('cobra_groups', {}).items():
-            for item in ['groups', 'target_classes', 'non_observation_cost']:
-                if item not in options:
-                    raise RuntimeError(f'Config entry `{item}` is missing for cobra group `{name}`.')
-                
-            groups = options['groups']
-            ngroups = np.max(groups) + 1
-
-            min_targets = options['min_targets'] if 'min_targets' in options else None
-            max_targets = options['max_targets'] if 'max_targets' in options else None
-
-            if min_targets is None and max_targets is None:
-                raise RuntimeError(f'Config entry `min_targets` and `max_targets` are missing for cobra group `{name}`.')
-
-            cobra_groups[name] = SimpleNamespace(
-                groups = groups,
-                ngroups = ngroups,
-                target_classes = set(options['target_classes']),
-                min_targets = min_targets,
-                max_targets = max_targets,
-                non_observation_cost = options['non_observation_cost'],
-            )
-
-        return cobra_groups
-    
-    def __get_time_budget_config(self):
-        time_budgets = {}
-
-        for name, options in self.__get_netflow_option('time_budgets', {}).items():
-            for item in ['target_classes', 'budget']:
-                if item not in options:
-                    raise RuntimeError(f'Config entry `{item}` is missing for time budget `{name}`.')
-                
-            time_budgets[name] = SimpleNamespace(
-                target_classes = set(options['target_classes']),
-                budget = options['budget'],
-            )
-
-        return time_budgets
-    
     #endregion
     #region PFI functions
 
     def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None, rv=None):
 
-        epoch = self.__get_netflow_option('epoch', 2016.0)
-        ignore_proper_motion = self.__get_netflow_option('ignore_proper_motion', False)
+        epoch = self.__get_netflow_option(self.__netflow_options.epoch, 2016.0)
+        ignore_proper_motion = self.__debug_options.ignore_proper_motion
 
         # The proper motion of the targets used for sky_pfi transformation.
         # The unit is mas/yr, the shape is (2, N)
@@ -875,8 +800,13 @@ class Netflow():
         elif isinstance(catalog, pd.DataFrame):
             df = catalog
         
+        # Try to discover the identity column
         if 'targetid' in df:
             id_column = 'targetid'
+        elif 'objid' in df:
+            id_column = 'objid'
+        elif 'skyid' in df:
+            id_column = 'skyid'
         elif prefix == 'sci':
             id_column = 'objid'
         elif prefix == 'cal':  
@@ -971,6 +901,8 @@ class Netflow():
 
         logger.info("Processing netflow configuration")
 
+        self.__check_pointing_visibility()
+
         self.__calculate_exp_time()
         self.__calculate_target_visits()
 
@@ -988,21 +920,12 @@ class Netflow():
             if save:
                 self.__save_target_cache()
 
-        # Target classes
-        self.__target_classes = self.__get_target_class_config()
-
         # Forbidden targets and target pairs
         self.__forbidden_targets = self.__get_forbidden_targets_config()
         self.__forbidden_pairs = self.__get_forbidden_pairs_config()
 
         # Cobras positioned too close to a black dot can get a penalty
         self.__black_dots = self.__get_black_dot_config()
-
-        # Cobra groups are defined to set a minimum number of calibration targets in each
-        self.__cobra_groups = self.__get_cobra_groups_config()
-
-        # Science program time budgets
-        self.__time_budgets = self.__get_time_budget_config()
 
         # Generate the list of visits
         self.__create_visits()
@@ -1241,6 +1164,9 @@ class Netflow():
             n = np.sum(np.abs(fp) < 400)
             assert n > 100, f"Pointing contains only {n} targets within the PFI radius."
 
+            for m in [ np.min(fp.real), np.max(fp.real), np.min(fp.imag), np.max(fp.imag) ]:
+                assert np.abs(m) > 190, f"The focal plane might not be fully covered by the target catalog."
+
     def __make_name_full(self, *parts):
         ### SLOW ### 4M calls!
         return "_".join(str(x) for x in parts)
@@ -1325,7 +1251,7 @@ class Netflow():
         Construct the ILP problem by defining the variables and constraints.
         """
 
-        use_named_variables = self.__get_netflow_option('use_named_variables', False)
+        use_named_variables = self.__get_netflow_option(self.__netflow_options.use_named_variables, False)
         if use_named_variables:
             self.__make_name = self.__make_name_full
         else:
@@ -1374,11 +1300,10 @@ class Netflow():
             self.__create_cobra_collision_constraints(visit)
 
             logger.debug("Adding cobra non-allocation cost terms.")
-            self.__add_cobra_non_allocation_cost(visit)
+            self.__add_fiber_non_allocation_cost(visit)
 
             # Add constraints for forbidden targets and forbidden pairs
-            ignore_forbidden_targets = self.__get_debug_option('ignore_forbidden_targets', False)
-            if not ignore_forbidden_targets:
+            if not self.__debug_options.ignore_forbidden_targets:
                 if self.__forbidden_targets is not None and len(self.__forbidden_targets) > 0:
                     # > Tv_o_forb_{tidx}_{tidx}_{visit_idx}
                     logger.debug("Adding forbidden target constraints")
@@ -1386,8 +1311,7 @@ class Netflow():
             else:
                  logger.debug("Ignored forbidden target constraints")
 
-            ignore_forbidden_pairs = self.__get_debug_option('ignore_forbidden_pairs', False)
-            if not ignore_forbidden_pairs:
+            if not self.__debug_options.ignore_forbidden_pairs:
                 if self.__forbidden_pairs is not None and len(self.__forbidden_pairs) > 0:
                     # > Tv_o_forb_{tidx1}_{tidx2}_{visit_idx}
                     logger.debug("Adding forbidden pair constraints")
@@ -1441,9 +1365,6 @@ class Netflow():
         # > Cv_i_max_{visit_idx}
         self.__create_unassigned_fiber_constraints(nvisits)
 
-        # Set the objective function
-        self.__model.set_objective(self.__cost)
-
     def __calculate_visibility(self):
 
         logger.info("Calculating target visibilities")
@@ -1486,7 +1407,7 @@ class Netflow():
     def __calculate_collisions(self):
         logger.info("Calculating cobra collisions")
 
-        collision_distance = self.__get_netflow_option('collision_distance', 0.0)
+        collision_distance = self.__get_netflow_option(self.__netflow_options.collision_distance, 0.0)
 
         self.__collisions = []
         for pidx, pointing in enumerate(self.__pointings):
@@ -1518,8 +1439,8 @@ class Netflow():
     #region Variables and costs
         
     def __create_science_target_class_variables(self):
-        for target_class in self.__target_classes.keys():
-            if self.__target_classes[target_class].prefix == 'sci':
+        for target_class in self.__netflow_options.target_classes.keys():
+            if self.__netflow_options.target_classes[target_class].prefix == 'sci':
                 # Science Target class node to sink
                 self.__create_STC_sink(target_class)
 
@@ -1529,7 +1450,7 @@ class Netflow():
         # more to the cost to prefer targeting them.
         f = self.__add_variable(self.__make_name("STC_sink", target_class), 0, None)
         self.__variables.STC_sink[target_class] = f
-        self.__add_cost(f * self.__target_classes[target_class].non_observation_cost)
+        self.__add_cost(f * self.__netflow_options.target_classes[target_class].non_observation_cost)
         
     def __create_science_target_variables(self):
         """
@@ -1538,7 +1459,7 @@ class Netflow():
         """
 
         # TODO: replace this with the logic to implement step-by-step targeting
-        force_already_observed = self.__get_netflow_option('force_already_observed', False)
+        # force_already_observed = self.__get_netflow_option(self.__netflow_options.force_already_observed, False)
 
         # Select only science targets and create the variables in batch mode
         mask = self.__target_cache.prefix == 'sci'
@@ -1572,11 +1493,13 @@ class Netflow():
 
         for i in range(len(tidx)):
             self.__variables.T_sink[tidx[i]] = T_sink[tidx[i]]
-            self.__add_cost(T_sink[tidx[i]] * self.__target_classes[target_class[i]].partial_observation_cost)
+
+            # TODO: this could be added at once as a LinExpr
+            self.__add_cost(T_sink[tidx[i]] * self.__netflow_options.target_classes[target_class[i]].partial_observation_cost)
 
     def __create_calib_target_class_variables(self, visit):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
-        for target_class, options in self.__target_classes.items():
+        for target_class, options in self.__netflow_options.target_classes.items():
             if options.prefix in ['sky', 'cal']:
                 f = self.__add_variable(self.__make_name("CTCv_sink", target_class, visit.visit_idx), 0, None)
                 self.__variables.CTCv_sink[(target_class, visit.visit_idx)] = f
@@ -1661,7 +1584,7 @@ class Netflow():
             cost += visit.visit_cost
 
         # Cost of moving the cobra away from the center
-        cobra_move_cost = self.__get_netflow_option('cobra_move_cost', None)
+        cobra_move_cost = self.__netflow_options.cobra_move_cost
         if cobra_move_cost is not None:
             dist = np.abs(self.__bench.cobras.centers[cidx] - 
                           self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]])
@@ -1690,38 +1613,38 @@ class Netflow():
             self.__variables.Tv_o[(ti, visit.visit_idx)].append((f, cidx))
 
             # Save the variable to the list of each cobra group to which it's relevant
-            for cg_name, options in self.__cobra_groups.items():
+            for cg_name, options in self.__netflow_options.cobra_groups.items():
                 if target_class in options.target_classes:
                     self.__variables.CG_i[(cg_name, visit.visit_idx, options.groups[cidx])].append(f)
 
     #endregion
     #region Special cost term
             
-    def __add_cobra_non_allocation_cost(self, visit):
+    def __add_fiber_non_allocation_cost(self, visit):
         # If requested, penalize non-allocated fibers
         # Sum up the all Cv_i edges for the current visit and penalize its difference from
         # the total number of cobras
-        cobra_non_allocation_cost = self.__get_netflow_option('fiber_non_allocation_cost', 0)
-        if cobra_non_allocation_cost != 0:
+        fiber_non_allocation_cost = self.__get_netflow_option(self.__netflow_options.fiber_non_allocation_cost, 0)
+        if fiber_non_allocation_cost != 0:
             # TODO: consider storing Cv_i organized by visit instead of cobra as well
             relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == visit.visit_idx ]
             relevant_vars = [ item for sublist in relevant_vars for item in sublist ]
-            self.__add_cost(cobra_non_allocation_cost *
+            self.__add_cost(fiber_non_allocation_cost *
                             (self.__bench.cobras.nCobras - self.__problem.sum(relevant_vars)))
             
     #endregion
     #region Constraints
 
     def __create_cobra_collision_constraints(self, visit):
-        ignore_endpoint_collisions = self.__get_debug_option('ignore_endpoint_collisions', False)
-        ignore_elbow_collisions = self.__get_debug_option('ignore_elbow_collisions', False)
+        ignore_endpoint_collisions = self.__debug_options.ignore_endpoint_collisions
+        ignore_elbow_collisions = self.__debug_options.ignore_elbow_collisions
         
         # Add constraints 
         logger.debug(f"Adding constraints for visit {visit.visit_idx + 1}")
 
         # Avoid endpoint or elbow collisions
-        collision_distance = self.__get_netflow_option('collision_distance', 0.0)
-        elbow_collisions = self.__get_netflow_option('elbow_collisions', False)
+        collision_distance = self.__get_netflow_option(self.__netflow_options.collision_distance, 0.0)
+        elbow_collisions = self.__get_netflow_option(self.__netflow_options.elbow_collisions, False)
         
         if collision_distance > 0.0:
             # if not elbow_collisions:
@@ -1831,8 +1754,8 @@ class Netflow():
         # If a maximum on the science target is set fo the target class, enforce that
         # in a separate constraint
         # It defaults to the total number of targets but can be overridden for each target class
-        ignore_science_target_class_minimum = self.__get_debug_option('ignore_science_target_class_minimum', False)
-        ignore_science_target_class_maximum = self.__get_debug_option('ignore_science_target_class_maximum', False)
+        ignore_science_target_class_minimum = self.__debug_options.ignore_science_target_class_minimum
+        ignore_science_target_class_maximum = self.__debug_options.ignore_science_target_class_maximum
         
         for target_class, vars in self.__variables.STC_o.items():
             sink = self.__variables.STC_sink[target_class]
@@ -1849,7 +1772,7 @@ class Netflow():
             # If a minimum or maximum constraint is set on the number observed targets in this
             # class, enforce it through a maximum constraint on the sum of the outgoing edges not
             # including the sink
-            min_targets = self.__target_classes[target_class].min_targets
+            min_targets = self.__netflow_options.target_classes[target_class].min_targets
             if not ignore_science_target_class_minimum and min_targets is not None:
                 name = self.__make_name("STC_o_min", target_class)
                 # constr = self.__problem.sum(vars) >= min_targets
@@ -1857,7 +1780,7 @@ class Netflow():
                 self.__constraints.STC_o_min[target_class] = constr
                 self.__add_constraint(name, constr)
 
-            max_targets = self.__target_classes[target_class].max_targets
+            max_targets = self.__netflow_options.target_classes[target_class].max_targets
             if not ignore_science_target_class_maximum and max_targets is not None:
                 name = self.__make_name("STC_o_max", target_class)
                 # constr = self.__problem.sum(vars) <= max_targets
@@ -1868,8 +1791,8 @@ class Netflow():
     def __create_calibration_target_class_constraints(self):
         
         
-        ignore_calib_target_class_minimum = self.__get_debug_option('ignore_calib_target_class_minimum', False)
-        ignore_calib_target_class_maximum = self.__get_debug_option('ignore_calib_target_class_maximum', False)
+        ignore_calib_target_class_minimum = self.__debug_options.ignore_calib_target_class_minimum
+        ignore_calib_target_class_maximum = self.__debug_options.ignore_calib_target_class_maximum
         
         for (target_class, vidx), vars in self.__variables.CTCv_o.items():
             sink = self.__variables.CTCv_sink[(target_class, vidx)]
@@ -1883,7 +1806,7 @@ class Netflow():
             self.__add_constraint(name, constr)
 
             # Every calibration target class must be observed a minimum number of times every visit
-            min_targets = self.__target_classes[target_class].min_targets
+            min_targets = self.__netflow_options.target_classes[target_class].min_targets
             if not ignore_calib_target_class_minimum and min_targets is not None:
                 name = self.__make_name("CTCv_o_min", target_class, vidx)
                 # constr = self.__problem.sum(vars) >= min_targets
@@ -1892,7 +1815,7 @@ class Netflow():
                 self.__add_constraint(name, constr)
 
             # Any calibration target class cannot be observed more tha a maximum number of times every visit
-            max_targets = self.__target_classes[target_class].max_targets
+            max_targets = self.__netflow_options.target_classes[target_class].max_targets
             if not ignore_calib_target_class_maximum and max_targets is not None:
                 name = self.__make_name("CTCv_o_max", target_class, vidx)
                 # constr = self.__problem.sum(vars) <= max_targets
@@ -1913,7 +1836,7 @@ class Netflow():
 
         # TODO: handle already observed targets here
 
-        allow_more_visits = self.__get_netflow_option('allow_more_visits', False)
+        allow_more_visits = self.__get_netflow_option(self.__netflow_options.allow_more_visits, False)
 
         for tidx, T_o in self.__variables.T_o.items():
             T_i = self.__variables.T_i[tidx]
@@ -1972,9 +1895,8 @@ class Netflow():
         # Science targets inside a given program must not get more observation time
         # than allowed by the time budget
 
-        ignore_time_budget = self.__get_debug_option('ignore_time_budget', False)
-        if not ignore_time_budget:
-            for budget_name, options in self.__time_budgets.items():
+        if not self.__debug_options.ignore_time_budget and self.__netflow_options.time_budgets is not None:
+            for budget_name, options in self.__netflow_options.time_budgets.items():
                 budget_target_classes = set(options.target_classes)
                 budget_variables = []
                 # Collect all visits of targets that fall into to budget
@@ -1994,15 +1916,15 @@ class Netflow():
     def __create_cobra_group_constraints(self, nvisits):
         # Make sure that there are enough targets in every cobra group for each visit
 
-        ignore_cobra_group_minimum = self.__get_debug_option('ignore_cobra_group_minimum', False)
-        ignore_cobra_group_maximum = self.__get_debug_option('ignore_cobra_group_maximum', False)
+        ignore_cobra_group_minimum = self.__debug_options.ignore_cobra_group_minimum
+        ignore_cobra_group_maximum = self.__debug_options.ignore_cobra_group_maximum
 
-        for cg_name, options in self.__cobra_groups.items():
+        for cg_name, options in self.__netflow_options.cobra_groups.items():
             need_min = not ignore_cobra_group_minimum and options.min_targets is not None
             need_max = not ignore_cobra_group_maximum and options.max_targets is not None
             if need_min or need_max:                
                 for vidx in range(nvisits):
-                    for gidx in range(options.ngroups):
+                    for gidx in range(len(options.groups)):
                         variables = self.__variables.CG_i[(cg_name, vidx, gidx)]
                         if len(variables) > 0:
                             if need_min:
@@ -2023,8 +1945,8 @@ class Netflow():
         # Make sure that enough fibers are kept unassigned, if this was requested
         # This is done by setting an upper limit on the sum of Cv_i edges
 
-        ignore_reserved_fibers = self.__get_debug_option('ignore_reserved_fibers', False)
-        num_reserved_fibers = self.__get_netflow_option('num_reserved_fibers', 0)
+        ignore_reserved_fibers = self.__debug_options.ignore_reserved_fibers
+        num_reserved_fibers = self.__get_netflow_option(self.__netflow_options.num_reserved_fibers, 0)
 
         if not ignore_reserved_fibers and num_reserved_fibers > 0:
             max_assigned_fibers = self.__bench.cobras.nCobras - num_reserved_fibers
@@ -2042,6 +1964,10 @@ class Netflow():
 
     def solve(self):
         if self.__problem.solve():
+
+            # Verify the solution
+
+
             self.__extract_assignments()
         else:
             if len(self.__problem.infeasible_constraints) > 0:

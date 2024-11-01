@@ -34,15 +34,6 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     Configuration steps are adopted from the PFS design tool:
     ets_pointing/src/pfs_design_tool/pointing_utils/nfutils.py
-
-    instrument_options: dict
-        A dictionary with the following keys:
-        - fiberids_path: str
-            Path to the grand fiber map file.
-        - instdata_path: str
-            Path to the instrument configuration.
-        - blackdots_path: str
-            Path to the black dots calibration file.
     """
 
     # Path to grand fiber map file
@@ -66,12 +57,14 @@ class SubaruPFI(Instrument, FiberAllocator):
                 [854, 800, 1540, 1594]]
 
     def __init__(self, projection=None, instrument_options=None, orig=None):
+        from ..config.instrumentoptionsconfig import InstrumentOptionsConfig
+        
         Instrument.__init__(self, orig=orig)
         FiberAllocator.__init__(self, orig=orig)
 
         if not isinstance(orig, SubaruPFI):
             self.__projection = projection or SubaruWFC(Pointing(0, 0))
-            self.__instrument_options = camel_to_snake(instrument_options)
+            self.__instrument_options = instrument_options if instrument_options is not None else InstrumentOptionsConfig()
         else:
             self.__projection = projection or orig.__projection
             self.__instrument_options = orig.__instrument_options
@@ -98,24 +91,24 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     #endregion
         
-    def __get_instrument_option(self, key, default=None):
+    def __get_instrument_option(self, option, default=None):
         """
         Return an option from the instrument_options dictionary, if it exists,
         otherwise return the default value.
         """
 
-        if self.__instrument_options is not None and key in self.__instrument_options:
-            return self.__instrument_options[key]
+        if option is not None:
+            return option
         else:
             return default
         
     def __create_grand_fiber_map(self):
-        fiberids_path = self.__get_instrument_option('fiberids_path', SubaruPFI.DEFAULT_FIBERIDS_PATH)
+        fiberids_path = self.__get_instrument_option(self.__instrument_options.fiberids_path, SubaruPFI.DEFAULT_FIBERIDS_PATH)
         fibermap = FiberIds(path=fiberids_path)
         return fibermap
     
     def __create_bench(self):
-        layout = self.__get_instrument_option('layout', 'full')
+        layout = self.__get_instrument_option(self.__instrument_options.layout, 'full')
 
         if layout == 'full':
             return self.__create_default_bench()
@@ -134,12 +127,12 @@ class SubaruPFI(Instrument, FiberAllocator):
         Create a bench object with real instrument configuration.
         """
         
-        pfs_instdata_path = self.__get_instrument_option('instdata_path', SubaruPFI.DEFAULT_INSTDATA_PATH)
-        pfs_black_dots_path = self.__get_instrument_option('blackdots_path', SubaruPFI.DEFAULT_BLACK_DOTS_PATH)
-        cobra_coach_dir = self.__get_instrument_option('cobra_coach_dir', SubaruPFI.DEFAULT_COBRA_COACH_DIR)
-        cobra_coach_module_version = self.__get_instrument_option('cobra_coach_module_version', None)
-        spectgrograph_modules = self.__get_instrument_option('spectrograph_modules', [1, 2, 3, 4])
-        black_dot_radius_margin = self.__get_instrument_option('black_dot_radius_margin', 1.0)
+        pfs_instdata_path = self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH)
+        pfs_black_dots_path = self.__get_instrument_option(self.__instrument_options.blackdots_path, SubaruPFI.DEFAULT_BLACK_DOTS_PATH)
+        cobra_coach_dir = self.__get_instrument_option(self.__instrument_options.cobra_coach_dir, SubaruPFI.DEFAULT_COBRA_COACH_DIR)
+        cobra_coach_module_version = self.__get_instrument_option(self.__instrument_options.cobra_coach_module_version, None)
+        spectgrograph_modules = self.__get_instrument_option(self.__instrument_options.spectrograph_modules, [1, 2, 3, 4])
+        black_dot_radius_margin = self.__get_instrument_option(self.__instrument_options.black_dot_radius_margin, 1.0)
 
         # Create the cobra coach temp directory if it does not exist
         if not os.path.isdir(cobra_coach_dir):
