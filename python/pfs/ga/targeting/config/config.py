@@ -20,10 +20,25 @@ class Config():
     from.
     """
 
-    #region Properties
-
     def __init__(self):
         self.__config_files = None                # List of configuration files loaded
+
+    @classmethod
+    def default(cls):
+        """
+        Create a default configuration.
+        """
+
+        return cls()
+    
+    def to_dict(self):
+        """
+        Convert the configuration to a dictionary.
+        """
+
+        return self._save_impl()
+
+    #region Properties
 
     def __get_config_files(self):
         return self.__config_files
@@ -201,6 +216,9 @@ class Config():
 
         with open(filename, 'r') as f:
             code = f.read()
+
+        # TODO: something is wrong here because lambda functions using
+        #       numpy wont work, maybe we should pass global() and local()?
 
         global_variables = {}
         local_variables = {}

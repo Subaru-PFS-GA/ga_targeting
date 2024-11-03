@@ -5,13 +5,18 @@ from ..core import Pointing
 from .config import Config
 
 class PointingConfig(Config):
-    def __init__(self):
+    def __init__(self,
+                 ra: float = None,
+                 dec: float = None,
+                 posang: float = None,
+                 obs_time: datetime = None,
+                 exp_time: float = None):
         
-        self.ra = None
-        self.dec = None
-        self.posang = None
-        self.obs_time = None
-        self.exp_time = None
+        self.ra = ra
+        self.dec = dec
+        self.posang = posang
+        self.obs_time = obs_time
+        self.exp_time = exp_time
 
         super().__init__()
 
