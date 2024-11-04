@@ -308,6 +308,9 @@ class DataFrameSerializer():
                 g = h
 
             for col in df.columns:
+                if col in g:
+                    del g[col]
+                
                 g.create_dataset(col, data=np.array(df[col]))
 
     def read(self, filename: str, dataset=None, format=None, mask=None, **kwargs) -> pd.DataFrame:
