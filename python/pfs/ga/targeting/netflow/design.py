@@ -44,7 +44,7 @@ class Design():
             raBoresight = visit.pointing.ra,
             decBoresight = visit.pointing.dec,
             posAng = visit.pointing.posang,
-            arms = arms,
+            arms = ''.join(arms),
             fiberId = np.array(fiber_assignments.index.astype(np.int32)),
             tract = np.array(fiber_assignments['tract'].fillna(-1).astype(np.int32)),
             patch = np.array(fiber_assignments['patch'].fillna('0,0').astype(str)),
