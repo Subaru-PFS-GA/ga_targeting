@@ -1,5 +1,5 @@
 from ..photometry import Color, Magnitude
-from ..diagram import ColorAxis, MagnitudeAxis
+from ..diagram import Diagram, ColorAxis, MagnitudeAxis
 
 class DiagramValueProvider():
     """
@@ -20,6 +20,9 @@ class DiagramValueProvider():
         raise NotImplementedError()
     
     def has_diagram_values(self, axes, observed=False):
+        if isinstance(axes, Diagram):
+            axes = axes.axes
+
         # Check if all magnitudes are available (for plotting, for example)
         for ax in axes:
             if isinstance(ax, ColorAxis):
@@ -39,6 +42,9 @@ class DiagramValueProvider():
         return True
 
     def get_diagram_values(self, axes, observed=False, mask=None):
+        if isinstance(axes, Diagram):
+            axes = axes.axes
+
         # Collect data
         x = []
         for ax in axes:
