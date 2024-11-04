@@ -60,8 +60,8 @@ class NetflowOptionsConfig(Config):
         """
 
         config = NetflowOptionsConfig()
-        config.target_classes = config.__create_target_classes(),
-        config.cobra_groups = config.__create_cobra_groups(),
+        config.target_classes = config.__create_target_classes()
+        config.cobra_groups = config.__create_cobra_groups()
         return config
 
     def __create_cobra_groups(self):

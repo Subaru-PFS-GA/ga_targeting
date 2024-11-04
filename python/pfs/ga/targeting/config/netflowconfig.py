@@ -28,3 +28,17 @@ class NetflowConfig(Config):
         self.debug_options = debug_options
         
         super().__init__()
+
+    @classmethod
+    def default(cls):
+        """
+        Create a default configuration.
+        """
+
+        config = NetflowConfig()
+        config.netflow_options = NetflowOptionsConfig.default()
+        config.instrument_options = InstrumentOptionsConfig.default()
+        config.gurobi_options = GurobiOptionsConfig.default()
+        config.debug_options = DebugOptionsConfig.default()
+        
+        return config

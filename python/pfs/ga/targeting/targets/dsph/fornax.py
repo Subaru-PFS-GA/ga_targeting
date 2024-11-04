@@ -9,11 +9,12 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ...config import NetflowConfig, FieldConfig, PointingConfig
 from .dsphgalaxy import DSphGalaxy
 
 class Fornax(DSphGalaxy):
     def __init__(self):
-        ID = 'for'
+        ID = 'fornax'
         name = 'Fornax'
         pos = [ 39.9971, -34.4492 ] * u.deg                     # Evan
         rad = 240 * u.arcmin
@@ -54,16 +55,20 @@ class Fornax(DSphGalaxy):
         ])
 
     def get_netflow_config(self):
-        return dict(
-            field = dict(
-                key = self.ID,
-                name = self.name.lower(),
-                arms = 'bmn',
-                nvisits = 1,
-                exp_time = 6 * 30 * 60.,        # 3 hr total
-                obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
-            )
+        config = NetflowConfig.default()
+
+        config.field = FieldConfig(
+            key = self.ID,
+            name = self.name,
+            arms = 'bmn',
+            nvisits = 1,
+            exp_time = 6 * 30 * 60.,        # 3 hr total
+            obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
         )
+
+        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+
+        return config
         
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.0):
         """Return true for objects within sharp magnitude cuts."""
