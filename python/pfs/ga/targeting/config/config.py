@@ -74,6 +74,24 @@ class Config():
         c = cls()
         c.load(path, ignore_collisions=ignore_collisions)
         return c
+    
+    @classmethod
+    def from_dict(cls, config, ignore_collisions=False):
+        """
+        Load the configuration from a dictionary.
+
+        Arguments
+        ---------
+        config : dict
+            Dictionary containing the configuration.
+        ignore_collisions : bool
+            If True, collisions in the configuration are ignored. If False, an exception is
+            raised when a collision is detected.
+        """
+
+        c = cls()
+        c.load(config, ignore_collisions=ignore_collisions)
+        return c
 
     def load(self, source, ignore_collisions=False):
         """
