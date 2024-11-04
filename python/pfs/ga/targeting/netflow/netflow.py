@@ -217,8 +217,6 @@ class Netflow():
         self.__target_assignments = None            # List of dicts for each visit, keyed by target index
         self.__cobra_assignments = None             # List of dicts for each visit, keyed by cobra index
 
-        self.__validate_options()
-
     #region Property accessors
 
     def __get_name(self):
@@ -911,6 +909,7 @@ class Netflow():
 
         logger.info("Processing netflow configuration")
 
+        self.__validate_options()
         self.__check_pointing_visibility()
 
         self.__calculate_exp_time()
