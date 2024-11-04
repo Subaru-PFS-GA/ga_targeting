@@ -59,8 +59,8 @@ class TestBase(TestCase):
 
     def load_test_observation(self) -> Observation:
         fn =  os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi.feather')
-        df = pd.read_feather(fn)
-        return Observation(df, 'umi')
+        s = ObservationSerializer()
+        return s.read(fn)
 
     def load_test_simulation(self) -> Simulation:
         fn = '/datascope/subaru/data/cmdfit/run/umi/sim/mix_bin_200k_hsc_007/sample.h5'

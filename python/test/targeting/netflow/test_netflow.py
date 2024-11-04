@@ -53,9 +53,12 @@ class NetflowTest(TestBase):
 
     def test_calculate_target_fp_pos(self):
         instrument = SubaruPFI()
-        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
-        nf = Netflow(f'test', instrument, [ pointing ])
+        config = NetflowConfig.default()
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     debug_options=config.debug_options)
         nf.append_science_targets(obs, exp_time=1200, priority=1)
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
@@ -63,15 +66,34 @@ class NetflowTest(TestBase):
 
         nf._Netflow__calculate_target_fp_pos()
         nf._Netflow__check_target_fp_pos()
+
+    def test_calculate_target_fp_pos_error(self):
+        instrument = SubaruPFI()
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        obs = self.load_test_observation()
+        config = NetflowConfig.default()
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     debug_options=config.debug_options)
+        nf.append_science_targets(obs, exp_time=1200, priority=1)
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+
+        nf._Netflow__calculate_target_fp_pos()
+
+        # Focal plane position is set such that observations don't cover it completely
+        self.assertRaises(AssertionError, nf._Netflow__check_target_fp_pos)
         
     def test_solve(self):
         # This is a full coverage test, does not validate the results and
         # correctness of the individual features.
 
-        config = NetflowConfig.from_file(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
+        config = NetflowConfig.default()
+        config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
 
         instrument = SubaruPFI(instrument_options=config.instrument_options)
-        pointing = Pointing(227.2, 67.2, posang=0, obs_time=Time("2024-05-01T10:00:00.0Z"), nvisits=1, exp_time=1200)
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=config.netflow_options,
                      solver_options=config.gurobi_options,

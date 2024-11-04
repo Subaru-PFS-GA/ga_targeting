@@ -7,4 +7,4 @@ class PfsSkyReaderTest(TestBase):
     def test_read(self):
         fn = '/datascope/subaru/data/cmdfit/dSph/sky_ursaminor.feather'
         r = PfsSkyReader()
-        sky = r.ríead(fn)
+        sky = r.read(fn)

@@ -5,6 +5,8 @@ from astropy.time import Time
 
 from test_base import TestBase
 
+from pfs.ga.targeting.config import NetflowConfig
+from pfs.ga.targeting.config.instrumentoptionsconfig import InstrumentOptionsConfig
 from pfs.ga.targeting.projection import Pointing
 from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC
 from pfs.ga.targeting.diagram import FOV
@@ -12,29 +14,37 @@ from pfs.ga.targeting.diagram import FOV
 class SubaruPFITest(TestBase):
     def test_init(self):
         inst = SubaruPFI()
-        inst = SubaruPFI(instrument_options={})
 
-    def test_get_grand_fiber_map(self):
+        config = NetflowConfig()
+        inst = SubaruPFI(instrument_options=config.instrument_options)
+
+    def test_create_grand_fiber_map(self):
         inst = SubaruPFI()
-        inst._SubaruPFI__get_grand_fiber_map()
+        inst._SubaruPFI__create_grand_fiber_map()
 
     def test_get_fiber_map(self):
         inst = SubaruPFI()
-        inst.get_fiber_map()
+        fiber_map = inst.fiber_map
 
-    def test_get_configured_bench(self):
+    def test_create_default_bench(self):
         inst = SubaruPFI()
-        inst._Instrument__get_configured_bench()
+        inst._SubaruPFI__create_default_bench()
+
+    def test_create_configured_bench(self):
+        inst = SubaruPFI()
+        inst._SubaruPFI__create_configured_bench()
 
     def test_get_bench(self):
         inst = SubaruPFI()
-        inst.get_bench()
+        bench = inst.bench
 
-        inst = SubaruPFI(instrument_options={'layout': 'full'})
-        inst.get_bench()
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'full'})
+        inst = SubaruPFI(instrument_options=instrument_options)
+        bench = inst.bench
 
-        inst = SubaruPFI(instrument_options={'layout': 'calibration'})
-        inst.get_bench()
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        inst = SubaruPFI(instrument_options=instrument_options)
+        bench = inst.bench
 
     def test_radec_to_altaz(self):
         inst = SubaruPFI()
@@ -49,7 +59,7 @@ class SubaruPFITest(TestBase):
 
     def test_find_associations(self):
         inst = SubaruPFI()
-        b = int.bench
+        b = inst.bench
         obs = self.load_test_observation()
         ra, dec = obs.get_coords()
         mask = np.full_like(ra, True, dtype=bool)
@@ -76,8 +86,3 @@ class SubaruPFITest(TestBase):
         self.save_fig(f)
 
         # TODO: test wrap-around
-
-    def test_nf_get_closest_dots(self):
-        pfi = SubaruPFI()
-        dots = pfi.nf_get_closest_dots()
-        self.assertEqual(2394, len(dots))
