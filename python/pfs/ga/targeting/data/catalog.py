@@ -10,6 +10,8 @@ from ..util import safe_deep_copy, ReadOnlyDict
 from ..photometry import Photometry, Color, Magnitude
 from ..diagram import ColorAxis, MagnitudeAxis, DiagramValueProvider
 
+from ..setup_logger import logger
+
 class Catalog(DiagramValueProvider):
     def __init__(self, name=None, frame='icrs', equinox='J2000', orig=None):
         if not isinstance(orig, Catalog):
@@ -145,14 +147,3 @@ class Catalog(DiagramValueProvider):
             idx[separation > max_separation] = -1
 
         return idx, separation
-    
-    def merge(self, other, idx, columns, mask=None, mask_other=None, other_prefix=None):
-        """
-        Merge two catalogs based on indices pointing to the other. This will
-        result in a left outer join type match.
-        """
-        
-        for c in columns:
-            self.data[c] = np.nan
-            self.data.loc[mask, c] = np.array(other.data[c][idx[mask]])
-                
