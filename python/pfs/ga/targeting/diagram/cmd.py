@@ -63,20 +63,27 @@ class CMD(Diagram):
     def plot_simulation(self, ax: plt.Axes, catalog, population_id=None, apply_categories=False, g=None,
             observed=None, mask=None, s=None, **kwargs):
 
-        if population_id is not None:
-            p = np.s_[..., population_id]
-        else:
-            p = np.s_[:]
-
         observed = observed if observed is not None else catalog.observed
-        mask = mask[p] if mask is not None else np.s_[:]
+        mask = mask if mask is not None else np.s_[:]
 
         (x, _), (y, _) = catalog.get_diagram_values(self.axes, observed=observed)
+        
         if apply_categories:
             x = catalog.apply_categories(x, g=g)
             y = catalog.apply_categories(y, g=g)
 
-        return self.scatter(ax, x[p], y[p], mask=mask, s=s, **kwargs)
+            if isinstance(mask, np.ndarray):
+                mask = catalog.apply_categories(mask, g=g)
+
+        if population_id is not None:
+            p = np.s_[..., population_id]
+            x = x[p]
+            y = y[p]
+
+            if isinstance(mask, np.ndarray):
+                mask = mask[p]
+
+        return self.scatter(ax, x, y, mask=mask, s=s, **kwargs)
 
     def plot_observation(self, ax: plt.Axes, catalog, 
             observed=None, mask=None, s=None, **kwargs):
