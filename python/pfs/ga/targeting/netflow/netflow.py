@@ -10,9 +10,9 @@ from types import SimpleNamespace
 
 from pfs.datamodel import TargetType, FiberStatus
 from .setup_logger import logger
-from .util import *
 from ..util.args import *
 from ..util.config import *
+from ..util.pandas import *
 from ..data import Catalog
 from ..projection import Pointing
 from .visit import Visit
@@ -355,6 +355,9 @@ class Netflow():
         self.__restore_constraints()
 
     def __restore_variables(self):
+
+        logger.info("Restoring variables...")
+
         self.__init_variables()        
         vars = self.__problem.get_variables()
 
@@ -401,7 +404,7 @@ class Netflow():
                 target_class = self.__target_cache.target_class[tidx]
                 self.__variables.Cv_i[(cidx, vidx)].append(f)
                 self.__variables.Tv_o[(tidx, vidx)].append((f, cidx))
-                for cg_name, options in self.__cobra_groups.items():
+                for cg_name, options in self.__netflow_options.cobra_groups.items():
                     if target_class in options.target_classes:
                         self.__variables.CG_i[(cg_name, vidx, options.groups[cidx])].append(f)
             else:
@@ -409,7 +412,12 @@ class Netflow():
             
             self.__variables.all[f.varName] = f
 
+        logger.info(f'Restored {len(vars)} variables.')
+
     def __restore_constraints(self):
+
+        logger.info("Restoring constraints...")
+
         self.__init_constraints()        
         constrs = self.__problem.get_constraints()
 
@@ -508,6 +516,8 @@ class Netflow():
                 raise NotImplementedError()
 
             self.__constraints.all[c.constrName] = c
+
+        logger.info(f'Restored {len(constrs)} constraints.')
 
     def save_problem(self, filename=None):
         """Save the LP problem to a file"""
@@ -2148,6 +2158,11 @@ class Netflow():
         # Include all columns from the target list data frame, if requested
         # Convert integer columns to nullable to avoid float conversion in join
         if include_target_columns:
+
+            # Sort targets by targetid, if not already
+            if 'targetid' in self.__targets.columns:
+                self.__targets = self.__targets.set_index('targetid').sort_index()
+                
             assignments = assignments.join(pd_to_nullable(self.__targets), on='targetid', how='left')
             assignments = assignments.reset_index(drop=True)
 
