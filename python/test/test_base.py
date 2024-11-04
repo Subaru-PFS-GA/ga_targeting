@@ -7,7 +7,7 @@ import tensorflow.compat.v2 as tf
 
 import  pfs.ga.targeting
 from pfs.ga.targeting.selection.andselection import AndSelection
-from pfs.ga.targeting.io import TextObservationReader, Hdf5SimulationReader
+from pfs.ga.targeting.io import ObservationSerializer, Hdf5SimulationReader
 from pfs.ga.targeting.data import Observation, Simulation
 from pfs.ga.targeting.photometry import *
 from pfs.ga.targeting.instrument import SubaruHSC
@@ -42,7 +42,7 @@ class TestBase(TestCase):
         self.PFS_TARGETING_TEMP = get_env('PFS_TARGETING_TEMP')
 
     def get_test_data_file(self, filename):
-        return os.path.join(pfs.ga.targeting.__file__, '../../../../../data', filename)
+        return os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data', filename)
 
     def get_filename(self, ext):
         filename = type(self).__name__[:-4] + '_' + self._testMethodName[5:] + ext

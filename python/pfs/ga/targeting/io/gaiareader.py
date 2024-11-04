@@ -4,9 +4,9 @@ import astropy.units as u
 
 from ..util.args import *
 from ..data import Observation
-from .catalogreader import CatalogReader
+from .catalogserializer import CatalogSerializer
 
-class GaiaReader(CatalogReader):
+class GaiaReader(CatalogSerializer):
     def __init__(self, orig=None):
         super().__init__(orig=orig)
 

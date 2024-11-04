@@ -1,5 +1,5 @@
 from ..photometry import Photometry, Magnitude
-from ..io import TextObservationReader
+from ..io import ObservationSerializer
 from .instrument import Instrument
 
 class SubaruHSC(Instrument):
@@ -45,9 +45,9 @@ class SubaruHSC(Instrument):
         if ext is None:
             ext = ['g', 'i', 'nb515']
 
-        reader = TextObservationReader()
+        reader = ObservationSerializer(format='.csv')
         reader.append_photometry(SubaruHSC.photometry())
-        reader.column_mapping = {
+        reader.column_map = {
             'ID': 'objid',
             'RA': 'RA',
             'Dec': 'Dec',
@@ -55,11 +55,11 @@ class SubaruHSC(Instrument):
         reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
 
         for m in mags:
-            reader.column_mapping[f'{m[0]}psf'] = f'obs_hsc_{m}'
-            reader.column_mapping[f'{m[0]}psferr'] = f'err_hsc_{m}'
+            reader.column_map[f'{m[0]}psf'] = f'obs_hsc_{m}'
+            reader.column_map[f'{m[0]}psferr'] = f'err_hsc_{m}'
 
         for m in ext:
-            reader.column_mapping[f'a_{m[0]}'] = f'ext_hsc_{m}'
+            reader.column_map[f'a_{m[0]}'] = f'ext_hsc_{m}'
 
         # These have to be done is separate loops because column order matters!
 
@@ -87,6 +87,6 @@ class SubaruHSC(Instrument):
             return ff
 
         reader.filter = filter
-        reader.kwargs = dict(delimiter=r'\s+', engine='python')
+        reader.kwargs = dict(delimiter=r'\s+')
 
         return reader

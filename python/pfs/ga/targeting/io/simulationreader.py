@@ -1,7 +1,7 @@
 from ..data import Simulation
-from .catalogreader import CatalogReader
+from .catalogserializer import CatalogSerializer
 
-class SimulationReader(CatalogReader):
+class SimulationReader(CatalogSerializer):
     def __init__(self, orig=None):
         super(SimulationReader, self).__init__(orig=orig)
 
