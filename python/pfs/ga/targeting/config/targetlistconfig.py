@@ -6,7 +6,10 @@ class TargetListConfig(Config):
         self.path = None
         self.reader = None
         self.reader_args = None
+        self.columns = None
         self.column_map = None
+        self.data_types = None
+        self.index = None
         self.prefix = None
         self.epoch = None
         self.catid = None
