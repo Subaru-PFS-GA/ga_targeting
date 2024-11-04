@@ -153,13 +153,26 @@ class Config():
                 # of `Config` but its name is in `type_map`, then instantiate the particular type defined
                 # in the map. In all other cases, just set the member to the value found in the config dict.
 
+                annotations = type(self).__init__.__annotations__
                 c = getattr(self, key)
+
                 if isinstance(c, Config):
                     # This is a config class, it can initialize itself from the config dict
                     c._load_impl(value, ignore_collisions=ignore_collisions)
-                elif key in type(self).__init__.__annotations__:
-                    # This member is a type annotated member, convert the value to the type
-                    setattr(self, key, Config._config_to_class(type(self).__init__.__annotations__[key], config=value, ignore_collisions=ignore_collisions))
+                elif key in annotations:
+                    if isinstance(annotations[key], type) and issubclass(annotations[key], Config):
+                        # This member is a type-annotated member where the type is a subclass of Config,
+                        # convert the value to the type
+                        setattr(self, key, Config._config_to_class(annotations[key], config=value, ignore_collisions=ignore_collisions))
+                    else:
+                        # This is an annotation in the form of List or Dict or similar
+                        args = get_args(annotations[key])
+                        if any([ issubclass(a, Config) for a in args ]):
+                            # This is a list or dictionary of Config classes
+                            setattr(self, key, Config._config_to_class(annotations[key], config=value, ignore_collisions=ignore_collisions))
+                        else:
+                            # This is a regular member with some annotations, just set its value
+                            setattr(self, key, value)
                 elif type_hints is not None and key in type_hints:
                     # This member is part of the type_map, instantiate the type and initialize
                     setattr(self, key, Config._config_to_class(type_hints[key], config=value, ignore_collisions=ignore_collisions))
