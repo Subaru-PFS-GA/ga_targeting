@@ -7,10 +7,11 @@ import astropy.units as u
 from ..config import NetflowConfig
 from ..targets.dsph import GALAXIES
 from ..instrument import SubaruPFI
+from ..io import ObservationSerializer
 from ..netflow import Netflow, Design
-from ..netflow.util import *
 from ..core import Pointing
 from ..util.astro import *
+from ..util.pandas import *
 from .script import Script
 
 from ..setup_logger import logger
@@ -102,14 +103,14 @@ class NetflowScript(Script):
 
         if self.is_arg('dsph', args):
             self.__field = GALAXIES[self.get_arg('dsph', args)]
-              
-        self.__config = NetflowConfig()
 
-        # If a field is specified, load its default configuration
+        # If a field is specified, load its default configuration      
         if self.__field is not None:
-            self.__config.load(self.__field.get_netflow_config())
+            self.__config = self.__field.get_netflow_config()
+        else:
+            self.__config = NetflowConfig.default()
 
-        # Load the configuration template files
+        # Load the configuration template files and merge with the default config
         config_files = self.get_arg('config', args)
         self.__config.load(config_files, ignore_collisions=True)
 
@@ -200,18 +201,28 @@ class NetflowScript(Script):
         target_lists = {}
         for k, target_list_config in self.__config.targets.items():
             # Check if the preprocessed target lists are available
-            path = self.__get_preprocessed_target_list_path(k)
 
-            if self.__resume and os.path.isfile(path):
-                target_lists[k] = self.__load_preprocessed_target_list(k, path)
+            if self.__outdir is not None:
+                path = self.__get_preprocessed_target_list_path(k)
             else:
+                path = None
+
+            loaded = False
+            if self.__resume and self.__outdir is not None and os.path.isfile(path):
+                target_lists[k] = self.__load_preprocessed_target_list(k, path)
+                loaded = True
+
+            if not loaded:
                 target_list = self.__load_source_target_list(target_list_config)
+                target_list.name = k
+                
                 self.__validate_target_list(k, target_list_config, target_list)
                 self.__calculate_target_list_flux(k, target_list)
                 self.__append_target_list_extra_columns(k, target_list)
                 target_lists[k] = target_list
 
-                self.__save_preprocessed_target_list(k, target_lists[k], path)
+                if self.__outdir is not None:
+                    self.__save_preprocessed_target_list(k, target_lists[k], path)
 
         return target_lists
 
@@ -221,24 +232,25 @@ class NetflowScript(Script):
             raise NotImplementedError()
         
         logger.info(f'Reading target list from `{target_list_config.path}`.')
+
+        reader = ObservationSerializer(
+            columns = target_list_config.columns,
+            column_map = target_list_config.column_map,
+            data_types = target_list_config.data_types,
+            index = target_list_config.index,
+            filters = target_list_config.filters,
+            bands = target_list_config.bands,
+            kwargs = target_list_config.reader_args,
+        )
+        catalog = reader.read(target_list_config.path)
         
-        dir, filename = os.path.split(target_list_config.path)
-        basename, ext = os.path.splitext(filename)
+        logger.info(f'Read {len(catalog.shape)} targets from target list.')
 
-        if ext == '.feather':
-            df = pd.read_feather(target_list_config.path, **target_list_config.reader_args)
-        elif ext == '.csv':
-            df = pd.read_csv(target_list_config.path, **target_list_config.reader_args)
-
-        # If the column mapping is not None, rename columns accordingly
-        if target_list_config.column_map is not None:
-            df = df.rename(columns=target_list_config.column_map)
-
-        logger.info(f'Read {len(df)} targets from target list.')
-
-        return df
+        return catalog
     
     def __calculate_target_list_flux(self, key, target_list):
+        # TODO: this should go under the Observation class, maybe
+
         # Calculate the missing flux columns
         # If no psf, fiber, total, etc. flux/magnitude is available, just copy the values
 
@@ -260,115 +272,14 @@ class NetflowScript(Script):
         Calculate the missing flux values from other columns that are available
         """
 
-        for filter, columns in self.__config.targets[key].filters.items():
-            any_flux = None         # First available flux value for a filter
-            any_flux_err = None     # First available flux error for a filter
-            any_flux_key = None     # Key of the first available flux column
-            for prefix in ['', 'psf_', 'fiber_', 'total_']:
-                flux_key = prefix + 'flux'
-                flux_err_key = prefix + 'flux_err'
-                mag_key = prefix + 'mag'
-                mag_err_key = prefix + 'mag_err'
-
-                flux_col_canonical = f'{filter}_{prefix}flux'
-                flux_err_col_canonical = f'{filter}_{prefix}flux_err'
-
-                flux_col = columns[flux_key] if flux_key in columns else None
-                flux_err_col = columns[flux_err_key] if flux_err_key in columns else None
-                mag_col = columns[mag_key] if mag_key in columns else None
-                mag_err_col = columns[mag_err_key] if mag_err_key in columns else None
-
-                # Calculate flux from the magnitude
-                flux = None
-                flux_err = None
-                if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list {key}.')
-
-                    if mag_col is not None:
-                        # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter {filter}.')
-
-                        mag = target_list[mag_col]
-                        mag_err = target_list[mag_err_col] if mag_err_col is not None else None
-
-                        flux = (np.array(mag) * u.ABmag).to_value(u.nJy)
-                        if mag_err is not None:
-                            flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
-                    elif any_flux is not None:
-                        # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter {filter}.')
-                        flux = any_flux
-                        flux_err = any_flux_err
-                else:
-                    flux = target_list[flux_col]
-                    if flux_err_col is not None:
-                        flux_err = target_list[flux_err_col]
-
-                # Save the flux to the target list with canonical column name
-                target_list[flux_col_canonical] = flux if flux is not None else np.nan
-                target_list[flux_err_col_canonical] = flux_err if flux_err is not None else np.nan
-
-                if any_flux is None:
-                    any_flux = target_list[flux_col_canonical]
-                    any_flux_err = target_list[flux_err_col_canonical]
-                    any_flux_key = flux_key
+        target_list.calculate_flux_filters(self.__config.targets[key].filters)
 
     def __calculate_target_list_flux_bands(self, key, target_list):
+        """
+        Calculate the missing flux values from other columns that are available
+        """
 
-        for band, columns in self.__config.targets[key].bands.items():
-            any_flux = None
-            any_flux_err = None
-            any_flux_key = None
-            for prefix in ['', 'psf_', 'fiber_', 'total_']:
-                # Column keys
-                flux_key = prefix + 'flux'
-                flux_err_key = prefix + 'flux_err'
-                mag_key = prefix + 'mag'
-                mag_err_key = prefix + 'mag_err'
-
-                # Column names
-                flux_col = columns[flux_key] if flux_key in columns else None
-                flux_err_col = columns[flux_err_key] if flux_err_key in columns else None
-                mag_col = columns[mag_key] if mag_key in columns else None
-                mag_err_col = columns[mag_err_key] if mag_err_key in columns else None
-
-                flux_col_canonical = f'{prefix}flux_{band}'
-                flux_err_col_canonical = f'{prefix}flux_err_{band}'
-
-                # Calculate flux from the magnitude
-                flux = None
-                flux_err = None
-                if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list {key}.')
-
-                    if mag_col is not None:
-                        # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter {filter}.')
-
-                        mag = target_list[mag_col]
-                        mag_err = target_list[mag_err_col] if mag_err_col is not None else None
-
-                        flux = (np.array(mag) * u.ABmag).to_value(u.nJy)
-                        if mag_err is not None:
-                            flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
-                    elif any_flux is not None:
-                        # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter {filter}.')
-                        flux = any_flux
-                        flux_err = any_flux_err
-                else:
-                    flux = target_list[flux_col]
-                    if flux_err_col is not None:
-                        flux_err = target_list[flux_err_col]
-
-                # Save the flux to the target list with canonical column name
-                target_list[flux_col_canonical] = flux if flux is not None else np.nan
-                target_list[flux_err_col_canonical] = flux_err if flux_err is not None else np.nan
-
-                if any_flux is None:
-                    any_flux = target_list[flux_col_canonical]
-                    any_flux_err = target_list[flux_err_col_canonical]
-                    any_flux_key = flux_key
+        target_list.calculate_flux_bands(self.__config.targets[key].bands)
 
     def __append_target_list_extra_columns(self, key, target_list):
         """
@@ -378,42 +289,42 @@ class NetflowScript(Script):
 
         # If constants are defined for these columns in the config, assign them
         if self.__config.targets[key].epoch is not None:
-            pd_append_column(target_list, 'epoch', self.__config.targets[key].epoch, 'string')
+            target_list.append_column('epoch', self.__config.targets[key].epoch, 'string')
         elif 'epoch' not in target_list.columns:
-            pd_append_column(target_list, 'epoch', 'J2000.0', 'string')
+            target_list.append_column('epoch', 'J2000.0', 'string')
         else:
-            target_list['epoch'] = target_list['epoch'].astype('string')
+            target_list.set_column_dtype('epoch', 'string')
 
         if self.__config.targets[key].catid is not None:
-            pd_append_column(target_list, 'catid', self.__config.targets[key].catid, pd.Int32Dtype())
+            target_list.append_column('catid', self.__config.targets[key].catid, pd.Int32Dtype())
         elif 'catid' not in target_list.columns:
-            pd_append_column(target_list, 'catid', -1, pd.Int32Dtype())
+            target_list.append_column('catid', -1, pd.Int32Dtype())
         else:
-            target_list['catid'] = target_list['catid'].astype(pd.Int32Dtype())
+            target_list.set_column_dtype('catid', pd.Int32Dtype())
 
         if self.__config.targets[key].proposalid is not None:
-            pd_append_column(target_list, 'proposalid', self.__config.targets[key].proposalid, 'string') 
+            target_list.append_column('proposalid', self.__config.targets[key].proposalid, 'string') 
         elif 'proposalid' not in target_list.columns:
-            pd_append_column(target_list, 'proposalid', '', 'string')
+            target_list.append_column('proposalid', '', 'string')
         else:
-            target_list['proposalid'] = target_list['proposalid'].astype('string')
+            target_list.set_column_dtype('proposalid', 'string')
 
         # TODO: these must be calculated from the coordinates
         if 'tract' not in target_list.columns:
-            pd_append_column(target_list, 'tract', 0, pd.Int32Dtype())
+            target_list.append_column('tract', 0, pd.Int32Dtype())
         else:
-            target_list['tract'] = target_list['tract'].astype(pd.Int32Dtype())
+            target_list.set_column_dtype('tract', pd.Int32Dtype())
         
         if 'patch' not in target_list.columns:
-            pd_append_column(target_list, 'patch', '0,0', 'string')
+            target_list.append_column('patch', '0,0', 'string')
         else:
-            target_list['patch'] = target_list['patch'].astype('string')
+            target_list.set_column_dtype('patch', 'string')
 
         # TODO: how do we generate the obcodes?
         if 'obcode' not in target_list.columns:
-            target_list['obcode'] = target_list['targetid'].astype('string')
+            target_list.append_column('obcode', target_list.data['targetid'], 'string')
         else:
-            target_list['obcode'] = target_list['obcode'].astype('string')
+            target_list.set_column_dtype('obcode', 'string')
     
     def __validate_target_list(self, key, target_list_config, target_list):
         # Verify that columns are present
@@ -425,7 +336,7 @@ class NetflowScript(Script):
             must.extend(['priority', 'exp_time'])
 
         for col in must:
-            if col not in target_list.columns:
+            if col not in target_list.data.columns:
                 raise Exception(f'Missing column "{col}" in target list {key}.')
 
         should = []
@@ -433,11 +344,11 @@ class NetflowScript(Script):
             should.extend(['pmra', 'pmdec', 'parallax', 'epoch'])
             
         for col in should:
-            if col not in target_list.columns:
+            if col not in target_list.data.columns:
                 logger.warning(f'Missing column "{col}" in target list {key}.')
 
         # Verify that targetid is unique and print duplicates
-        duplicates = target_list[target_list.duplicated('targetid', keep=False)]
+        duplicates = target_list.data[target_list.data.duplicated('targetid', keep=False)]
         if not duplicates.empty:
             logger.warning(f'Duplicate targetids found in target list {key}.')
             logger.warning(list(duplicates['targetid']))
@@ -477,15 +388,18 @@ class NetflowScript(Script):
                 raise NotImplementedError()
     
     def __get_preprocessed_target_list_path(self, key):
-        return os.path.join(self.__outdir, f'{self.__config.field.name}_targets_{key}.feather')
+        return os.path.join(self.__outdir, f'{self.__config.field.key}_targets_{key}.feather')
 
     def __save_preprocessed_target_list(self, key, target_list, path):
-        logger.info(f'Saving preprocessed target list to `{path}`.')
-        target_list.to_feather(path)
+        logger.info(f'Saving preprocessed target list `{key}` to `{path}`.')
+        s = ObservationSerializer()
+        s.write(target_list, path)
 
     def __load_preprocessed_target_list(self, key, path):
-        logger.info(f'Loading preprocessed target list to `{path}`.')
-        target_list = pd.read_feather(path)
+        logger.info(f'Loading preprocessed target list `{key}` list from `{path}`.')
+        s = ObservationSerializer()
+        target_list = s.read(path)
+        target_list.name = key
         return target_list
 
     def __generate_pointings(self):
@@ -574,7 +488,7 @@ class NetflowScript(Script):
 
         assigned_target_lists = {}
         for k, target_list in target_lists.items():
-            assigned = target_list.set_index('targetid').join(unique_targetid, how='inner')
+            assigned = target_list.data.set_index('targetid').join(unique_targetid, how='inner')
 
             # Filter names are either defined in the config or can be extracted from the columns
             # If the config entry is a dictionary, we assume that the keys are the filter names.
@@ -662,8 +576,7 @@ class NetflowScript(Script):
         
         assignments_all.reset_index(inplace=True, names='targetid')
 
-        # Substitute NaN values
-
+        # TODO: substitute NaN values
 
         return assignments_all
             
