@@ -3,18 +3,6 @@ from pfs.ga.targeting.targets.dsph import Fornax
 from pfs.ga.targeting.instrument import SubaruHSC
 
 config = dict(
-    field = dict(
-        key = "for",
-        name = "fornax",
-        # definition = Fornax,
-        pointings = [
-            dict(ra=40.4, dec=-34.1, posang=30.0),
-        ],
-        arms = 'bmn',
-        nvisits = 1,
-        exp_time = 6 * 30 * 60.,
-        obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
-    ),
     targets = {
         "dsph": dict(
             path = "/datascope/subaru/user/dobos/netflow/fornax_1_visit/for_obs.feather",
@@ -84,5 +72,12 @@ config = dict(
             }
         ),
     },
-    netflow_options = dict()
+    # Override the minimum number of calibration targets
+    netflow_options = dict(
+        cobra_groups = {
+            'cal_location': dict(
+                min_targets = 0,
+            )
+        }
+    )
 )
