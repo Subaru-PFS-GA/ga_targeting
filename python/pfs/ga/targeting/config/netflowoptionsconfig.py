@@ -79,13 +79,13 @@ class NetflowOptionsConfig(Config):
         cobra_instrument_labels = self.__create_cobra_instrument_labels(pfi, ngroups=16)
 
         cobra_groups = {
-            'sky_location': CobraGroupConfig(
-                groups = cobra_location_labels,
-                target_classes = [ 'sky' ],
-                min_targets = 20,
-                max_targets = 80,
-                non_observation_cost = 100,
-            ),
+            # 'sky_location': CobraGroupConfig(
+            #     groups = cobra_location_labels,
+            #     target_classes = [ 'sky' ],
+            #     min_targets = 20,
+            #     max_targets = 80,
+            #     non_observation_cost = 100,
+            # ),
             'sky_instrument': CobraGroupConfig(
                 groups = cobra_instrument_labels,
                 target_classes = [ 'sky' ],
