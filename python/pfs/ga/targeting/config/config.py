@@ -37,6 +37,9 @@ class Config():
         """
 
         return self._save_impl()
+    
+    def __repr__(self):
+        return str(self.to_dict())
 
     #region Properties
 
@@ -48,7 +51,7 @@ class Config():
     #endregion
     #region Utility functions
 
-    def _get_env(self, name, default=None):
+    def __get_env(self, name, default=None):
         if name in os.environ and os.environ[name] is not None and os.environ[name] != '':
             return os.environ[name]
         else:
@@ -124,7 +127,7 @@ class Config():
             source = source if isinstance(source, list) else [ source ]
             for s in source:
                 # Load the source file as a dictionary
-                config = Config._load_dict_from_file(s)
+                config = Config.__load_dict_from_file(s)
                 
                 # Load the configuration from the dictionary
                 self._load_impl(config=config, ignore_collisions=ignore_collisions)
@@ -142,9 +145,10 @@ class Config():
         """
 
         # The default is not to use type mapping
-        self._load_config_from_dict(config=config, ignore_collisions=ignore_collisions)
+        if config is not None:
+            self.__load_config_from_dict(config=config, ignore_collisions=ignore_collisions)
     
-    def _load_config_from_dict(self, config=None, type_hints=None, ignore_collisions=False):
+    def __load_config_from_dict(self, config=None, type_hints=None, ignore_collisions=False):
         """
         Load configuration from a dictionary.
 
@@ -159,53 +163,61 @@ class Config():
         a dictionary, the value is set as is. If the member is not a dictionary, the value is set as is.
         """
 
-        if config is not None:
-            # Iterate over all keys of the configuration and see if the keys match up with
-            # member variables of the configuration class
-            for key, value in config.items():
-                if not hasattr(self, key):
-                    raise ValueError(f'Member `{key}` of class `{type(self).__name__}` does not exist.')
-                
-                # If the member is found and it's a subclass of `Config`, just pass the dictionary
-                # to it for further processing. If the member is found but its value if not a subclass
-                # of `Config` but its name is in `type_map`, then instantiate the particular type defined
-                # in the map. In all other cases, just set the member to the value found in the config dict.
+        # Iterate over all keys of the configuration and see if the keys match up with
+        # member variables of the configuration class
+        for key, value in config.items():
+            if not hasattr(self, key):
+                raise ValueError(f'Member `{key}` of class `{type(self).__name__}` does not exist.')
+            
+            # If the member is found and it's a subclass of `Config`, just pass the dictionary
+            # to it for further processing. If the member is found but its value if not a subclass
+            # of `Config` but its name is in `type_map`, then instantiate the particular type defined
+            # in the map. In all other cases, just set the member to the value found in the config dict.
 
-                annotations = type(self).__init__.__annotations__
-                c = getattr(self, key)
+            annotations = type(self).__init__.__annotations__
+            c = getattr(self, key)
 
-                if isinstance(c, Config):
-                    # This is a config class, it can initialize itself from the config dict
-                    c._load_impl(value, ignore_collisions=ignore_collisions)
-                elif key in annotations:
-                    if isinstance(annotations[key], type) and issubclass(annotations[key], Config):
-                        # This member is a type-annotated member where the type is a subclass of Config,
-                        # convert the value to the type
-                        setattr(self, key, Config._config_to_class(annotations[key], config=value, ignore_collisions=ignore_collisions))
-                    else:
-                        # This is an annotation in the form of List or Dict or similar
-                        args = get_args(annotations[key])
-                        if any([ issubclass(a, Config) for a in args ]):
-                            # This is a list or dictionary of Config classes
-                            setattr(self, key, Config._config_to_class(annotations[key], config=value, ignore_collisions=ignore_collisions))
-                        else:
-                            # This is a regular member with some annotations, just set its value
-                            setattr(self, key, value)
-                elif type_hints is not None and key in type_hints:
-                    # This member is part of the type_map, instantiate the type and initialize
-                    setattr(self, key, Config._config_to_class(type_hints[key], config=value, ignore_collisions=ignore_collisions))
-                elif isinstance(c, dict) and isinstance(value, dict):
-                    # This member is a dictionary, merge with the config dict
-                    setattr(self, key, self._merge_dict(c, value, ignore_collisions=ignore_collisions))
+            if isinstance(c, Config):
+                # This is a config class, it can initialize itself from the config dict
+                c._load_impl(value, ignore_collisions=ignore_collisions)
+            elif key in annotations:
+                if isinstance(annotations[key], type) and issubclass(annotations[key], Config):
+                    # This member is a type-annotated member where the type is a subclass of Config,
+                    # convert the value to the type
+                    setattr(self, key, Config.__config_to_class(annotations[key], config=value, existing=None, ignore_collisions=ignore_collisions))
                 else:
-                    # This is a regular member, just set its value
-                    setattr(self, key, value)
+                    # This is an annotation in the form of List or Dict or similar
+                    args = get_args(annotations[key])
+                    if any([ issubclass(a, Config) for a in args ]):
+                        # This is a list or dictionary of Config classes
+                        setattr(self, key, Config.__config_to_class(annotations[key], config=value, existing=c, ignore_collisions=ignore_collisions))
+                    else:
+                        # This is a regular member with some annotations, just set its value
+                        setattr(self, key, value)
+            elif type_hints is not None and key in type_hints:
+                # This member is part of the type_map, instantiate the type and initialize
+                setattr(self, key, Config.__config_to_class(type_hints[key], config=value, existing=c, ignore_collisions=ignore_collisions))
+            elif isinstance(c, dict) and isinstance(value, dict):
+                # This member is a dictionary, merge with the config dict
+                setattr(self, key, self.__merge_dict(c, value, ignore_collisions=ignore_collisions))
+            else:
+                # This is a regular member, just set its value
+                setattr(self, key, value)
 
     @staticmethod
-    def _config_to_class(class_type, config=None, ignore_collisions=False):
+    def __config_to_class(class_type, config=None, existing=None, ignore_collisions=False):
         """
         Convert a configuration to a class instance. The type of the target class
         is passed as type hint which can also be a list or dict.
+
+        Parameters
+        ----------
+        class_type : type
+            Type hint of the target class.
+        config : dict
+            Configuration to be converted to a class instance.
+        existing : object
+            Existing object to be updated with the configuration.
         """
 
         # Check if the type hint is a list or a dictionary and get the type of the elements
@@ -213,16 +225,33 @@ class Config():
         args = get_args(class_type)
         
         if origin == list:
-            return [ Config._config_to_class(args[0], c, ignore_collisions=ignore_collisions) for c in config ]
+            # This is a list of config entries that need to be converted to well-known config classes
+            # We can't verify which object is which, so the best we can do is to fully replace the list
+            return [ Config.__config_to_class(args[0], c, ignore_collisions=ignore_collisions) for c in config ]
         elif origin == dict:
-            return { k: Config._config_to_class(args[1], v, ignore_collisions=ignore_collisions) for k, v in config.items() }
+            # This is a dictionary to be mapped to well-known config classes
+            # Iterate through the dictionary and update each class, if already there,
+            # otherwise create a new instance
+            # TODO: how do we force creating new and removing items?
+            if existing is None:
+                existing = {}
+
+            for k, c in config.items():
+                if k in existing:
+                    # Update existing config object
+                    existing[k]._load_impl(config=c, ignore_collisions=ignore_collisions)
+                else:
+                    # Create a new config object
+                    existing[k] = Config.__config_to_class(args[1], c, ignore_collisions=ignore_collisions)
+
+            return existing
         else:
             v = class_type()
             v.load(config, ignore_collisions=ignore_collisions)        
             return v
 
     @staticmethod
-    def _load_dict_from_file(path):
+    def __load_dict_from_file(path):
         """
         Depending on the file extension, load the configuration file
         """
@@ -282,7 +311,7 @@ class Config():
         # Save configuration to a file
 
         config = self._save_impl()
-        Config._save_dict_to_file(config, path, format='.json')
+        Config.__save_dict_to_file(config, path, format='.json')
 
     def _save_impl(self):
         """
@@ -291,10 +320,10 @@ class Config():
         functionality.
         """
 
-        return self._save_config_to_dict(self)
+        return self.__save_config_to_dict(self)
     
     @staticmethod
-    def _save_config_to_dict(obj):
+    def __save_config_to_dict(obj):
         """
         Save configuration to a dictionary
         """
@@ -304,11 +333,11 @@ class Config():
             # Save public members only
             if not k.startswith('_'):
                 v = getattr(obj, k)
-                config[k] = Config._class_to_config(v)
+                config[k] = Config.__class_to_config(v)
         return config
     
     @staticmethod
-    def _class_to_config(obj):
+    def __class_to_config(obj):
         """
         Convert a configuration class instance to a dictionary by iterating over
         its public members. In addition, list and dictionaries are kept but
@@ -317,20 +346,20 @@ class Config():
         """
 
         if isinstance(obj, Config):
-            return Config._save_config_to_dict(obj)
+            return Config.__save_config_to_dict(obj)
         elif isinstance(obj, np.ndarray):
-            return [ Config._class_to_config(v) for v in obj.tolist() ]
+            return [ Config.__class_to_config(v) for v in obj.tolist() ]
         elif isinstance(obj, np.generic):
             return obj.item()
         elif isinstance(obj, dict):
-            return { k: Config._class_to_config(v) for k, v in obj.items() }
+            return { k: Config.__class_to_config(v) for k, v in obj.items() }
         elif isinstance(obj, list):
-            return [ Config._class_to_config(v) for v in obj ]
+            return [ Config.__class_to_config(v) for v in obj ]
         else:
             return obj
           
     @staticmethod
-    def _save_dict_to_file(config, path, format=None):
+    def __save_dict_to_file(config, path, format=None):
         """
         Depending on the file extension, save the configuration file
         """
@@ -376,7 +405,7 @@ class Config():
     #region Dictionary utilities
         
     @staticmethod
-    def _merge_dict(a: dict, b: dict, ignore_collisions=False):
+    def __merge_dict(a: dict, b: dict, ignore_collisions=False):
         """
         Deep-merge two dictionaries. This function will merge the two dictionaries
         recursively. If a key is present in both dictionaries, the value will be 
@@ -389,7 +418,7 @@ class Config():
         for k in kk:
             # Both are dictionaries, merge them
             if k in a and isinstance(a[k], dict) and k in b  and isinstance(b[k], dict):
-                r[k] = Config._merge_dict(a[k], b[k], ignore_collisions=ignore_collisions)
+                r[k] = Config.__merge_dict(a[k], b[k], ignore_collisions=ignore_collisions)
             elif k in a and k in b:
                 msg = f"Collision detected in the configuration for key `{k}`."
                 if ignore_collisions:
@@ -405,14 +434,14 @@ class Config():
         return r
     
     @staticmethod
-    def copy_dict(a: dict):
+    def __copy_dict(a: dict):
         # Make a deep copy of a dictionary
         r = {}
         for k in a.keys():
             if isinstance(a[k], dict):
-                r[k] = Config.copy_dict(a[k])
+                r[k] = Config.__copy_dict(a[k])
             elif isinstance(a[k], list):
-                r[k] = [ Config.copy_dict(c) for c in a[k] ]
+                r[k] = [ Config.__copy_dict(c) for c in a[k] ]
             else:
                 r[k] = a[k]
         return r
