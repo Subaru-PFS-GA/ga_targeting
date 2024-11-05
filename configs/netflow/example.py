@@ -55,7 +55,7 @@ config = dict(
         # Obsevation time, UTC, for all visits. Although objects move in the focal plane over
         # time, the difference in position is assumed to be negligible for the purposes of targeting.
         # The pfsDesign files will be further tweaked to position the fibers to the correct positions.
-        obs_time = datetime(2025, 5, 1, 0, 0, 0),
+        obs_time = datetime(2025, 5, 1, 10, 0, 0),
     ),
 
     # The following section defines the pointings of the field.
@@ -153,6 +153,8 @@ config = dict(
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec'
             },
             prefix = "sky"
         ),
@@ -161,6 +163,15 @@ config = dict(
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
+                'obj_id': 'orig_objid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'parallax': 'parallax',
+                'parallax_error': 'err_parallax',
+                'pmra': 'pmra',
+                'pmra_error': 'err_pmra',
+                'pmdec': 'pmdec',
+                'pmdec_error': 'err_pmdec',
             },
             prefix = "cal",
 
@@ -170,10 +181,10 @@ config = dict(
             bands = {
                 b: dict(
                     filter = f'filter_{b}',                   # Column storing filter names
-                    psf_mag = f'psf_mag_{b}',
-                    psf_mag_err = f'psf_mag_error_{b}',
-                    # psf_flux = f'psf_flux_{b}',
-                    # psf_flux_err = f'psf_flux_error_{b}',
+                    # psf_mag = f'psf_mag_{b}',
+                    # psf_mag_err = f'psf_mag_error_{b}',
+                    psf_flux = f'psf_flux_{b}',
+                    psf_flux_err = f'psf_flux_error_{b}',
                     # fiber_mag = None,
                     # fiber_mag_err = None,
                     # fiber_flux = None,
