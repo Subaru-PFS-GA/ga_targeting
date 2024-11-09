@@ -1941,7 +1941,7 @@ class Netflow():
                         variables = self.__variables.CG_i[(cg_name, vidx, gidx)]
 
                         if need_min and len(variables) < options.min_targets:
-                            raise NetflowException(f"Insufficient number targets in `{cg_name}` for visit {vidx} in cobra group {gidx}.")
+                            raise NetflowException(f"Insufficient number of targets in `{cg_name}` for visit {vidx} in cobra group {gidx}.")
                         elif need_min and options.min_targets > 0:
                             if len(variables) < 3 * options.min_targets:
                                 logger.warning(f"Number of targets is very low for `{cg_name}` for visit {vidx} in cobra group {gidx}.")
