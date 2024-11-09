@@ -188,10 +188,13 @@ class Observation(Catalog):
         Merge two catalogs based on indices pointing to the other. This will
         result in a left outer join type match.
         """
+
+        ix1 = self.data.index[mask]
+        ix2 = other.data.index[idx[mask]]
         
         for c in columns:
             self.data[c] = np.nan
-            self.data.loc[mask, c] = np.array(other.data[c][idx[mask]])
+            self.data.loc[ix1, c] = np.array(other.data.loc[ix2, c])
                 
     def calculate_flux(self, unit=u.nJy, force=False):
         """

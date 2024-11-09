@@ -33,9 +33,14 @@ class Diagram():
         s = s if s is not None else np.s_[:]
         mask = mask if mask is not None else np.s_[:]
         
-        color = style.pop('color', style.pop('c', None))
+        # scatter distinguishes between color and c
+        color = style.pop('color', None)
         if isinstance(color, np.ndarray):
             color = color[mask][s]
+
+        c = style.pop('c', None)
+        if isinstance(c, np.ndarray):
+            c = c[mask][s]
 
         size = style.pop('size', style.pop('s', None))
         if isinstance(size, np.ndarray):
@@ -43,7 +48,7 @@ class Diagram():
 
         style = styles.sanitize_style(**style)
 
-        l = ax.scatter(x[mask][s], y[mask][s], c=color, s=size, **style)
+        l = ax.scatter(x[mask][s], y[mask][s], color=color, c=c, s=size, **style)
         self.apply(ax)
 
         return l

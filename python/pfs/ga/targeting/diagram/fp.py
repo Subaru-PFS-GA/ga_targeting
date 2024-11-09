@@ -26,4 +26,4 @@ class FP(SpatialDiagram):
     
     def apply(self, ax):
         super().apply(ax)
-        ax.set_aspect(1)
+        ax.set_aspect('equal', adjustable='datalim')

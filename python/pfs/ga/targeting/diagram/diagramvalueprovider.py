@@ -1,5 +1,5 @@
 from ..photometry import Color, Magnitude
-from ..diagram import Diagram, ColorAxis, MagnitudeAxis
+from ..diagram import Diagram, ColorAxis, MagnitudeAxis, RaDecAxis
 
 class DiagramValueProvider():
     """
@@ -19,43 +19,47 @@ class DiagramValueProvider():
     def get_color(self, color: Color, observed=False, mask=None):
         raise NotImplementedError()
     
+    def has_coords(self, ra=None, dec=None):
+        raise NotImplementedError()
+    
+    def get_coords(self, ra=None, dec=None, mask=None, ctype=None):
+        raise NotImplementedError()
+    
     def has_diagram_values(self, axes, observed=False):
         if isinstance(axes, Diagram):
             axes = axes.axes
 
-        # Check if all magnitudes are available (for plotting, for example)
-        for ax in axes:
-            if isinstance(ax, ColorAxis):
-                if not self.has_color(ax.color, observed=observed):
-                    return False
-            elif isinstance(ax, MagnitudeAxis):
-                if not self.get_magnitude(ax.magnitude, observed=observed):
-                    return False
-            elif isinstance(ax, Color):
-                if not self.has_color(ax, observed=observed):
-                    return False
-            elif isinstance(ax, Magnitude):
-                if not self.get_magnitude(ax, observed=observed):
-                    return False
-            else:
-                raise NotImplementedError()
-        return True
+        if len(axes) == 2 and isinstance(axes[0], RaDecAxis) and isinstance(axes[1], RaDecAxis):
+            return self.has_coords(ra=axes[0].coord, dec=axes[1].coord)
+        else:
+            # Check if all magnitudes are available (for plotting, for example)
+            for ax in axes:
+                if isinstance(ax, (Color, ColorAxis)):
+                    return self.has_color(ax.color, observed=observed)
+                elif isinstance(ax, (Magnitude, MagnitudeAxis)):
+                    return self.get_magnitude(ax.magnitude, observed=observed)
+                else:
+                    raise NotImplementedError()
 
     def get_diagram_values(self, axes, observed=False, mask=None):
         if isinstance(axes, Diagram):
             axes = axes.axes
 
-        # Collect data
-        x = []
-        for ax in axes:
-            if isinstance(ax, ColorAxis):
-                x.append(self.get_color(ax.color, observed=observed, mask=mask))
-            elif isinstance(ax, MagnitudeAxis):
-                x.append(self.get_magnitude(ax.magnitude, observed=observed, mask=mask))
-            elif isinstance(ax, Color):
-                x.append(self.get_color(ax, observed=observed, mask=mask))
-            elif isinstance(ax, Magnitude):
-                x.append(self.get_magnitude(ax, observed=observed, mask=mask))
-            else:
-                raise NotImplementedError()
+        if len(axes) == 2 and isinstance(axes[0], RaDecAxis) and isinstance(axes[1], RaDecAxis):
+            return self.get_coords(ra=axes[0].coord, dec=axes[1].coord, mask=mask)
+        else:
+            # Collect magnitudes and colors
+            x = []
+            for ax in axes:
+                if isinstance(ax, ColorAxis):
+                    x.append(self.get_color(ax.color, observed=observed, mask=mask))
+                elif isinstance(ax, Color):
+                    x.append(self.get_color(ax, observed=observed, mask=mask))
+                elif isinstance(ax, MagnitudeAxis):
+                    x.append(self.get_magnitude(ax.magnitude, observed=observed, mask=mask))
+                elif isinstance(ax, Magnitude):
+                    x.append(self.get_magnitude(ax, observed=observed, mask=mask))
+                else:
+                    raise NotImplementedError()
+            
         return x

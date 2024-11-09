@@ -86,12 +86,21 @@ class Catalog(DiagramValueProvider):
 
         id = np.array(self.data[id or 'objid'])[mask]
         return id
+    
+    def has_coords(self, ra=None, dec=None):
+        ra = ra if ra is not None else 'RA'
+        dec = dec if dec is not None else 'Dec'
+
+        return ra in self.data and dec in self.data
 
     def get_coords(self, ra=None, dec=None, mask=None, ctype=None):
+        ra = ra if ra is not None else 'RA'
+        dec = dec if dec is not None else 'Dec'
+        
         mask = np.s_[()] if mask is None else mask
 
-        ra = np.array(self.data[ra or 'RA'])[mask]
-        dec = np.array(self.data[dec or 'Dec'])[mask]
+        ra = np.array(self.data[ra])[mask]
+        dec = np.array(self.data[dec])[mask]
 
         if ctype is not None:
             _, coords = normalize_coords(ra, dec)

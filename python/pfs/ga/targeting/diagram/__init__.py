@@ -1,6 +1,7 @@
 from .axis import Axis
 from .coloraxis import ColorAxis
 from .magnitudeaxis import MagnitudeAxis
+from .radecaxis import RaDecAxis
 from .diagram import Diagram
 from .diagramvalueprovider import DiagramValueProvider
 from .cmd import CMD
