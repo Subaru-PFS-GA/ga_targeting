@@ -108,16 +108,28 @@ class GurobiProblem(ILPProblem):
     def get_constraints(self):
         return self.__model.getConstrs()
 
-    def solve(self):
+    def set_objective(self):
         self.__model.setObjective(self.__cost)
+
+    def solve(self):
+        assert self.__model.getObjective().size() > 0, 'Objective function is not set.'
+
         self.__model.update()
         self.__model.optimize()
 
-        if self.__model.Status == gbp.GRB.INFEASIBLE:
-            logger.error('Model is infeasible which means certain constraints are not satisfiable. '
+        if self.__model.Status == gbp.GRB.OPTIMAL or \
+            self.__model.Status == gbp.GRB.LOADED:
+
+            return True
+
+        elif self.__model.Status == gbp.GRB.INFEASIBLE or \
+            self.__model.Status == gbp.GRB.INF_OR_UNBD:
+            
+            logger.error('Model is unbound or infeasible which means certain constraints are not satisfiable. '
                          'Below is the list of constraints that are not satisfiable. Turn on the '
                          '`use_named_variables` config option to see the names of the constraints.')
-
+          
+            logger.info('Calculating infeasible constraints...')
             self.__model.computeIIS()
             constrs = self.__model.getConstrs()
             iisidx = np.where(self.__model.IISConstr)[0]
@@ -125,7 +137,25 @@ class GurobiProblem(ILPProblem):
                 self._infeasible_constraints[constrs[i].ConstrName] = constrs[i]
                 logger.error(f'Infeasible constraint: `{constrs[i].ConstrName}`.')
 
-        return self.__model.Status == gbp.GRB.OPTIMAL
+            return False
+
+        elif self.__model.Status == gbp.GRB.ITERATION_LIMIT or \
+                self.__model.Status == gbp.GRB.TIME_LIMIT or \
+                self.__model.Status == gbp.GRB.NODE_LIMIT or \
+                self.__model.Status == gbp.GRB.SOLUTION_LIMIT or \
+                self.__model.Status == gbp.GRB.WORK_LIMIT or \
+                self.__model.Status == gbp.GRB.MEM_LIMIT or \
+                self.__model.Status == gbp.GRB.SOLUTION_LIMIT or \
+                self.__model.Status == gbp.GRB.USER_OBJ_LIMIT or \
+                self.__model.Status == gbp.GRB.NUMERIC or \
+                self.__model.Status == gbp.GRB.SUBOPTIMAL:
+            
+            logger.warning(f'Model optimizer reached the iteration limit with status {self.__model.Status}. '
+                            'The solution might be suboptimal.')
+            return True
+        else:
+            logger.error(f'Model optimizer failed with status {self.__model.Status}.')
+            return False
     
     def update(self):
         self.__model.update()
