@@ -62,9 +62,12 @@ class SubaruPFI(Instrument, FiberAllocator):
         Instrument.__init__(self, orig=orig)
         FiberAllocator.__init__(self, orig=orig)
 
+        if isinstance(instrument_options, dict):
+            instrument_options = InstrumentOptionsConfig.from_dict(instrument_options)
+
         if not isinstance(orig, SubaruPFI):
             self.__projection = projection or SubaruWFC(Pointing(0, 0))
-            self.__instrument_options = instrument_options if instrument_options is not None else InstrumentOptionsConfig()
+            self.__instrument_options = instrument_options if instrument_options is not None else InstrumentOptionsConfig.default()
         else:
             self.__projection = projection or orig.__projection
             self.__instrument_options = orig.__instrument_options
@@ -400,4 +403,57 @@ class SubaruPFI(Instrument, FiberAllocator):
     def plot_corners(self, ax, **kwargs):
         pass
     
+    def generate_cobra_location_labels(self, ntheta=6):
+        """
+        Generate integer labels for each cobra that organize the cobras into groups that
+        are uniform in the focal plane.
+        
+        Parameters
+        ----------
+        ngroups : int
+            The number of groups to divide the cobras into, for each spectrograph.
+        """
+
+        # Get the focal plane coordinates of the cobras
+        x, y = self.__bench.cobras.centers[:].real, self.__bench.cobras.centers[:].imag
+
+        # Convert to polar coordinates around the center of the focal plane
+        r = np.sqrt(x**2 + y**2)
+        theta = np.arctan2(y, x)
+
+        # Assign labels to the cobras based on the polar coordinate
+        theta_bins = np.linspace(-np.pi, np.pi, ntheta + 1)
+        r_bins = np.array([0, 150, 240])
+
+        theta_labels = np.digitize(theta, theta_bins, right=False) - 1
+        r_labels = np.digitize(r, r_bins, right=False) - 1
+        cobra_location_labels = (r_bins.size - 1) * theta_labels + r_labels
+
+        # Add one more label in the center
+        cobra_location_labels[r < 60] = cobra_location_labels.max() + 1
+
+        return cobra_location_labels
+    
+    def generate_cobra_instrument_labels(self, ngroups=8):
+        """
+        Generate integer labels for each cobra that organize the cobras into groups that
+        are uniform along the slit in each spectrograph.
+        
+        Parameters
+        ----------
+        ngroups : int
+            The number of groups to divide the cobras into, for each spectrograph.
+        """
+
+        ncobras = len(self.__bench.cobras.centers)
+        mask = self.__fiber_map.cobraId != FiberIds.MISSING_VALUE       # Non-engineering fibers
+        
+        cobra_instrument_labels = np.zeros(ncobras, dtype=int)
+        for s in np.arange(np.unique(self.__fiber_map.spectrographId).max()):
+            mask_s = mask & (self.__fiber_map.spectrographId == s + 1)     # Fibers connected to spectrograph s + 1
+            fiber_count = np.sum(mask_s)                                # Number of fibers connected to spectrograph s + 1           
+            cobra_instrument_labels[self.__fiber_map.cobraId[mask_s] - 1] = s * ngroups \
+                + np.floor(np.arange(fiber_count) / fiber_count * ngroups).astype(int)
+
+        return cobra_instrument_labels    
 

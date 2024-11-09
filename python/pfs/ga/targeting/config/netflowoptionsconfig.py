@@ -11,6 +11,12 @@ from .timebudgetconfig import TimeBudgetConfig
 from .cobragroupconfig import CobraGroupConfig
 
 class NetflowOptionsConfig(Config):
+
+    SKY_MIN_TARGETS = 240
+    SKY_MAX_TARGETS = 320
+    FLUXSTD_MIN_TARGETS = 40
+    FLUXSTD_MAX_TARGETS = 240
+
     def __init__(self,
                  target_classes: Dict[str, TargetClassConfig] = None,
                  cobra_groups: Dict[str, CobraGroupConfig] = None,
@@ -70,92 +76,65 @@ class NetflowOptionsConfig(Config):
         across the focal plane as well as the slit.
         """
 
+        # TODO: figure out how to make this callable
+        #       from object-specific config files
+
         from .instrumentoptionsconfig import InstrumentOptionsConfig
 
         instrument_options = InstrumentOptionsConfig.default()
         pfi = SubaruPFI(instrument_options=instrument_options)
 
-        cobra_location_labels = self.__create_cobra_location_labels(pfi, ntheta=6)
-        cobra_instrument_labels = self.__create_cobra_instrument_labels(pfi, ngroups=16)
+        cobra_location_labels = pfi.generate_cobra_location_labels(ntheta=6)
+        cobra_instrument_labels = pfi.generate_cobra_instrument_labels(ngroups=8)     # for each spectrograph
+
+        cobra_location_labels_count = cobra_location_labels.max() + 1
+        cobra_instrument_labels_count = cobra_instrument_labels.max() + 1
 
         cobra_groups = {
-            # 'sky_location': CobraGroupConfig(
-            #     groups = cobra_location_labels,
-            #     target_classes = [ 'sky' ],
-            #     min_targets = 20,
-            #     max_targets = 80,
-            #     non_observation_cost = 100,
-            # ),
+            'sky_location': CobraGroupConfig(
+                groups = cobra_location_labels,
+                target_classes = [ 'sky' ],
+                min_targets = int(np.floor(self.SKY_MIN_TARGETS / cobra_location_labels_count)),
+                max_targets = int(np.ceil(self.SKY_MAX_TARGETS / cobra_location_labels_count)),
+                non_observation_cost = 100,
+            ),
             'sky_instrument': CobraGroupConfig(
                 groups = cobra_instrument_labels,
                 target_classes = [ 'sky' ],
-                min_targets = 3,
-                max_targets = 20,
+                min_targets = int(np.floor(self.SKY_MIN_TARGETS / cobra_instrument_labels_count)),
+                max_targets = int(np.ceil(self.SKY_MAX_TARGETS / cobra_instrument_labels_count)),
                 non_observation_cost = 100,
             ),
             'cal_location': CobraGroupConfig(
                 groups = cobra_location_labels,
                 target_classes = [ 'cal' ],
-                min_targets = 3,
-                max_targets = 20,
+                min_targets = int(np.floor(self.FLUXSTD_MIN_TARGETS / cobra_location_labels_count)),
+                max_targets = int(np.ceil(self.FLUXSTD_MAX_TARGETS / cobra_location_labels_count)),
                 non_observation_cost = 1000,
             ),
             # 'cal_instrument': CobraGroupConfig(
             #     groups = cobra_instrument_labels,
             #     target_classes = [ 'cal' ],
-            #     min_targets = 10,
-            #     max_targets = 60,
+            #     min_targets = int(np.floor(self.FLUXSTD_MIN_TARGETS / cobra_instrument_labels_count)),
+            #     max_targets = int(np.ceil(self.FLUXSTD_MAX_TARGETS / cobra_instrument_labels_count)),
             #     non_observation_cost = 1000,
             # ),
         }
 
         return cobra_groups
-    
-    def __create_cobra_location_labels(self, pfi, ntheta=6):
-        # Get the focal plane coordinates of the cobras
-        x, y = pfi.bench.cobras.centers[:].real, pfi.bench.cobras.centers[:].imag
-
-        # Convert to polar coordinates around the center of the focal plane
-        r = np.sqrt(x**2 + y**2)
-        theta = np.arctan2(y, x)
-
-        # Assign labels to the cobras based on the polar coordinate
-        theta_bins = np.linspace(-np.pi, np.pi, ntheta + 1)
-        r_bins = np.array([0, 150, 240])
-
-        theta_labels = np.digitize(theta, theta_bins, right=False) - 1
-        r_labels = np.digitize(r, r_bins, right=False) - 1
-        cobra_location_labels = (r_bins.size - 1) * theta_labels + r_labels
-
-        # Add one more label in the center
-        cobra_location_labels[r < 60] = cobra_location_labels.max() + 1
-
-        return cobra_location_labels
-    
-    def __create_cobra_instrument_labels(self, pfi, ngroups=8):
-        ncobras = len(pfi.bench.cobras.centers)
-        cobra_instrument_labels = np.zeros(ncobras, dtype=int)
-        mask = pfi.fiber_map.cobraId != 65535
-
-        fiber_hole_group_size = pfi.fiber_map.fiberHoleId.max() / ngroups
-        cobra_instrument_labels[pfi.fiber_map.cobraId[mask] - 1] = \
-            (pfi.fiber_map.spectrographId[mask] - 1) * ngroups \
-            + (np.round(pfi.fiber_map.fiberHoleId[mask] - 1) / fiber_hole_group_size).astype(int)
-
-        return cobra_instrument_labels
 
     def __create_target_classes(self):
         target_classes = {
             'sky': TargetClassConfig(
                 prefix = 'sky',
-                min_targets = 240,
-                max_targets = 320,
+                min_targets = self.SKY_MIN_TARGETS,
+                max_targets = self.SKY_MAX_TARGETS,
                 non_observation_cost = 0,
             ),
             'cal': TargetClassConfig(
                 prefix = 'cal',
-                min_targets = 40,
-                max_targets = 240,
+                min_targets = self.FLUXSTD_MIN_TARGETS,
+                max_targets = self.FLUXSTD_MAX_TARGETS,
                 non_observation_cost = 0,
             ),
         }
