@@ -83,9 +83,15 @@ class NetflowScript(Script):
         self.__nvisits = None
         self.__exp_time = None
         self.__obs_time = None
+        self.__time_limit = None
         
         self.__field = None
         self.__config = None
+
+    def __get_config(self):
+        return self.__config
+    
+    config = property(__get_config)
 
     def _add_args(self):
         super()._add_args()
@@ -97,6 +103,7 @@ class NetflowScript(Script):
         self.add_arg('--nvisits', type=int, help='Number of visits for each pointing.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
+        self.add_arg('--time-limit', type=int, help='Time limit for the optimization in seconds.')
 
     def _init_from_args(self, args):
         super()._init_from_args(args)
@@ -119,6 +126,10 @@ class NetflowScript(Script):
         self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
+        self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
+
+        # Override the configuration with the command-line arguments
+        self.__config.gurobi_options.timelimit = self.__time_limit
 
     def prepare(self):
         super().prepare()
@@ -159,7 +170,7 @@ class NetflowScript(Script):
 
         # Load the original target list files or, if resuming the processing,
         # load the preprocessed target lists from the output directory.
-        target_lists = self.__load_source_target_lists()
+        target_lists = self.load_source_target_lists()
 
         # Look for duplicates, etc.
         self.__validate_source_target_lists(target_lists)
@@ -177,6 +188,9 @@ class NetflowScript(Script):
         assignments = self.__extract_assignments(netflow)
         self.__save_assignments(assignments)
 
+        summary = netflow.get_target_assignment_summary()
+        self.__save_summary(summary)
+
         # TODO: plot assignment statistics
 
         # Join the targets lists with the assignments to append the fluxes and
@@ -188,7 +202,9 @@ class NetflowScript(Script):
         assigned_targets_all = self.__merge_assigned_target_lists(assigned_target_lists)
 
         # TODO: this is the point to postfix obcode with the visit id
+
         assignments_all = self.__join_assignments(assignments, assigned_targets_all)
+        self.__save_assignments_all(assignments_all)
 
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
@@ -197,7 +213,7 @@ class NetflowScript(Script):
     def __create_instrument(self):
         return SubaruPFI(instrument_options=self.__config.instrument_options)
     
-    def __load_source_target_lists(self):
+    def load_source_target_lists(self):
         target_lists = {}
         for k, target_list_config in self.__config.targets.items():
             # Check if the preprocessed target lists are available
@@ -213,7 +229,7 @@ class NetflowScript(Script):
                 loaded = True
 
             if not loaded:
-                target_list = self.__load_source_target_list(target_list_config)
+                target_list = self.load_target_list(target_list_config)
                 target_list.name = k
                 
                 self.__validate_target_list(k, target_list_config, target_list)
@@ -226,7 +242,8 @@ class NetflowScript(Script):
 
         return target_lists
 
-    def __load_source_target_list(self, target_list_config):
+    @staticmethod
+    def load_target_list(target_list_config):
         if target_list_config.reader is not None:
             # TODO: implement custom reader function
             raise NotImplementedError()
@@ -463,7 +480,7 @@ class NetflowScript(Script):
         return assignments
     
     def __get_assignments_path(self):
-        return os.path.join(self.__outdir, f'{self.__config.field.name}_assignments.feather')
+        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments.feather')
     
     def __save_assignments(self, assignments):
         path = self.__get_assignments_path()
@@ -473,6 +490,30 @@ class NetflowScript(Script):
     def __load_assignments(self):
         path = self.__get_assignments_path()
         logger.info(f'Loading fiber assignments from `{path}`.')
+        return pd.read_feather(path)
+    
+    def __get_summary_path(self):
+        return os.path.join(self.__outdir, f'{self.__config.field.key}_summary.feather')
+    
+    def __save_summary(self, summary):
+        path = self.__get_summary_path()
+        logger.info(f'Saving target assignment summary to `{path}`.')
+        summary.to_feather(path)
+    
+    def __get_assignments_all_path(self):
+        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_all.feather')
+    
+    def __save_assignments_all(self, assignments_all):
+        # This dataframe contains columns with dtype object that contain the list of
+        # magnitudes, fluxes, filter names, etc.
+        
+        path = self.__get_assignments_all_path()
+        logger.info(f'Saving assignments joined with the input catalogs to `{path}`.')
+        assignments_all.to_feather(path)
+
+    def __load_assignments_all(self):
+        path = self.__get_assignments_all_path()
+        logger.info(f'Loading assignments joined with the input catalogs from `{path}`.')
         return pd.read_feather(path)
 
     def __append_flux_filter_lists(self, assignments, target_lists):
