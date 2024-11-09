@@ -61,7 +61,7 @@ class Config():
     #region Load
 
     @classmethod
-    def from_file(cls, path, ignore_collisions=False):
+    def from_file(cls, path, format=None, ignore_collisions=False):
         """
         Load the configuration from a file.
 
@@ -75,7 +75,7 @@ class Config():
         """
 
         c = cls()
-        c.load(path, ignore_collisions=ignore_collisions)
+        c.load(path, format=format, ignore_collisions=ignore_collisions)
         return c
     
     @classmethod
@@ -96,7 +96,7 @@ class Config():
         c.load(config, ignore_collisions=ignore_collisions)
         return c
 
-    def load(self, source, ignore_collisions=False):
+    def load(self, source, format=None, ignore_collisions=False):
         """
         Load the configuration from a dictionary or file.
 
@@ -127,7 +127,7 @@ class Config():
             source = source if isinstance(source, list) else [ source ]
             for s in source:
                 # Load the source file as a dictionary
-                config = Config.__load_dict_from_file(s)
+                config = Config.__load_dict_from_file(s, format=format)
                 
                 # Load the configuration from the dictionary
                 self._load_impl(config=config, ignore_collisions=ignore_collisions)
@@ -163,18 +163,23 @@ class Config():
         a dictionary, the value is set as is. If the member is not a dictionary, the value is set as is.
         """
 
+        annotations = type(self).__init__.__annotations__
+
         # Iterate over all keys of the configuration and see if the keys match up with
         # member variables of the configuration class
         for key, value in config.items():
             if not hasattr(self, key):
                 raise ValueError(f'Member `{key}` of class `{type(self).__name__}` does not exist.')
             
+            if value is None:
+                setattr(self, key, None)
+                continue
+            
             # If the member is found and it's a subclass of `Config`, just pass the dictionary
             # to it for further processing. If the member is found but its value if not a subclass
             # of `Config` but its name is in `type_map`, then instantiate the particular type defined
             # in the map. In all other cases, just set the member to the value found in the config dict.
 
-            annotations = type(self).__init__.__annotations__
             c = getattr(self, key)
 
             if isinstance(c, Config):
@@ -251,21 +256,23 @@ class Config():
             return v
 
     @staticmethod
-    def __load_dict_from_file(path):
+    def __load_dict_from_file(path, format=None):
         """
         Depending on the file extension, load the configuration file
         """
 
-        dir, filename = os.path.split(path)
-        _, ext = os.path.splitext(filename)
-        if ext == '.py':
+        if format is None:
+            dir, filename = os.path.split(path)
+            _, format = os.path.splitext(filename)
+
+        if format == '.py':
             config = Config.__load_dict_py(path)
-        elif ext == '.json':
+        elif format == '.json':
             config = Config.__load_dict_json(path)
-        elif ext == '.yaml':
+        elif format == '.yaml':
             config = Config.__load_dict_yaml(path)
         else:
-            raise ValueError(f'Unknown configuration file extension `{ext}`')
+            raise ValueError(f'Unknown configuration file extension `{format}`')
         
         return config
 
