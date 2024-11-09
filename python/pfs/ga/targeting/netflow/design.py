@@ -73,7 +73,7 @@ class Design():
         # does not support passing lists to fillna
         for c in ['filter', 'fiber_flux', 'fiber_flux_err', 'psf_flux', 'psf_flux_err', 'total_flux', 'total_flux_err']:
             isna = fiber_assignments[c].isna()
-            fiber_assignments.loc[isna, c] = fiber_assignments.loc[isna, c].apply(lambda x: [])
+            fiber_assignments.loc[fiber_assignments.index[isna], c] = fiber_assignments.loc[fiber_assignments.index[isna], c].apply(lambda x: [])
 
         # Add the fluxes
         # Convert the rows of column `filter` into a list

@@ -17,6 +17,7 @@ from ..data import Catalog
 from ..projection import Pointing
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
+from .netflowexception import NetflowException
 
 class Netflow():
     """
@@ -287,7 +288,7 @@ class Netflow():
                 and options.partial_observation_cost is not None \
                 and options.partial_observation_cost < options.non_observation_cost:
                 
-                raise ValueError(
+                raise NetflowException(
                     f"Found target class `{name}` where partial_observation_cost "
                     "is smaller than non_observation_cost")
 
@@ -571,7 +572,7 @@ class Netflow():
         if forbidden_pairs is not None:
             for i, pair in enumerate(forbidden_pairs):
                 if len(pair) != 2:
-                    raise ValueError(f"Found an incorrect number of target ids in forbidden pair list at index {i}.")
+                    raise NetflowException(f"Found an incorrect number of target ids in forbidden pair list at index {i}.")
             
                 tidx_list = [ self.__target_to_cache_map[self.__targets.index.get_loc(p)] for p in pair ]
                 if -1 not in tidx_list:
@@ -822,7 +823,7 @@ class Netflow():
         elif prefix == 'sky':
             id_column = 'skyid'
         else:
-            raise ValueError(f"Cannot determine identity column for catalog with prefix `{prefix}`.")   
+            raise NetflowException(f"Cannot determine identity column for catalog with prefix `{prefix}`.")   
         
         # Make sure that we convert to the right data type everywhere
         
@@ -1019,7 +1020,7 @@ class Netflow():
             if self.__visit_exp_time is None:
                 self.__visit_exp_time = p.exp_time
             elif self.__visit_exp_time != p.exp_time:
-                raise RuntimeError("Exposure time of every pointing and visit should be the same.")
+                raise NetflowException("Exposure time of every pointing and visit should be the same.")
             
     def __calculate_target_visits(self):
         """
@@ -1044,7 +1045,7 @@ class Netflow():
         max_req_visits = self.__targets['req_visits'].max()
         for p in self.__pointings:
             if p.nvisits < max_req_visits:
-                raise RuntimeError('Some science targets require more visits than provided.')
+                raise NetflowException('Some science targets require more visits than provided.')
 
     def __cache_targets(self):
         """Extract the contents of the Pandas DataFrame for faster indexed access."""
@@ -1326,7 +1327,7 @@ class Netflow():
                     logger.debug("Adding forbidden pair constraints")
                     self.__create_forbidden_pair_constraints(visit)
             else:
-                logger.debug("Ignroed forbidden pair constraints")
+                logger.debug("Ignored forbidden pair constraints")
         
         logger.info("Adding constraints")
 
@@ -1373,6 +1374,9 @@ class Netflow():
         # Make sure that enough fibers are kept unassigned, if this was requested
         # > Cv_i_max_{visit_idx}
         self.__create_unassigned_fiber_constraints(nvisits)
+
+        # Make sure that the objective is set before the model is returned
+        self.__problem.set_objective()
 
     def __calculate_visibility(self):
 
@@ -1933,22 +1937,28 @@ class Netflow():
             need_max = not ignore_cobra_group_maximum and options.max_targets is not None
             if need_min or need_max:                
                 for vidx in range(nvisits):
-                    for gidx in range(len(options.groups)):
+                    for gidx in np.unique(options.groups):
                         variables = self.__variables.CG_i[(cg_name, vidx, gidx)]
-                        if len(variables) > 0:
-                            if need_min:
-                                name = self.__make_name("Cv_CG_min", cg_name, vidx, gidx)
-                                # constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
-                                constr = ([1] * len(variables), variables, '>=', options.min_targets)
-                                self.__constraints.Cv_CG_min[cg_name, vidx, gidx] = constr
-                                self.__add_constraint(name, constr)
 
-                            if need_max:
-                                name = self.__make_name("Cv_CG_max", cg_name, vidx, gidx)
-                                # constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
-                                constr = ([1] * len(variables), variables, '<=', options.max_targets)
-                                self.__constraints.Cv_CG_max[cg_name, vidx, gidx] = constr
-                                self.__add_constraint(name, constr)
+                        if need_min and len(variables) < options.min_targets:
+                            raise NetflowException(f"Insufficient number targets in `{cg_name}` for visit {vidx} in cobra group {gidx}.")
+                        elif need_min and options.min_targets > 0:
+                            if len(variables) < 3 * options.min_targets:
+                                logger.warning(f"Number of targets is very low for `{cg_name}` for visit {vidx} in cobra group {gidx}.")
+
+                            name = self.__make_name("Cv_CG_min", cg_name, vidx, gidx)
+                            # constr = self.__problem.sum([ v for v in variables ]) >= options.min_targets
+                            constr = ([1] * len(variables), variables, '>=', options.min_targets)
+                            self.__constraints.Cv_CG_min[cg_name, vidx, gidx] = constr
+                            self.__add_constraint(name, constr)                          
+
+                        if need_max:
+                            name = self.__make_name("Cv_CG_max", cg_name, vidx, gidx)
+                            # constr = self.__problem.sum([ v for v in variables ]) <= options.max_targets
+                            constr = ([1] * len(variables), variables, '<=', options.max_targets)
+                            self.__constraints.Cv_CG_max[cg_name, vidx, gidx] = constr
+                            self.__add_constraint(name, constr)
+
 
     def __create_unassigned_fiber_constraints(self, nvisits):
         # Make sure that enough fibers are kept unassigned, if this was requested
@@ -1973,17 +1983,14 @@ class Netflow():
 
     def solve(self):
         if self.__problem.solve():
-
             # Verify the solution
-
-
             self.__extract_assignments()
         else:
             if len(self.__problem.infeasible_constraints) > 0:
                 # TODO: Find the infeasible constraints and give detailed information about them
                 pass
 
-            raise RuntimeError("Failed to solve the netflow problem.")
+            raise NetflowException("Failed to solve the netflow problem.")
 
 
     def __extract_assignments(self):
@@ -2059,7 +2066,7 @@ class Netflow():
             Include empty fibers in the output.
         """
 
-        assignments : pd.DataFrame = None
+        fm = self.__fiber_map
 
         # There are 2394 cobras in total
         # There are 2604 fibers, 2394 assigned to cobras, 64 engineering fibers and 146 empty fibers
@@ -2072,11 +2079,15 @@ class Netflow():
         # TODO: make sure this is updated if we leave out cobras from the netflow problem
         #       because they're broken or else
 
+        # Map cidx (zero-based) to various science fiber identitfiers
         # Should have the size of 2394
-        cobraids = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
-        fiberids = self.__fiber_map.cobraIdToFiberId(cobraids)
+        cobraid = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
+        sci_fiberidx = fm.cobraIdToFiberId(cobraid) - 1                     # Indices of science fibers, in order of cobraId
+        eng_fiberidx = np.where(fm.scienceFiberId == fm.ENGINEERING)[0]     # Indices of engineering fibers, arbitrary order
 
         # TODO: add fiber status, this should come from the bench config
+
+        assignments : pd.DataFrame = None
         
         for vidx, visit in enumerate(self.__visits):
             # Unassigned cobras
@@ -2084,13 +2095,17 @@ class Netflow():
 
             if include_unassigned_fibers:
                 unassigned = pd.DataFrame()
-                pd_append_column(unassigned, 'fiberid', fiberids[cidx], np.int32)
+                pd_append_column(unassigned, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
                 pd_append_column(unassigned, 'targetid', -1, np.int64)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
-                pd_append_column(unassigned, 'cobraid', cobraids[cidx], np.int32)
-                pd_append_column(unassigned, 'fp_x', np.nan, np.float64)
-                pd_append_column(unassigned, 'fp_y', np.nan, np.float64)
+                pd_append_column(unassigned, 'cobraid', cobraid[cidx], np.int32)
+                pd_append_column(unassigned, 'sciencefiberid', fm.scienceFiberId[sci_fiberidx][cidx], np.int32)
+                pd_append_column(unassigned, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
+                pd_append_column(unassigned, 'fiberholeid', fm.fiberHoleId[sci_fiberidx][cidx], np.int32)
+                pd_append_column(unassigned, 'spectrographid', fm.spectrographId[sci_fiberidx][cidx], np.int32)
+                pd_append_column(unassigned, 'fp_x', self.__bench.cobras.home0[cidx].real, np.float64)
+                pd_append_column(unassigned, 'fp_y', self.__bench.cobras.home0[cidx].imag, np.float64)
                 pd_append_column(unassigned, 'target_type', 'na', 'string')
                 pd_append_column(unassigned, 'fiber_status', FiberStatus.GOOD, np.int32)
 
@@ -2101,13 +2116,15 @@ class Netflow():
 
             if include_engineering_fibers:
                 engineering = pd.DataFrame()
-                pd_append_column(engineering, 'fiberid', 
-                                 np.where(self.__fiber_map.data['scienceFiberId'] == self.__fiber_map.ENGINEERING)[0] + 1,
-                                 np.int32)
+                pd_append_column(engineering, 'fiberid', fm.fiberId[eng_fiberidx], np.int32)
                 pd_append_column(engineering, 'targetid', -1, np.int64)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(engineering, 'visit_idx', vidx, np.int32)
                 pd_append_column(engineering, 'cobraid', -1, np.int32)
+                pd_append_column(engineering, 'sciencefiberid', fm.scienceFiberId[eng_fiberidx], np.int32)
+                pd_append_column(engineering, 'fieldid', fm.fieldId[eng_fiberidx], np.int32)
+                pd_append_column(engineering, 'fiberholeid', fm.fiberHoleId[eng_fiberidx], np.int32)
+                pd_append_column(engineering, 'spectrographid', fm.spectrographId[eng_fiberidx], np.int32)
                 pd_append_column(engineering, 'fp_x', np.nan, np.float64)
                 pd_append_column(engineering, 'fp_y', np.nan, np.float64)
                 pd_append_column(engineering, 'target_type', 'eng', 'string')
@@ -2119,23 +2136,24 @@ class Netflow():
                     assignments = pd.concat([ assignments, engineering ])
 
             # Assigned targets
-            tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)
+            tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)      # target index
+            cidx = np.array([ self.__target_assignments[vidx][ti] for ti in tidx ])         # cobra index, 0-based
             fpidx = self.__cache_to_fp_pos_map[visit.pointing_idx][tidx]
 
             targets = pd.DataFrame()
+            pd_append_column(targets, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
             pd_append_column(targets, 'visit_idx', vidx, np.int32)
-            pd_append_column(targets, 'cobraid',
-                             np.array([ cobraids[self.__target_assignments[vidx][ti]] for ti in tidx ], dtype=int),
-                             np.int32)
-            pd_append_column(targets, 'fiberid',
-                                np.array([ fiberids[self.__target_assignments[vidx][ti]] for ti in tidx ], dtype=int),
-                                np.int32)
+            pd_append_column(targets, 'cobraid', cobraid[cidx], np.int32)
+            pd_append_column(targets, 'sciencefiberid', fm.scienceFiberId[sci_fiberidx][cidx], np.int32)
+            pd_append_column(targets, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
+            pd_append_column(targets, 'fiberholeid', fm.fiberHoleId[sci_fiberidx][cidx], np.int32)
+            pd_append_column(targets, 'spectrographid', fm.spectrographId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'fp_x', self.__target_fp_pos[visit.pointing_idx][fpidx].real, np.float64)
             pd_append_column(targets, 'fp_y', self.__target_fp_pos[visit.pointing_idx][fpidx].imag, np.float64)
             pd_append_column(targets, 'target_type', self.__target_cache.prefix[tidx], 'string')
-            pd_append_column(targets, 'fiber_status', FiberStatus.GOOD, np.int32)
+            pd_append_column(targets, 'fiber_status', FiberStatus.GOOD, np.int32)           # TODO
 
             if assignments is None:
                 assignments = targets
@@ -2209,4 +2227,4 @@ class Netflow():
             if c in catalog.data.columns:
                 return c
         
-        raise RuntimeError()
+        raise NetflowException()
