@@ -214,6 +214,8 @@ class DataFrameSerializer():
         elif isinstance(mask, pd.Series):
             return df[mask]
         elif isinstance(mask, pd.Index):
+            # TODO: verify this
+            raise NotImplementedError()
             return df.loc[mask]
         elif isinstance(mask, np.ndarray):
             return df[mask]
@@ -249,6 +251,8 @@ class DataFrameSerializer():
 
         if self.__index is not None:
             df = df.set_index(self.__index)
+        else:
+            df.reset_index(drop=True, inplace=True)
         
         return df
     
