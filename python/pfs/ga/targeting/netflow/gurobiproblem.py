@@ -42,7 +42,8 @@ class GurobiProblem(ILPProblem):
                 solver_options = self.solver_options.to_dict()
                 
             for key, value in solver_options.items():
-                model.setParam(key, value)
+                if value is not None:
+                    model.setParam(key, value)
 
         self.__cost = gbp.LinExpr()
         self.__sum = gbp.quicksum
