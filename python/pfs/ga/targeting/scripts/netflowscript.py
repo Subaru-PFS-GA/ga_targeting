@@ -129,7 +129,8 @@ class NetflowScript(Script):
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
 
         # Override the configuration with the command-line arguments
-        self.__config.gurobi_options.timelimit = self.__time_limit
+        if self.__time_limit is not None:
+            self.__config.gurobi_options.timelimit = self.__time_limit
 
     def prepare(self):
         super().prepare()
