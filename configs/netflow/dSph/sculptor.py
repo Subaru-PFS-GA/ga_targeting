@@ -5,7 +5,7 @@ from pfs.ga.targeting.instrument import SubaruHSC
 config = dict(
     targets = {
         "dsph": dict(
-            path = "/datascope/subaru/user/dobos/netflow/catalogs/fornax_obs.feather",
+            path = "/datascope/subaru/user/dobos/netflow/catalogs/scl_obs.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -43,7 +43,7 @@ config = dict(
             }
         ),
         "sky": dict(
-            path = "/datascope/subaru/data/catalogs/dSph/sky_fornax.feather",
+            path = "/datascope/subaru/data/catalogs/dSph/sky_sculptor.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -53,7 +53,7 @@ config = dict(
             prefix = "sky"
         ),
         "fluxstd": dict(
-            path = "/datascope/subaru/data/catalogs/dSph/Fornax_GaiaFstar.csv",
+            path = "/datascope/subaru/data/catalogs/dSph/fluxstd_sculptor.feather",
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
@@ -71,13 +71,5 @@ config = dict(
                 ) for b in 'gri'
             }
         ),
-    },
-    # Override the minimum number of calibration targets
-    netflow_options = dict(
-        cobra_groups = {
-            'cal_location': dict(
-                min_targets = 0,
-            )
-        }
-    )
+    }
 )

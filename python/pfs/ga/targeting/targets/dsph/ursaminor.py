@@ -1,4 +1,5 @@
 import astropy.units as u
+from datetime import datetime, timedelta, tzinfo
 
 from ...util.args import *
 from ...instrument import *
@@ -7,6 +8,7 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ...config import NetflowConfig, FieldConfig, PointingConfig
 from .dsphgalaxy import DSphGalaxy
 
 class UrsaMinor(DSphGalaxy):
@@ -53,6 +55,22 @@ class UrsaMinor(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+
+    def get_netflow_config(self):
+        config = NetflowConfig.default()
+
+        config.field = FieldConfig(
+            key = self.ID,
+            name = self.name,
+            arms = 'bmn',
+            nvisits = 1,
+            exp_time = 6 * 30 * 60.,        # 3 hr total
+            obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
+        )
+
+        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+
+        return config
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
