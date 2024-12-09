@@ -3,7 +3,8 @@ from unittest import TestCase
 from datetime import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
-import tensorflow.compat.v2 as tf
+
+from pfs.ga.isochrones import tensorlib as tt
 
 import  pfs.ga.targeting
 from pfs.ga.targeting.selection.andselection import AndSelection
@@ -22,14 +23,7 @@ from pfs.ga.isochrones.dartmouth import Dartmouth
 class TestBase(TestCase):
     @classmethod
     def setUpClass(cls):
-        tf.enable_v2_behavior()
-        gpus = tf.config.list_physical_devices('GPU') 
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        try:
-            tf.compat.v1.enable_eager_execution()
-        except ValueError:
-            pass
+        pass
 
     def setUp(self):
         plt.figure(figsize=(10, 6))

@@ -1,6 +1,6 @@
 from collections.abc import Iterable
-import tensorflow.compat.v2 as tf
 
+from pfs.ga.isochrones import tensorlib as tt
 from pfs.ga.isochrones.isogrid import IsoGrid
 
 from .util import *
@@ -58,13 +58,13 @@ class Isochrone(DiagramValueProvider):
         
         # TODO: we could do some fancy broadcasting here
         if M_ini is not None:
-            iso_M_ini = tf.convert_to_tensor(M_ini, dtype=tf.float64)
-            iso_Fe_H = tf.fill(iso_M_ini.shape, tf.constant(Fe_H, dtype=tf.float64))
-            iso_log_t = tf.fill(iso_M_ini.shape, tf.constant(log_t, dtype=tf.float64))
+            iso_M_ini = tt.tensor(M_ini, dtype=tt.float64)
+            iso_Fe_H = tt.full(iso_M_ini.shape, Fe_H, dtype=tt.float64)
+            iso_log_t = tt.full(iso_M_ini.shape, log_t, dtype=tt.float64)
         elif EEP is not None:
-            iso_EEP = tf.convert_to_tensor(EEP, dtype=tf.float64)
-            iso_Fe_H = tf.fill(iso_EEP.shape, tf.constant(Fe_H, dtype=tf.float64))
-            iso_log_t = tf.fill(iso_EEP.shape, tf.constant(log_t, dtype=tf.float64))
+            iso_EEP = tt.tensor(EEP, dtype=tt.float64)
+            iso_Fe_H = tt.full(iso_EEP.shape, Fe_H, dtype=tt.float64)
+            iso_log_t = tt.full(iso_EEP.shape, log_t, dtype=tt.float64)
         else:
             raise NotImplementedError()
         
@@ -86,7 +86,7 @@ class Isochrone(DiagramValueProvider):
         elif EEP is not None:
             iso_values = isogrid._interp3d_EEP(iso_Fe_H, iso_log_t, iso_EEP, values=values, update_index=True)
             eep = iso_EEP
-            iso_mask = tf.fill(eep.shape, tf.constant(False))
+            iso_mask = tt.full(eep.shape, False)
             M_ini = iso_values.pop(-1)
         else:
             raise NotImplementedError()

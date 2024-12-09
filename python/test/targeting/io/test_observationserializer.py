@@ -11,7 +11,7 @@ class ObservationSerializerTest(TestBase):
         r.read(fn, 'obs/umi/cfht')
 
     def test_read_hsc(self):
-        fn = '/datascope/subaru/data/cmdfit/dSph/umi_tpall3e_g24.cat'
+        fn = '/datascope/subaru/data/cmdfit/dSph/ursaminor_tpall3e_g24.cat'
         r = SubaruHSC.text_observation_reader()
         obs = r.read(fn)
 
