@@ -51,7 +51,7 @@ class Config():
     #endregion
     #region Utility functions
 
-    def __get_env(self, name, default=None):
+    def _get_env(self, name, default=None):
         if name in os.environ and os.environ[name] is not None and os.environ[name] != '':
             return os.environ[name]
         else:
@@ -417,26 +417,54 @@ class Config():
         Deep-merge two dictionaries. This function will merge the two dictionaries
         recursively. If a key is present in both dictionaries, the value will be 
         merged recursively, unless a collision is detected.
+
+        Since file formats such as yaml and json do not support all data types,
+        if dictionary `a` already contains a key, all keys in `b` are converted to
+        the same data type.
         """
 
-        kk = list(a.keys()) + list(b.keys())
+        # Verify that all keys in dictionary `a` have the same type
+        type_a = None
+        for k in a.keys():
+            if type_a is None:
+                type_a = type(k)
+            elif type(k) != type_a:
+                raise ValueError(f"Key `{k}` in dictionary `a` has a different type than the other keys.")
+
+        # If dictionary `a` has a key type, use that, otherwise try to determine the key type for
+        # dictionary `b` starting with int, float and finally falling back to str
+        bb = None
+        if type_a is not None:
+            try:
+                bb = { type_a(k): b[k] for k in b.keys() }
+            except ValueError:
+                raise ValueError(f"Key type mismatch between dictionary `a` and `b`.")
+        else:
+            for t in [ int, float, str ]:
+                try:
+                    bb = { t(k): b[k] for k in b.keys() }
+                    break
+                except ValueError:
+                    pass
+
+        kk = list(a.keys()) + list(bb.keys())
 
         r = {}
         for k in kk:
             # Both are dictionaries, merge them
-            if k in a and isinstance(a[k], dict) and k in b  and isinstance(b[k], dict):
-                r[k] = Config.__merge_dict(a[k], b[k], ignore_collisions=ignore_collisions)
-            elif k in a and k in b:
+            if k in a and isinstance(a[k], dict) and k in bb  and isinstance(bb[k], dict):
+                r[k] = Config.__merge_dict(a[k], bb[k], ignore_collisions=ignore_collisions)
+            elif k in a and k in bb:
                 msg = f"Collision detected in the configuration for key `{k}`."
                 if ignore_collisions:
-                    r[k] = b[k]
+                    r[k] = bb[k]
                     logger.debug(msg)
                 else:
                     raise ValueError(msg)
             elif k in a:
                 r[k] = a[k]
-            elif k in b:
-                r[k] = b[k]
+            elif k in bb:
+                r[k] = bb[k]
 
         return r
     
