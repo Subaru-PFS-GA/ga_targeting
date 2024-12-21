@@ -37,17 +37,17 @@ class Draco(DSphGalaxy):
                          pointings=pointings)
         
         hsc = SubaruHSC.photometry()
-        self.__hsc_cmd = CMD([
+        self._hsc_cmd = CMD([
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
             MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
         ])
-        self.__hsc_ccd = CCD([
+        self._hsc_ccd = CCD([
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
             ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
         ])
 
         gaia = Gaia.photometry()
-        self.__gaia_cmd = CMD([
+        self._gaia_cmd = CMD([
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
