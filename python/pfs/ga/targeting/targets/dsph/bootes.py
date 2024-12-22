@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.units as u
+from datetime import datetime, timedelta, tzinfo
 
 from ...util.args import *
 from ...instrument import *
@@ -8,6 +9,7 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ...config import NetflowConfig, FieldConfig, PointingConfig
 from .dsphgalaxy import DSphGalaxy
 
 class Bootes(DSphGalaxy):
@@ -15,15 +17,18 @@ class Bootes(DSphGalaxy):
         ID = 'booi'
         name = 'Bootes I'
         pos = [ 210.025, 14.5 ] * u.deg                       # Evan
-        rad = np.nan * u.arcmin
+        rad = 120 * u.arcmin
         DM, DM_err = 19.11, 0.008                             # Oakes et al. (2022)
         pm = [ -0.387, -1.064 ] * u.mas / u.yr                # Evan
         pm_err = [ 0.122, 0.098 ] * u.mas / u.yr
         RV, RV_err = (99.0, 2.1) * u.kilometer / u.second     # Simbad
 
-        ra0 = [ 210.5, 209.6, 210.1, 210.1 ] * u.deg
-        dec0 = [ 14.5, 14.5, 14.15, 14.8 ] * u.deg
-        pa0 = [ 30, 30, 30, 30 ] * u.deg
+        #ra0 = [ 210.5, 209.6, 210.1, 210.1 ] * u.deg
+        #dec0 = [ 14.5, 14.5, 14.15, 14.8 ] * u.deg
+        #pa0 = [ 30, 30, 30, 30 ] * u.deg
+        ra0 = [ 210.025 ] * u.deg
+        dec0 = [ 14.5 ] * u.deg
+        pa0 = [ 30 ] * u.deg
 
         pointings = {
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
@@ -98,6 +103,16 @@ class Bootes(DSphGalaxy):
 
         return mask
     
+    def _get_hsc_dered_mags_colors(self, catalog, mask):
+        hsc = SubaruHSC.photometry()
+        [ (g0, _), (r0, _), (gr0, _) ] = catalog.get_diagram_values([
+                    hsc.magnitudes['g'],
+                    hsc.magnitudes['r'],
+                    Color([hsc.magnitudes['g'], hsc.magnitudes['r']])
+                ], observed=True, mask=mask)
+        
+        return g0, r0, gr0
+
     def assign_priorities(self, catalog: Catalog, mask=None):
         """Assign priority classes based on photometry"""
 
@@ -125,7 +140,7 @@ class Bootes(DSphGalaxy):
             code[w] = 0
             
             # Blue Horizontal Branch
-            w = (g0 > 19.6) & (g0 < 20.2) & (gr0 > -0.5) & (gr0 < 0.2) & (clr <= 0.5) & (clg < 0.5)
+            w = (g0 > 19.1) & (g0 < 19.7) & (gr0 > -0.5) & (gr0 < 0.2) & (clr <= 0.5) & (clg < 0.5)
             priority[w] = 6
             code[w] = 0
             
@@ -135,7 +150,7 @@ class Bootes(DSphGalaxy):
             code[w] = 1
             
             # Very faint stars with lowest priority
-            w = (r0 >= 21.5) & (clr <= 0.5) & (clg <= 0.5)
+            w = (r0 >= 23) & (clr <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 2
 
