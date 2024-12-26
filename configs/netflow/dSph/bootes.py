@@ -2,10 +2,12 @@ from datetime import datetime, timedelta
 from pfs.ga.targeting.targets.dsph import Fornax
 from pfs.ga.targeting.instrument import SubaruHSC
 
+DATA_DIR = '/raid/pfs'
+
 config = dict(
     targets = {
         "dsph": dict(
-            path = "/raid/pfs/data/targeting/dSph/bootesi/bootesi_obs.feather",
+            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/bootesi_obs.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -39,7 +41,7 @@ config = dict(
             }
         ),
         "sky": dict(
-            path = "/raid/pfs/data/targeting/dSph/bootesi/sky_bootesi.feather",
+            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/sky_bootesi.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -49,7 +51,7 @@ config = dict(
             prefix = "sky"
         ),
         "fluxstd": dict(
-            path = "/raid/pfs/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
+            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',

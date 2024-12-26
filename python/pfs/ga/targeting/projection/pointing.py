@@ -19,7 +19,7 @@ class Pointing():
             self.__exp_time = normalize_exp_time(exp_time if exp_time is not None else 900)
             self.__nvisits = nvisits
         else:
-            self.__pos = normalize_pos(*pos) if pos is not None else orig.__pos
+            self.__pos = normalize_pos(*pos) if (pos is not None and pos != ()) else orig.__pos
             self.__posang = normalize_angle(posang, u.degree) if posang is not None else orig.__posang
             self.__obs_time = normalize_time(obs_time) if obs_time is not None else orig.__obs_time
             self.__exp_time = normalize_exp_time(exp_time) if exp_time is not None else orig.__exp_time

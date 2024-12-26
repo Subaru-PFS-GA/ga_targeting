@@ -4,7 +4,7 @@ class InstrumentOptionsConfig(Config):
     def __init__(self):
         
         # Use the default values ('full') or load the calibration data for the PFI ('calibration')
-        self.layout = 'full'
+        self.layout = 'calibration'
 
         # Temp directory for cobra coach output
         self.cobra_coach_dir = '/tmp/cobra_coach'

@@ -21,5 +21,6 @@ GALAXIES = {
     'for': Fornax,
     'fornax': Fornax,
     'booi': Bootes,
+    'bootesi': Bootes,
     'ngc6822': NGC6822,
 }

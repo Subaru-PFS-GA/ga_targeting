@@ -35,4 +35,4 @@ class FOV(SpatialDiagram):
         return self.plot(ax, ell, native_frame='world', **kwargs)
 
     def plot_instrument(self, ax: plt.Axes, instrument, **kwargs):
-        instrument.plot_field_of_view(ax, )
+        instrument.plot_field_of_view(ax, self, **kwargs)
