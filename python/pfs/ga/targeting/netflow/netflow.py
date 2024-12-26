@@ -997,15 +997,21 @@ class Netflow():
             if save:
                 self.save_problem()
 
-    def __check_pointing_visibility(self):
+    def __check_pointing_visibility(self, airmass_limit=3.0):
         """
-        Verify that all pointings are visible in the sky at obs_time.
+        Verify that all pointings are visible in the sky at obs_time and that
+        the airmass is not extremely high.
         """
 
         for p in self.__pointings:
             # Convert pointing center into azimuth and elevation (+ instrument rotator angle)
             alt, az, inr = self.__instrument.radec_to_altaz(p.ra, p.dec, p.posang, p.obs_time)
+
+            # Calculate airmass from AZ
+            airmass = 1.0 / np.sin(np.radians(90.0 - alt))
+
             assert az > 0, f"Pointing is below the horizon."
+            assert airmass < airmass_limit, f"Pointing is at a high airmass of {airmass:.2f}."
                     
     def __calculate_exp_time(self):
         """

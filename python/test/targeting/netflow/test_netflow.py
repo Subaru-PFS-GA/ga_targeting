@@ -32,9 +32,15 @@ class NetflowTest(TestBase):
         with self.assertRaises(AssertionError):
             nf._Netflow__check_pointing_visibility()
 
+        # Bootes I is visible at a very large airmass
+        pointing = Pointing(210.025, 14.5, posang=30, obs_time=Time("2025-01-24T11:00:00Z"))
+        nf = Netflow(f'test', instrument, [ pointing ])
+        with self.assertRaises(AssertionError):
+            nf._Netflow__check_pointing_visibility()
+
     def test_filter_targets(self):
         instrument = SubaruPFI()
-        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1)
+        pointing = Pointing(226.3, 14.5, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1)
         nf = Netflow(f'test', instrument, [ pointing ])
 
         obs = self.load_test_observation()
