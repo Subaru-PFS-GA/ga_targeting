@@ -48,7 +48,7 @@ class SubaruPFITest(TestBase):
 
     def test_radec_to_altaz(self):
         inst = SubaruPFI()
-        inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2016-04-03T08:00:00Z"))
+        az, el, inr = inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2016-04-03T08:00:00Z"))
 
     def test_radec_to_fp_pos(self):
         inst = SubaruPFI()
