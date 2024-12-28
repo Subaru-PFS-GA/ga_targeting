@@ -187,6 +187,8 @@ class Netflow():
 
         self.__bench = instrument.bench             # Bench object
         self.__fiber_map = instrument.fiber_map     # Grand fiber map
+        self.__blocked_fibers = instrument.blocked_fibers
+        self.__calib_model = instrument.calib_model
 
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped
@@ -2046,6 +2048,30 @@ class Netflow():
 
         return self.__cobra_assignments
 
+    def __get_fiber_status(self):
+        """
+        Return the fiber status indexes by cidx, as required by PfsDesign.
+        """
+
+        # 1-based cobra IDs, should have the size of 2394
+        cobraid = np.arange(self.__bench.cobras.nCobras, dtype=int) + 1
+
+        # 0-based indices of science fibers, in order of cobraId
+        sci_fiberidx = self.__fiber_map.cobraIdToFiberId(cobraid) - 1
+
+        fiber_status = np.full(self.__bench.cobras.nCobras, FiberStatus.GOOD, dtype=np.int32)
+
+        fiber_broken_mask = (self.__calib_model.status & self.__calib_model.FIBER_BROKEN_MASK) != 0
+        cobra_ok_mask = (self.__calib_model.status & self.__calib_model.COBRA_OK_MASK) != 0
+        cobra_broken_mask = ~cobra_ok_mask & ~fiber_broken_mask
+        fiber_blocked_mask = np.array(self.__blocked_fibers.loc[self.__fiber_map.fiberId[sci_fiberidx]].status)
+
+        fiber_status[fiber_broken_mask] = FiberStatus.BROKENFIBER
+        fiber_status[cobra_broken_mask] = FiberStatus.BROKENCOBRA
+        fiber_status[fiber_blocked_mask] = FiberStatus.BLOCKED
+
+        return fiber_status
+
     def get_target_assignments(self,  
                                include_target_columns=False,
                                include_unassigned_fibers=False,
@@ -2060,6 +2086,10 @@ class Netflow():
         Note that column names ending with `_idx` are 0-based indices into netflow data structured,
         while the columns `fiberid` and `cobraid` are 1-based indices, as defined by PFS.
 
+        This is very similar what happens in pfs.utils.pfsDesignUtils.makePfsDesign but we do it for
+        all visits at once and work on a DataFrame instead of PfsDesign objects and don't assume a
+        specific ordering of the fibers or the cobras in the DataFrame.
+
         Parameters:
         -----------
         include_target_columns : bool
@@ -2071,6 +2101,10 @@ class Netflow():
         include_empty_fibers : bool
             Include empty fibers in the output.
         """
+
+        # TODO: this function uses a lot of PFS specific logic and calibration products
+        #       consider moving it elsewhere, maybe to the Design class which currently only
+        #       converts between data frames and pfsDesign objects
 
         fm = self.__fiber_map
 
@@ -2091,7 +2125,9 @@ class Netflow():
         sci_fiberidx = fm.cobraIdToFiberId(cobraid) - 1                     # Indices of science fibers, in order of cobraId
         eng_fiberidx = np.where(fm.scienceFiberId == fm.ENGINEERING)[0]     # Indices of engineering fibers, arbitrary order
 
-        # TODO: add fiber status, this should come from the bench config
+        # TODO: consider removing broken fibers from the netflow problem at the beginning
+        #       instead of updating the status now
+        fiber_status = self.__get_fiber_status()
 
         assignments : pd.DataFrame = None
         
@@ -2113,7 +2149,7 @@ class Netflow():
                 pd_append_column(unassigned, 'fp_x', self.__bench.cobras.home0[cidx].real, np.float64)
                 pd_append_column(unassigned, 'fp_y', self.__bench.cobras.home0[cidx].imag, np.float64)
                 pd_append_column(unassigned, 'target_type', 'na', 'string')
-                pd_append_column(unassigned, 'fiber_status', FiberStatus.GOOD, np.int32)
+                pd_append_column(unassigned, 'fiber_status', fiber_status[cidx], np.int32)
 
                 if assignments is None:
                     assignments = unassigned
@@ -2159,7 +2195,7 @@ class Netflow():
             pd_append_column(targets, 'fp_x', self.__target_fp_pos[visit.pointing_idx][fpidx].real, np.float64)
             pd_append_column(targets, 'fp_y', self.__target_fp_pos[visit.pointing_idx][fpidx].imag, np.float64)
             pd_append_column(targets, 'target_type', self.__target_cache.prefix[tidx], 'string')
-            pd_append_column(targets, 'fiber_status', FiberStatus.GOOD, np.int32)           # TODO
+            pd_append_column(targets, 'fiber_status', fiber_status[cidx], np.int32)
 
             if assignments is None:
                 assignments = targets

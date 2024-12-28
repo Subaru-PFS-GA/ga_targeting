@@ -1,11 +1,16 @@
+import os
 import numpy as np
-
 from collections.abc import Iterable
+
+from pfs.ga.targeting.instrument import SubaruPFI
 
 class Design():
     """
     Utility class to create PfsDesign object from a list of targets.
     """
+
+    def __init__(self):
+         pass
 
     def join_catalogs(assignments, catalogs):
         catalogs = [catalogs] if not isinstance(catalogs, Iterable) else catalogs
@@ -33,13 +38,11 @@ class Design():
         
         fiber_assignments = assignments[mask].set_index(['fiberid'])
         fiber_assignments.sort_index(inplace=True)
-
-        nfibers = len(fiber_assignments)
                 
         kwargs = dict(
             designName = '',
-            variant = 0,
-            designId0 = 0,
+            variant = 0,          # not used by makePfsDesign
+            designId0 = 0,        # not used by makePfsDesign
 
             raBoresight = visit.pointing.ra,
             decBoresight = visit.pointing.dec,
@@ -85,5 +88,7 @@ class Design():
         # Calculate the design ID hash from the fibers and coordinates
         kwargs['pfsDesignId'] = calculate_pfsDesignId(kwargs['fiberId'], kwargs['ra'], kwargs['dec'])
 
-        return PfsDesign(**kwargs)
+        pfsDesign = PfsDesign(**kwargs)
+
+        return pfsDesign
     
