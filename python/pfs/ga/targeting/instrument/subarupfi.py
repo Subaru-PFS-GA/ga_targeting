@@ -14,6 +14,7 @@ from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 import pfs.instdata
 from ics.cobraOps.Bench import Bench
 from pfs.utils.fiberids import FiberIds
+from pfs.utils.butler import Butler
 from ..external import BlackDotsCalibrationProduct
 from ..external import PFIDesign
 from ..external import CobraCoach
@@ -40,6 +41,7 @@ class SubaruPFI(Instrument, FiberAllocator):
     DEFAULT_FIBERIDS_PATH = os.path.join(os.path.dirname(pfs.utils.__file__), '../../../data/fiberids')
     
     # Path to instrument configuration
+    # PFS_INSTDATA_DIR is set to this path
     DEFAULT_INSTDATA_PATH = os.path.join(os.path.dirname(pfs.instdata.__file__), '../../../')
 
     # Path to black dots calibration file
@@ -72,8 +74,8 @@ class SubaruPFI(Instrument, FiberAllocator):
             self.__projection = projection or orig.__projection
             self.__instrument_options = orig.__instrument_options
 
-        self.__fiber_map = self.__create_grand_fiber_map()
-        self.__bench = self.__create_bench()
+        self.__fiber_map, self.__blocked_fibers = self.__load_grand_fiber_map()
+        self.__bench, self.__cobra_coach, self.__calib_model = self.__create_bench()
 
     #region Properties
 
@@ -82,10 +84,25 @@ class SubaruPFI(Instrument, FiberAllocator):
     
     fiber_map = property(__get_fiber_map)
 
+    def __get_blocked_fibers(self):
+        return self.__blocked_fibers
+    
+    blocked_fibers = property(__get_blocked_fibers)
+
+    def __get_calib_model(self):
+        return self.__calib_model
+    
+    calib_model = property(__get_calib_model)
+
     def __get_bench(self):
         return self.__bench
 
     bench = property(__get_bench)
+
+    def __get_cobra_coach(self):
+        return self.__cobra_coach
+    
+    cobra_coach = property(__get_cobra_coach)
 
     def __get_cobra_count(self):
         return self.__bench.cobras.nCobras
@@ -105,10 +122,30 @@ class SubaruPFI(Instrument, FiberAllocator):
         else:
             return default
         
-    def __create_grand_fiber_map(self):
+    def __load_grand_fiber_map(self):
+        # Load the grand fiber map
         fiberids_path = self.__get_instrument_option(self.__instrument_options.fiberids_path, SubaruPFI.DEFAULT_FIBERIDS_PATH)
-        fibermap = FiberIds(path=fiberids_path)
-        return fibermap
+        fiber_map = FiberIds(path=fiberids_path)
+
+        # Load the list of blocked fibers
+        config_root = os.path.join(self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH), 'data')
+        butler = Butler(configRoot=config_root)
+        blocked_fibers = butler.get('fiberBlocked').set_index('fiberId')
+
+        return fiber_map, blocked_fibers
+
+    def __load_calib_model(self):
+        """
+        Load the instrument calibration model directly.
+
+        We don't use this but load the calibration model through cobra coach instead.
+        """
+        config_root = os.path.join(self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH), 'data')
+        butler = Butler(configRoot=config_root)
+
+        # This call might trigger a few division by zero warnings but they are supposed to be OK
+        calib_model = butler.get('moduleXml', moduleName='ALL', version='')
+        return calib_model
     
     def __create_bench(self):
         layout = self.__get_instrument_option(self.__instrument_options.layout, 'full')
@@ -117,13 +154,15 @@ class SubaruPFI(Instrument, FiberAllocator):
             return self.__create_default_bench()
         elif layout == 'calibration':
             return self.__create_configured_bench()
+        else:
+            raise NotImplementedError()
 
     def __create_default_bench(self):
         """
         Create a bench object with default instrument configuration. This is
         not the real configuration and the PFI is rotated by 30 degrees.
         """
-        return Bench(layout='full')
+        return Bench(layout='full'), None
     
     def __create_configured_bench(self):
         """
@@ -142,31 +181,32 @@ class SubaruPFI(Instrument, FiberAllocator):
             os.makedirs(cobra_coach_dir, exist_ok=True)
             logger.info(f"Created cobra coach temp directory: {cobra_coach_dir}")
 
-        # This might be required somewhere in the libraries
+        # This is required by cobraCharmer and there seems to be no other way to pass in the
+        # calibration product data directory to the library
         os.environ["PFS_INSTDATA_DIR"] = pfs_instdata_path
         
-        cobraCoach = CobraCoach("fpga", loadModel=False, trajectoryMode=True, rootDir=cobra_coach_dir)
-        cobraCoach.loadModel(version="ALL", moduleVersion=cobra_coach_module_version)
-        calibrationProduct = cobraCoach.calibModel
+        cobra_coach = CobraCoach("fpga", loadModel=False, trajectoryMode=True, rootDir=cobra_coach_dir)
+        cobra_coach.loadModel(version="ALL", moduleVersion=cobra_coach_module_version)
+        calib_model = cobra_coach.calibModel
 
         # Set some dummy center positions and phi angles for those cobras that have
         # zero centers
-        zeroCenters = calibrationProduct.centers == 0
-        calibrationProduct.centers[zeroCenters] = np.arange(np.sum(zeroCenters)) * 300j
-        calibrationProduct.phiIn[zeroCenters] = -np.pi
-        calibrationProduct.phiOut[zeroCenters] = 0
+        zeroCenters = calib_model.centers == 0
+        calib_model.centers[zeroCenters] = np.arange(np.sum(zeroCenters)) * 300j
+        calib_model.phiIn[zeroCenters] = -np.pi
+        calib_model.phiOut[zeroCenters] = 0
         logger.info("Cobras with zero centers: %i" % np.sum(zeroCenters))
 
         # Use the median value link lengths in those cobras with zero link lengths
-        zeroLinkLengths = (calibrationProduct.L1 == 0) | (calibrationProduct.L2 == 0)
-        calibrationProduct.L1[zeroLinkLengths] = np.median(calibrationProduct.L1[~zeroLinkLengths])
-        calibrationProduct.L2[zeroLinkLengths] = np.median(calibrationProduct.L2[~zeroLinkLengths])
+        zeroLinkLengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
+        calib_model.L1[zeroLinkLengths] = np.median(calib_model.L1[~zeroLinkLengths])
+        calib_model.L2[zeroLinkLengths] = np.median(calib_model.L2[~zeroLinkLengths])
         logger.info("Cobras with zero link lengths: %i" % np.sum(zeroLinkLengths))
 
         # Use the median value link lengths in those cobras with too long link lengths
-        tooLongLinkLengths = (calibrationProduct.L1 > 100) | (calibrationProduct.L2 > 100)
-        calibrationProduct.L1[tooLongLinkLengths] = np.median(calibrationProduct.L1[~tooLongLinkLengths])
-        calibrationProduct.L2[tooLongLinkLengths] = np.median(calibrationProduct.L2[~tooLongLinkLengths])
+        tooLongLinkLengths = (calib_model.L1 > 100) | (calib_model.L2 > 100)
+        calib_model.L1[tooLongLinkLengths] = np.median(calib_model.L1[~tooLongLinkLengths])
+        calib_model.L2[tooLongLinkLengths] = np.median(calib_model.L2[~tooLongLinkLengths])
         logger.info("Cobras with too long link lengths: %i" % np.sum(tooLongLinkLengths))
 
         # Limit spectral modules
@@ -176,21 +216,21 @@ class SubaruPFI(Instrument, FiberAllocator):
             cobra_ids_use = np.append(cobra_ids_use, gfm.cobrasForSpectrograph(sm))
 
         # Set Bad Cobra status for unused spectral modules
-        for cobra_id in range(calibrationProduct.nCobras):
+        for cobra_id in range(calib_model.nCobras):
             if cobra_id not in cobra_ids_use:
-                calibrationProduct.status[cobra_id] = ~PFIDesign.COBRA_OK_MASK
+                calib_model.status[cobra_id] = ~PFIDesign.COBRA_OK_MASK
         
         # Get the black dots calibration product
         blackDotsCalibrationProduct = BlackDotsCalibrationProduct(pfs_black_dots_path)
 
         bench = Bench(
             layout="calibration",                       # Use the layout from the calibration product
-            calibrationProduct=calibrationProduct,
+            calibrationProduct=calib_model,
             blackDotsCalibrationProduct=blackDotsCalibrationProduct,
             blackDotsMargin=black_dot_radius_margin,
         )
 
-        return bench
+        return bench, cobra_coach, calib_model
 
     def get_cobra_centers(self):
         centers = np.array([self.__bench.cobras.centers.real, self.__bench.cobras.centers.imag]).T
