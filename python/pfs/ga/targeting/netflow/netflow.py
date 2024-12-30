@@ -38,9 +38,6 @@ class Netflow():
             Cost for not allocating a fiber to a science or calibration target, or sky.
         * collision_distance : float
             Minimum distance between two fibers (ends or elbows) to avoid collision.
-        * elbow_collisions : bool
-            If True, check for collisions between the fiber elbows, otherwise check for collisions
-            between the fiber ends.
         * forbidden_targets : list
             List of forbidden target IDs. These are added to the problem as constraints.
         * forbidden_pairs : list of list
@@ -1665,23 +1662,21 @@ class Netflow():
 
         # Avoid endpoint or elbow collisions
         collision_distance = self.__get_netflow_option(self.__netflow_options.collision_distance, 0.0)
-        elbow_collisions = self.__get_netflow_option(self.__netflow_options.elbow_collisions, False)
         
         if collision_distance > 0.0:
-            # if not elbow_collisions:
-                if not ignore_endpoint_collisions:
-                    # > Tv_o_coll_{?}_{?}_{visit_idx}
-                    logger.debug("Adding endpoint collision constraints")
-                    self.__create_endpoint_collision_constraints(visit)
-                else:
-                    logger.debug("Ignoring endpoint collision constraints")
-            # else:
-                if not ignore_elbow_collisions:
-                    # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
-                    logger.debug("Adding elbow collision constraints")
-                    self.__create_elbow_collision_constraints(visit)
-                else:
-                    logger.debug("Ignoring elbow collision constraints")
+            if not ignore_endpoint_collisions:
+                # > Tv_o_coll_{?}_{?}_{visit_idx}
+                logger.debug("Adding endpoint collision constraints")
+                self.__create_endpoint_collision_constraints(visit)
+            else:
+                logger.debug("Ignoring endpoint collision constraints")
+
+            if not ignore_elbow_collisions:
+                # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx}
+                logger.debug("Adding elbow collision constraints")
+                self.__create_elbow_collision_constraints(visit)
+            else:
+                logger.debug("Ignoring elbow collision constraints")
                 
     def __create_endpoint_collision_constraints(self, visit):
         vidx = visit.visit_idx

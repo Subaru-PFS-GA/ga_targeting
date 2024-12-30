@@ -31,7 +31,6 @@ class NetflowOptionsConfig(Config):
         # self.cobra_move_cost = lambda dist: 0
 
         self.collision_distance = 2.0
-        self.elbow_collisions = True
         self.forbidden_targets = []
         self.forbidden_pairs = [
             # [43486543901, 43218108431],
