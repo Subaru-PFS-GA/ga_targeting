@@ -688,7 +688,7 @@ class Netflow():
 
         return targets_cobras, cobras_targets
     
-    def __get_colliding_pairs(self, pidx, collision_distance):
+    def __get_colliding_endpoints(self, pidx, collision_distance):
         """Return the list of target pairs that would cause fiber
         collision when observed by two neighboring fibers.
         
@@ -729,7 +729,7 @@ class Netflow():
             tidx2 = np.unique(tidx2).astype(int)
             d = np.abs(np.subtract.outer(fp_pos[tidx_to_fpidx_map[tidx1]], fp_pos[tidx_to_fpidx_map[tidx2]]))
             
-            for m, n in zip(*np.where(d  < collision_distance)):
+            for m, n in zip(*np.where(d < collision_distance)):
                 if tidx1[m] < tidx2[n]:               # Only store pairs once
                     pairs.add((tidx1[m], tidx2[n]))
 
@@ -755,12 +755,10 @@ class Netflow():
                all possible target-cobra pairs.
         """
 
-        visibility = self.__visibility[pidx]
-        fp_pos = self.__target_fp_pos[pidx]
         tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
 
         res = defaultdict(list)
-        for cidx, tidx_elbow in visibility.cobras_targets.items():
+        for cidx, tidx_elbow in self.__visibility[pidx].cobras_targets.items():
             # Determine target indices visible by neighbors of this cobra
             
             # List of neighboring cobra_index
@@ -768,21 +766,88 @@ class Netflow():
 
             # All targets and elbow positions visible by neighboring cobras
             # tmp = [ vis_cobras_targets[j] for j in nb if j in vis_cobras_targets ]
-            tmp = [ ti for j in nb if j in visibility.cobras_targets for ti, _ in visibility.cobras_targets[j] ]
+            ntidx = [ ti for j in nb if j in self.__visibility[pidx].cobras_targets for ti, _ in self.__visibility[pidx].cobras_targets[j] ]
 
-            if len(tmp) > 0:
+            if len(ntidx) > 0:
                 # Unique list of target indices visible by neighboring cobras
-                i2 = np.unique(tmp)
+                ntidx = np.unique(ntidx)
 
                 # For each target visible by this cobra and the corresponding elbow
                 # position, find all targets which are too close to the "upper arm"
                 # of the cobra
-                for tidx, elbowpos in tidx_elbow:
-                    ebp = np.full(len(i2), elbowpos)                            # elbow position of the cobra
-                    tp = np.full(len(i2), fp_pos[tidx_to_fpidx_map[tidx]])      # target position
-                    ti2 = fp_pos[tidx_to_fpidx_map[i2]]                         # target positions of the neighbors
-                    d = self.__bench.distancesToLineSegments(ti2, tp, ebp)
-                    res[(cidx, tidx)] += list(i2[d < collision_distance])
+                for tidx, eb_pos in tidx_elbow:
+                    fp_pos = self.__target_fp_pos[pidx][tidx_to_fpidx_map[tidx]]        # target position
+                    nfp_pos = self.__target_fp_pos[pidx][tidx_to_fpidx_map[ntidx]]      # target positions of the neighbors
+
+                    d = self.__bench.distancesToLineSegments(nfp_pos, np.repeat(fp_pos, ntidx.shape), np.repeat(eb_pos, ntidx.shape))
+                    res[(cidx, tidx)] += list(ntidx[d < collision_distance])
+
+        return res
+    
+    def __get_colliding_broken_endpoints(self, pidx, collision_distance):
+        """
+        For each broken cobra, look up the neighboring cobras and return the list of targets
+        that would cause endpoint collision with the broken cobra in home position.
+        """
+
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
+
+        # For each broken cobra, look up the neighboring cobras and loop over them
+        res = defaultdict(list)
+        for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
+            for ncidx in self.__bench.getCobraNeighbors(cidx):
+                # This is another broken cobra nothing to do with it
+                if self.__bench.cobras.hasProblem[ncidx]:
+                    continue
+                
+                # Find the targets that are visible by the neighboring cobra
+                tidx = np.array([ ti for ti, _ in self.__visibility[pidx].cobras_targets[ncidx] ])
+                
+                if tidx.size > 0:
+                    fp_pos = self.__target_fp_pos[pidx][tidx_to_fpidx_map[tidx]]
+
+                    # Distance from the home position of the broken cobra to the targets
+                    d = np.abs(fp_pos - self.__bench.cobras.home0[cidx])
+                    res[cidx] += list(tidx[d < collision_distance])
+
+        return res
+    
+    def __get_colliding_broken_elbows(self, pidx, collision_distance):
+        """
+        For each broken cobra, look up the neighboring cobras and return the list of
+        targets that would cause elbow collision with the broken cobra in home position.
+
+        This requires two test: whether any of the neighboring targets cause an elbow
+        collision with the tip of the broken cobra, and whether the elbow of the broken
+        cobra causes a collision with the tip of the neighboring cobras.
+        """
+
+        tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]            
+
+        # For each broken cobra, look up the neighboring cobras and loop over them
+        res = defaultdict(list)
+        for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
+            # Elbow position of the broken cobra corresponding to the home position
+            fp_pos = np.atleast_1d(self.__bench.cobras.home0[cidx])
+            eb_pos = self.__bench.cobras.calculateCobraElbowPositions(cidx, fp_pos)
+
+            for ncidx in self.__bench.getCobraNeighbors(cidx):
+                # This is another broken cobra nothing to do with it
+                if self.__bench.cobras.hasProblem[ncidx]:
+                    continue
+
+                # Collect the targets and elbow positions corresponding to the neighboring cobra
+                ntidx = np.array([ ti for ti, _ in self.__visibility[pidx].cobras_targets[ncidx] ])
+
+                if ntidx.size > 0:
+                    nfp_pos = self.__target_fp_pos[pidx][tidx_to_fpidx_map[ntidx]]
+                    neb_pos = self.__bench.cobras.calculateCobraElbowPositions(ncidx, nfp_pos)
+
+                    d1 = self.__bench.distancesToLineSegments(nfp_pos, np.repeat(fp_pos, ntidx.shape), np.repeat(eb_pos, ntidx.shape))
+                    res[cidx] += list(ntidx[d1 < collision_distance])
+
+                    d2 = self.__bench.distancesToLineSegments(np.repeat(fp_pos, ntidx.shape), nfp_pos, neb_pos)
+                    res[cidx] += list(ntidx[d2 < collision_distance])
 
         return res
 
@@ -1431,13 +1496,18 @@ class Netflow():
         for pidx, pointing in enumerate(self.__pointings):
             logger.info(f'Calculating collisions for pointing {pidx + 1}.')
 
-            # Get the target visibility and elbow positions for each target roughly within the pointing
+            # Collect endpoint and elbow collisions for each target pair
             col = SimpleNamespace()
-            col.pairs = self.__get_colliding_pairs(pidx, collision_distance)
+            col.endpoints = self.__get_colliding_endpoints(pidx, collision_distance)
             col.elbows = self.__get_colliding_elbows(pidx, collision_distance)
+
+            # Collect endpoint and elbow collisions for targets and broken cobras
+            col.broken_endpoints = self.__get_colliding_broken_endpoints(pidx, collision_distance)
+            col.broken_elbows = self.__get_colliding_broken_elbows(pidx, collision_distance)
+    
             self.__collisions.append(col)
 
-            logger.info(f'Found {len(col.pairs)} colliding fibers and {len(col.elbows)} elbows for pointing {pidx + 1}.')
+            logger.info(f'Found {len(col.endpoints) + len(col.broken_endpoints)} colliding fibers and {len(col.elbows) + len(col.broken_elbows)} elbows for pointing {pidx + 1}.')
 
     def __get_collisions_filename(self, filename=None):
         return self.__get_prefixed_filename(filename, 'netflow_collisions.pkl')
@@ -1691,7 +1761,7 @@ class Netflow():
         # keys = self.__variables.Tv_o.keys()
         # keys = set(key[0] for key in keys if key[1] == vidx)
         
-        for p0, p1 in collisions.pairs:
+        for p0, p1 in collisions.endpoints:
             # TODO: is this check necessary?
             # if p0 in tidx and p1 in tidx:
 
