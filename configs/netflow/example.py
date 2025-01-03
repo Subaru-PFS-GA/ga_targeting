@@ -254,10 +254,6 @@ config = dict(
         # The minimum distance between cobra tips and cobra elbows to avoid collisions.
         collision_distance = 2.0,
 
-        # Whether to consider collisions between cobra elbows. If False, only collisions
-        # between cobra tips are considered.
-        elbow_collisions = True,
-
         # List of target ids that are excluded from the target lists.
         forbidden_targets = [],
 
@@ -446,6 +442,9 @@ config = dict(
 
         # Ignore collisions between cobra elbows
         ignore_elbow_collisions = False,
+
+        # Ignore collisions between between broken cobras and their neighbors
+        ignore_broken_cobra_collisions = False,
 
         # Ignore forbidden single targets
         ignore_forbidden_targets = False,
