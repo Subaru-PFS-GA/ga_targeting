@@ -4,6 +4,7 @@ class DebugOptionsConfig(Config):
     def __init__(self):
         self.ignore_endpoint_collisions = False
         self.ignore_elbow_collisions = False
+        self.ignore_broken_cobra_collisions = False
         self.ignore_forbidden_targets = False
         self.ignore_forbidden_pairs = False
         self.ignore_calib_target_class_minimum = False

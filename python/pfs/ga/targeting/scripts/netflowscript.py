@@ -464,8 +464,12 @@ class NetflowScript(Script):
 
         logger.info('Saving netflow solution.')
         netflow.save_solution()
-        
-        logger.info('Extracting fiber assignments.')
+
+        # TODO: move this after any other step and throw exception on
+        #       verification failure, such az endpoint collisions or 
+        #       elbow collisions. Only report trajectory collisions.
+        logger.info('Verifying solution.') 
+        netflow.verify()
 
     def __extract_assignments(self, netflow):
         """
