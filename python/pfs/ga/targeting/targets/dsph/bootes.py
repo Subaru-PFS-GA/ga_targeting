@@ -66,7 +66,7 @@ class Bootes(DSphGalaxy):
             arms = 'bmn',
             nvisits = 1,
             exp_time = 6 * 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 1, 24, 0, 0, 0) + timedelta(hours=10),
+            obs_time = datetime(2025, 1, 24, 4, 00, 0) + timedelta(hours=10),
         )
 
         config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
