@@ -64,7 +64,7 @@ class UrsaMinor(DSphGalaxy):
             name = self.name,
             arms = 'bmn',
             nvisits = 1,
-            exp_time = 6 * 30 * 60.,        # 3 hr total
+            exp_time = 30 * 60.,        # 3 hr total
             obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
         )
 
@@ -124,8 +124,8 @@ class UrsaMinor(DSphGalaxy):
             prob = catalog.data['p_member'][mask]
             code = np.full(prob.shape, 0, dtype=np.int32)
 
-            top_pri = np.maximum(np.floor((i0 - 16)/(21.5 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((i0 - 16)/(21.5 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+            top_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
           
             w = ~np.isnan(prob)
             priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
@@ -146,7 +146,7 @@ class UrsaMinor(DSphGalaxy):
             code[w] = 1
             
             # Very faint stars with lowest priority
-            w = (i0 >= 21.5) & (cli <= 0.5) & (clg <= 0.5)
+            w = (i0 >= 23.0) & (cli <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 2
 
@@ -193,7 +193,7 @@ class UrsaMinor(DSphGalaxy):
             # w = (catalog['cli'] > 0.5) | (catalog['clg'] > 0.5)
             # priority[w] = 14
 
-        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * ((i0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)
+        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10**((i0-19.0)/2.5)) + 1).astype(int), 6), 1)
 
         keep = (g0 < 23) & (priority <= 9) & (code == 0)
 
