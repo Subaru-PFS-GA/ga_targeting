@@ -174,7 +174,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         pfs_black_dots_path = self.__get_instrument_option(self.__instrument_options.blackdots_path, SubaruPFI.DEFAULT_BLACK_DOTS_PATH)
         cobra_coach_dir = self.__get_instrument_option(self.__instrument_options.cobra_coach_dir, SubaruPFI.DEFAULT_COBRA_COACH_DIR)
         cobra_coach_module_version = self.__get_instrument_option(self.__instrument_options.cobra_coach_module_version, None)
-        spectgrograph_modules = self.__get_instrument_option(self.__instrument_options.spectrograph_modules, [1, 2, 3, 4])
+        spectrograph_modules = self.__get_instrument_option(self.__instrument_options.spectrograph_modules, [1, 2, 3, 4])
         black_dot_radius_margin = self.__get_instrument_option(self.__instrument_options.black_dot_radius_margin, 1.0)
         ignore_calibration_errors = self.__get_instrument_option(self.__instrument_options.ignore_calibration_errors, False)
 
@@ -193,45 +193,45 @@ class SubaruPFI(Instrument, FiberAllocator):
 
         # Set some dummy center positions and phi angles for those cobras that have
         # zero centers
-        zeroCenters = calib_model.centers == 0
-        if zeroCenters.any():
-            msg = f"Cobras with zero centers: {np.sum(zeroCenters)}"
+        zero_centers = calib_model.centers == 0
+        if zero_centers.any():
+            msg = f"Cobras with zero centers: {np.sum(zero_centers)}"
             if not ignore_calibration_errors:
                 raise ValueError(msg)
             else:
-                calib_model.centers[zeroCenters] = np.arange(np.sum(zeroCenters)) * 300j
-                calib_model.phiIn[zeroCenters] = -np.pi
-                calib_model.phiOut[zeroCenters] = 0
+                calib_model.centers[zero_centers] = np.arange(np.sum(zero_centers)) * 300j
+                calib_model.phiIn[zero_centers] = -np.pi
+                calib_model.phiOut[zero_centers] = 0
                 logger.warning(msg)
                 
         # Use the median value link lengths in those cobras with zero link lengths
-        zeroLinkLengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
-        if zeroLinkLengths.any():
-            msg = f"Cobras with zero link lengths: {np.sum(zeroLinkLengths)}"
+        zero_link_lengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
+        if zero_link_lengths.any():
+            msg = f"Cobras with zero link lengths: {np.sum(zero_link_lengths)}"
             if not ignore_calibration_errors:
                 raise ValueError(msg)
             else:
-                calib_model.L1[zeroLinkLengths] = np.median(calib_model.L1[~zeroLinkLengths])
-                calib_model.L2[zeroLinkLengths] = np.median(calib_model.L2[~zeroLinkLengths])
+                calib_model.L1[zero_link_lengths] = np.median(calib_model.L1[~zero_link_lengths])
+                calib_model.L2[zero_link_lengths] = np.median(calib_model.L2[~zero_link_lengths])
                 logger.warning(msg)
 
         # Use the median value link lengths in those cobras with too long link lengths
-        tooLongLinkLengths = (calib_model.L1 > 100) | (calib_model.L2 > 100)
-        if tooLongLinkLengths.any():
-            msg = f"Cobras with too long link lengths: {np.sum(tooLongLinkLengths)}"
+        too_long_link_lengths = (calib_model.L1 > 100) | (calib_model.L2 > 100)
+        if too_long_link_lengths.any():
+            msg = f"Cobras with too long link lengths: {np.sum(too_long_link_lengths)}"
             if not ignore_calibration_errors:
                 raise ValueError(msg)
             else:
-                calib_model.L1[tooLongLinkLengths] = np.median(calib_model.L1[~tooLongLinkLengths])
-                calib_model.L2[tooLongLinkLengths] = np.median(calib_model.L2[~tooLongLinkLengths])
+                calib_model.L1[too_long_link_lengths] = np.median(calib_model.L1[~too_long_link_lengths])
+                calib_model.L2[too_long_link_lengths] = np.median(calib_model.L2[~too_long_link_lengths])
                 logger.warning(msg)
 
         # Limit spectral modules
         gfm = self.__get_fiber_map()
         cobra_ids_use = np.array([], dtype=np.uint16)
-        for sm in spectgrograph_modules:
+        for sm in spectrograph_modules:
             cobra_ids_use = np.append(cobra_ids_use, gfm.cobrasForSpectrograph(sm))
-        logger.info(f"Using {len(cobra_ids_use)} cobras from {len(spectgrograph_modules)} spectrograph modules")
+        logger.info(f"Using {len(cobra_ids_use)} cobras from {len(spectrograph_modules)} spectrograph modules")
 
         # Set Bad Cobra status for unused spectral modules
         for cobra_id in range(calib_model.nCobras):
@@ -239,12 +239,12 @@ class SubaruPFI(Instrument, FiberAllocator):
                 calib_model.status[cobra_id] = ~PFIDesign.COBRA_OK_MASK
         
         # Get the black dots calibration product
-        blackDotsCalibrationProduct = BlackDotsCalibrationProduct(pfs_black_dots_path)
+        black_dots_calibration_product = BlackDotsCalibrationProduct(pfs_black_dots_path)
 
         bench = Bench(
             layout="calibration",                       # Use the layout from the calibration product
             calibrationProduct=calib_model,
-            blackDotsCalibrationProduct=blackDotsCalibrationProduct,
+            blackDotsCalibrationProduct=black_dots_calibration_product,
             blackDotsMargin=black_dot_radius_margin,
         )
 
