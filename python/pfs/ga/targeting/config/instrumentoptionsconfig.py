@@ -28,4 +28,7 @@ class InstrumentOptionsConfig(Config):
         # List of the spectgraph modules to be used.
         self.spectrograph_modules = [1, 2, 3, 4]
 
+        # Ignore any errors in the calibration products
+        self.ignore_calibration_errors = False
+
         super().__init__()

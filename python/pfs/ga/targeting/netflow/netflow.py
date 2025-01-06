@@ -443,6 +443,11 @@ class Netflow():
                     cidx2 = int(m.group(4))
                     vidx = int(m.group(5))
                     self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, vidx)] = c
+            elif c.constrName.startswith('Tv_o_broken'):
+                m = re.match(r'Tv_o_broken_(\d+)_(\d+)', c.constrName)
+                tidx = int(m.group(1))
+                vidx = int(m.group(2))
+                self.__constraints.Tv_o_broken[(tidx, vidx)] = c
             elif c.constrName.startswith('Tv_o_forb'):
                 m = re.match(r'Tv_o_forb_(\d+)_(\d+)_(\d+)', c.constrName)
                 tidx1 = int(m.group(1))
@@ -626,7 +631,8 @@ class Netflow():
             pmra = pmdec = None
             rv = None
 
-        fp_pos = self.__instrument.radec_to_fp_pos(pointing, ra, dec,
+        fp_pos = self.__instrument.radec_to_fp_pos(ra, dec,
+                                                   pointing=pointing,
                                                    epoch=epoch,
                                                    pmra=pmra, pmdec=pmdec, parallax=parallax, rv=rv)
                 
@@ -822,59 +828,16 @@ class Netflow():
 
                     # Distance from the home position of the broken cobra to the targets
                     d = self.__instrument.bench.distancesBetweenLineSegments(
-                        np.repeat(fp_pos, ntidx.size), np.repeat(eb_pos, ntidx.size),
-                        nfp_pos, neb_pos)
+                        np.repeat(fp_pos, ntidx.size),
+                        np.repeat(eb_pos, ntidx.size),
+                        nfp_pos,
+                        neb_pos)
 
                     t = list(ntidx[d < collision_distance])
                     if len(t) > 0:
                         res[(cidx, ncidx)] += t
 
         return res
-    
-    # def __get_colliding_broken_elbows(self, pidx, collision_distance):
-    #     """
-    #     For each broken cobra, look up the neighboring cobras and return the list of
-    #     targets that would cause elbow collision with the broken cobra in home position.
-
-    #     This requires two test: whether any of the neighboring targets cause an elbow
-    #     collision with the tip of the broken cobra, and whether the elbow of the broken
-    #     cobra causes a collision with the tip of the neighboring cobras.
-    #     """
-
-    #     tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]            
-
-    #     # For each broken cobra, look up the neighboring cobras and loop over them
-    #     res = defaultdict(list)
-    #     for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
-    #         # Elbow position of the broken cobra corresponding to the home position
-    #         fp_pos = np.atleast_1d(self.__bench.cobras.home0[cidx])
-    #         eb_pos = self.__bench.cobras.calculateCobraElbowPositions(cidx, fp_pos)
-
-    #         for ncidx in self.__bench.getCobraNeighbors(cidx):
-    #             # This is another broken cobra nothing to do with it
-    #             if self.__bench.cobras.hasProblem[ncidx]:
-    #                 continue
-
-    #             # Collect the targets and elbow positions corresponding to the neighboring cobra
-    #             ntidx = np.array([ ti for ti, _ in self.__visibility[pidx].cobras_targets[ncidx] ])
-
-    #             if ntidx.size > 0:
-    #                 nfp_pos = self.__target_fp_pos[pidx][tidx_to_fpidx_map[ntidx]]
-    #                 neb_pos = self.__bench.cobras.calculateCobraElbowPositions(ncidx, nfp_pos)
-
-    #                 # TODO: verify these
-
-    #                 d1 = self.__bench.distancesToLineSegments(nfp_pos, np.repeat(fp_pos, ntidx.shape), np.repeat(eb_pos, ntidx.shape))
-    #                 t = list(ntidx[d1 < collision_distance])
-    #                 if len(t) > 0:
-    #                     res[cidx] += t
-
-    #                 d2 = self.__bench.distancesToLineSegments(np.repeat(fp_pos, ntidx.shape), nfp_pos, neb_pos)
-    #                 t = list(ntidx[d2 < collision_distance])
-    #                 if len(t) > 0:
-    #                     res[cidx] += t
-
-    #     return res
 
     #endregion
 
@@ -1332,6 +1295,7 @@ class Netflow():
             Tv_o_coll = dict(),             # Fiber (endpoint or elbow) collision constraints,
                                             #      key: (tidx1, tidx2, visit_idx) if endpoint collisions
                                             #      key: (cidx1, cidx2, visit_idx) if elbow collisions -- why?
+            Tv_o_broken = dict(),           # Broken cobra constraints, key: (tidx, visit_idx)
             Tv_o_forb = dict(),             # Forbidden pairs, key: (tidx1, tidx2, visit_idx)
 
             Cv_CG_min = dict(),             # Cobra group minimum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
@@ -1401,6 +1365,7 @@ class Netflow():
 
             # > Tv_o_coll_{?}_{?}_{visit_idx} (endpoint collisions)
             # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx} (elbow collisions)
+            # > Tv_o_broken_{target_idx}_{visit_idx} (collision with broken cobras)
             logger.debug("Creating cobra collision constraints.")
             self.__create_cobra_collision_constraints(visit)
 
@@ -1775,7 +1740,7 @@ class Netflow():
                 logger.debug("Ignoring elbow collision constraints")
 
             if not ignore_broken_cobra_collisions:
-                # > Tv_o_coll_{target_idx}_{visit_idx}
+                # > Tv_o_broken_{target_idx}_{visit_idx}
                 logger.debug('Adding broken cobra collision constraints')
                 self.__create_broken_cobra_collision_constraints(visit)
             else:
@@ -1842,10 +1807,10 @@ class Netflow():
             for tidx in tidx_list:
                 vars = [ v for v, cidx in self.__variables.Tv_o[(tidx, vidx)] ]
                 
-                name = self.__make_name("Tv_o_coll", tidx, vidx)
+                name = self.__make_name("Tv_o_broken", tidx, vidx)
                 # constr = self.__problem.sum(vars) = 0
                 constr = ([1] * len(vars), vars, '=', 0)
-                self.__constraints.Tv_o_coll[(tidx, vidx)] = constr
+                self.__constraints.Tv_o_broken[(tidx, vidx)] = constr
                 self.__add_constraint(name, constr)
 
     def __create_forbidden_target_constraints(self, visit):

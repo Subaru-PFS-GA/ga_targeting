@@ -8,7 +8,7 @@ from test_base import TestBase
 from pfs.ga.targeting.config import NetflowConfig
 from pfs.ga.targeting.config.instrumentoptionsconfig import InstrumentOptionsConfig
 from pfs.ga.targeting.projection import Pointing
-from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC
+from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC, CobraAngleFlags
 from pfs.ga.targeting.diagram import FOV
 
 class SubaruPFITest(TestBase):
@@ -18,9 +18,9 @@ class SubaruPFITest(TestBase):
         config = NetflowConfig()
         inst = SubaruPFI(instrument_options=config.instrument_options)
 
-    def test_create_grand_fiber_map(self):
+    def test_load_grand_fiber_map(self):
         inst = SubaruPFI()
-        inst._SubaruPFI__create_grand_fiber_map()
+        inst._SubaruPFI__load_grand_fiber_map()
 
     def test_get_fiber_map(self):
         inst = SubaruPFI()
@@ -45,17 +45,6 @@ class SubaruPFITest(TestBase):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
         inst = SubaruPFI(instrument_options=instrument_options)
         bench = inst.bench
-
-    def test_radec_to_altaz(self):
-        inst = SubaruPFI()
-        az, el, inr = inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2016-04-03T08:00:00Z"))
-
-    def test_radec_to_fp_pos(self):
-        inst = SubaruPFI()
-        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
-        inst.radec_to_fp_pos(pointing,
-                             np.array(226.3),
-                             np.array(67.5))
 
     def test_find_associations(self):
         inst = SubaruPFI()
@@ -86,3 +75,99 @@ class SubaruPFITest(TestBase):
         self.save_fig(f)
 
         # TODO: test wrap-around
+
+    def test_radec_to_altaz(self):
+        inst = SubaruPFI()
+        az, el, inr = inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2024-06-10T00:00:00.0Z"))
+
+    def test_get_visibility(self):
+        # Ursa Minor dSph visible
+        inst = SubaruPFI()
+        visible, airmass = inst.get_visibility(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
+        self.assertTrue(visible)
+
+        # Below horizon
+        visible, airmass = inst.get_visibility(0, 0, posang=0, obs_time=Time("2016-04-03T08:00:00Z"))
+        self.assertFalse(visible)
+
+        # Bootes I is visible at a very large airmass
+        visible, airmass = inst.get_visibility(210.025, 14.5, posang=30, obs_time=Time("2025-01-24T11:00:00Z"))
+        self.assertTrue(visible)
+        self.assertTrue(airmass > 5)
+
+    def test_radec_to_fp_pos(self):
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        inst = SubaruPFI(instrument_options=instrument_options)
+        pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
+        fp_pos = inst.radec_to_fp_pos(np.array(226.3),
+                                      np.array(67.5),
+                                      pointing=pointing)
+        
+    def generate_random_fp_pos(self, centers, n=100):
+        np.random.seed(0)
+        phi = np.random.uniform(0, 2*np.pi, size=n)
+        r = np.sqrt(np.random.uniform(0, 1.0, size=n)) * 5.6
+        fp_pos = centers + r * np.cos(phi) + r * np.sin(phi) * 1j
+        return fp_pos
+        
+    def test_fp_pos_to_cobra_angles(self):
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        inst = SubaruPFI(instrument_options=instrument_options)
+
+        s = np.s_[:120]
+        cidx = np.arange(inst.bench.cobras.nCobras)[s]
+        centers = inst.bench.cobras.centers[s][:, None]
+
+        # Generate random focal plane positions around each cobra
+        # Radius is very slightly beyond the maximum reach of the cobra
+        fp_pos = self.generate_random_fp_pos(centers)
+
+        theta, phi, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+
+        self.assertEqual(theta.shape, (120, 100, 2))
+        self.assertEqual(phi.shape, (120, 100, 2))
+
+        # Make sure there's only secondary solution of there is a first one
+        self.assertTrue(((flags[..., 1] & CobraAngleFlags.SOLUTION_OK) & ~(flags[..., 0] & CobraAngleFlags.SOLUTION_OK)).sum() == 0)
+
+        # Compare to CobraOps implementation
+        theta2, phi2, flags2 = inst.cobra_coach.pfi.positionsToAngles(inst.cobra_coach.allCobras[s], fp_pos[:, 0])
+
+        # First solutions are the same for non-broken cobras
+        # Many second solutions are NaN, so not testing them for now
+        self.assertTrue((theta[:, 0, 0][~inst.bench.cobras.hasProblem[s]] == theta2[:, 0][~inst.bench.cobras.hasProblem[s]]).all())
+
+    def test_cobra_angles_to_fp_pos(self):
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        inst = SubaruPFI(instrument_options=instrument_options)
+
+        s = np.s_[:120]
+        cidx = np.arange(inst.bench.cobras.nCobras)[s]
+        centers = inst.bench.cobras.centers[s][:, None]
+
+        fp_pos = self.generate_random_fp_pos(centers)
+
+        theta, phi, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        fp_pos2 = inst.cobra_angles_to_fp_pos(theta[..., 0], phi[..., 0], cidx)
+
+        pass
+
+    # def test_verify_cobra_angles(self):
+    #     instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+    #     inst = SubaruPFI(instrument_options=instrument_options)
+
+    #     s = np.s_[:120]
+    #     cidx = np.arange(inst.bench.cobras.nCobras)[s]
+    #     centers = inst.bench.cobras.centers[s][:, None]
+
+    #     # Generate random focal plane positions around each cobra
+    #     # Radius is very slightly beyond the maximum reach of the cobra
+
+    #     phi = np.random.uniform(0, 2*np.pi, size=(1, 100))
+    #     r = np.sqrt(np.random.uniform(0, 1.0, size=(1, 100))) * 5.6
+    #     fp_pos = centers + r * np.cos(phi) + r * np.sin(phi) * 1j
+
+    #     theta, phi = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+    #     mask = inst.verify_cobra_angles(theta, phi, cidx)
+
+    #     pass

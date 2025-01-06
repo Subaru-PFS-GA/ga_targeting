@@ -21,3 +21,4 @@ with preserve_logging():
     from ics.cobraOps.BlackDotsCalibrationProduct import BlackDotsCalibrationProduct
     from ics.cobraCharmer.pfiDesign import PFIDesign
     from ics.cobraCharmer.cobraCoach.cobraCoach import CobraCoach
+    from ics.cobraCharmer.pfi import PFI

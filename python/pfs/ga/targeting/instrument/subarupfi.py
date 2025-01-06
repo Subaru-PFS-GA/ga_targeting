@@ -28,6 +28,7 @@ from ..allocation.fiberallocator import FiberAllocator
 from ..projection import Pointing
 from .instrument import Instrument
 from .subaruwfc import SubaruWFC
+from .cobraangleflags import CobraAngleFlags
 
 class SubaruPFI(Instrument, FiberAllocator):
     """
@@ -162,7 +163,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         Create a bench object with default instrument configuration. This is
         not the real configuration and the PFI is rotated by 30 degrees.
         """
-        return Bench(layout='full'), None
+        return Bench(layout='full'), None, None
     
     def __create_configured_bench(self):
         """
@@ -175,6 +176,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         cobra_coach_module_version = self.__get_instrument_option(self.__instrument_options.cobra_coach_module_version, None)
         spectgrograph_modules = self.__get_instrument_option(self.__instrument_options.spectrograph_modules, [1, 2, 3, 4])
         black_dot_radius_margin = self.__get_instrument_option(self.__instrument_options.black_dot_radius_margin, 1.0)
+        ignore_calibration_errors = self.__get_instrument_option(self.__instrument_options.ignore_calibration_errors, False)
 
         # Create the cobra coach temp directory if it does not exist
         if not os.path.isdir(cobra_coach_dir):
@@ -192,28 +194,44 @@ class SubaruPFI(Instrument, FiberAllocator):
         # Set some dummy center positions and phi angles for those cobras that have
         # zero centers
         zeroCenters = calib_model.centers == 0
-        calib_model.centers[zeroCenters] = np.arange(np.sum(zeroCenters)) * 300j
-        calib_model.phiIn[zeroCenters] = -np.pi
-        calib_model.phiOut[zeroCenters] = 0
-        logger.info("Cobras with zero centers: %i" % np.sum(zeroCenters))
-
+        if zeroCenters.any():
+            msg = f"Cobras with zero centers: {np.sum(zeroCenters)}"
+            if not ignore_calibration_errors:
+                raise ValueError(msg)
+            else:
+                calib_model.centers[zeroCenters] = np.arange(np.sum(zeroCenters)) * 300j
+                calib_model.phiIn[zeroCenters] = -np.pi
+                calib_model.phiOut[zeroCenters] = 0
+                logger.warning(msg)
+                
         # Use the median value link lengths in those cobras with zero link lengths
         zeroLinkLengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
-        calib_model.L1[zeroLinkLengths] = np.median(calib_model.L1[~zeroLinkLengths])
-        calib_model.L2[zeroLinkLengths] = np.median(calib_model.L2[~zeroLinkLengths])
-        logger.info("Cobras with zero link lengths: %i" % np.sum(zeroLinkLengths))
+        if zeroLinkLengths.any():
+            msg = f"Cobras with zero link lengths: {np.sum(zeroLinkLengths)}"
+            if not ignore_calibration_errors:
+                raise ValueError(msg)
+            else:
+                calib_model.L1[zeroLinkLengths] = np.median(calib_model.L1[~zeroLinkLengths])
+                calib_model.L2[zeroLinkLengths] = np.median(calib_model.L2[~zeroLinkLengths])
+                logger.warning(msg)
 
         # Use the median value link lengths in those cobras with too long link lengths
         tooLongLinkLengths = (calib_model.L1 > 100) | (calib_model.L2 > 100)
-        calib_model.L1[tooLongLinkLengths] = np.median(calib_model.L1[~tooLongLinkLengths])
-        calib_model.L2[tooLongLinkLengths] = np.median(calib_model.L2[~tooLongLinkLengths])
-        logger.info("Cobras with too long link lengths: %i" % np.sum(tooLongLinkLengths))
+        if tooLongLinkLengths.any():
+            msg = f"Cobras with too long link lengths: {np.sum(tooLongLinkLengths)}"
+            if not ignore_calibration_errors:
+                raise ValueError(msg)
+            else:
+                calib_model.L1[tooLongLinkLengths] = np.median(calib_model.L1[~tooLongLinkLengths])
+                calib_model.L2[tooLongLinkLengths] = np.median(calib_model.L2[~tooLongLinkLengths])
+                logger.warning(msg)
 
         # Limit spectral modules
         gfm = self.__get_fiber_map()
         cobra_ids_use = np.array([], dtype=np.uint16)
         for sm in spectgrograph_modules:
             cobra_ids_use = np.append(cobra_ids_use, gfm.cobrasForSpectrograph(sm))
+        logger.info(f"Using {len(cobra_ids_use)} cobras from {len(spectgrograph_modules)} spectrograph modules")
 
         # Set Bad Cobra status for unused spectral modules
         for cobra_id in range(calib_model.nCobras):
@@ -237,24 +255,37 @@ class SubaruPFI(Instrument, FiberAllocator):
         radec, mask = self.__projection.pixel_to_world(centers)
 
         return centers, radec
-    
+
     def radec_to_altaz(self,
                        ra, dec, posang, obs_time,
                        epoch=2000.0, pmra=0.0, pmdec=0.0, parallax=1e-6, rv=0.0):
-        """
         
         """
-
-        # TODO: This should actually go under a telescope class
+        Convert equatorial coordinates to alt-az coordinates at the location of
+        the Subaru Telescope.
+        """
 
         az, el, inr = DCoeff.radec_to_subaru(ra, dec, posang, obs_time,
                                              epoch=epoch, pmra=pmra, pmdec=pmdec, par=1e-6)
 
         return az, el, inr
     
+    def get_visibility(self, ra, dec, posang, obs_time):
+        """
+        Check if a target is visible at the Subaru Telescope.
+        """
+        
+        # Convert pointing center into azimuth and elevation (+ instrument rotator angle)
+        alt, az, inr = self.radec_to_altaz(ra, dec, posang, obs_time)
+
+        # Calculate airmass from AZ
+        airmass = 1.0 / np.sin(np.radians(90.0 - alt))
+
+        return az > 0, airmass
+    
     def radec_to_fp_pos(self,
-                        pointing,
                         ra, dec,
+                        pointing,
                         epoch=2000.0, pmra=None, pmdec=None, parallax=None, rv=None):
         
         """
@@ -303,6 +334,142 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         xy = fp_pos[:2, :].T
         return xy[..., 0] + 1j * xy[..., 1]
+        
+    def fp_pos_to_cobra_angles(self, fp_pos, cobraidx):
+        """
+        Convert focal plane position to cobra angles.
+
+        For each focal plane positions, two sets of theta and phi angles are calculated
+
+        The function is a slightly improved version of the cobraCharmer.PFI.positionsToAngles
+        to allow calculating the angles for multiple targets at the same time.
+        """
+
+        batch_shape = (Ellipsis,) + (fp_pos.ndim - cobraidx.ndim) * (None,)
+
+        centers = self.__bench.cobras.centers[cobraidx][batch_shape]
+        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+
+        rel_fp_pos = fp_pos - centers
+        d = np.abs(rel_fp_pos)
+        d_2 = d * d
+        
+        L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
+        L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
+        L1_2 = L1 ** 2
+        L2_2 = L2 ** 2
+
+        arp = np.angle(rel_fp_pos)
+        ang1 = np.arccos((L1_2 + L2_2 - d_2) / (2 * L1 * L2))
+        ang2 = np.arccos((L1_2 + d_2 - L2_2) / (2 * L1 * d))
+        
+        phi_in = self.__bench.cobras.phiIn[cobraidx][batch_shape] + np.pi
+        phi_out = self.__bench.cobras.phiOut[cobraidx][batch_shape] + np.pi
+        theta0 = self.__bench.cobras.tht0[cobraidx][batch_shape]
+        theta1 = self.__bench.cobras.tht1[cobraidx[batch_shape]]
+        
+        # Return values
+        phi = np.full(fp_pos.shape + (2,), np.nan)
+        theta = np.full(fp_pos.shape + (2,), np.nan)
+        flags = np.full(fp_pos.shape + (2,), 0, dtype=int)
+
+        # Handle the various cases of problematic configurations
+        
+        # - too far away, return theta= spot angle and phi=PI
+        too_far_from_center = ~bad_cobra & (d > L1 + L2)
+        flags[too_far_from_center, 0] |= CobraAngleFlags.TOO_FAR_FROM_CENTER
+        phi[too_far_from_center, 0] = np.pi
+        theta[too_far_from_center, 0] = (arp - theta0)[too_far_from_center] % (2 * np.pi)
+        
+        # - too close to center, theta is undetermined, return theta=spot angle and phi=0
+        too_close_to_center = ~bad_cobra & (d < np.abs(L1 - L2))
+        flags[too_close_to_center, 0] |= CobraAngleFlags.TOO_CLOSE_TO_CENTER
+        phi[too_close_to_center, 0] = 0.0
+        theta[too_close_to_center, 0] = (arp - theta0)[too_close_to_center] % (2 * np.pi)
+
+        # -- Solution type 1
+        
+        # - the regular solutions, phi angle is between 0 and pi, no checking for phi hard stops
+        solution_ok = ~bad_cobra & ~too_far_from_center & ~too_close_to_center
+        flags[solution_ok, 0] |= CobraAngleFlags.SOLUTION_OK
+        phi[solution_ok, 0] = (ang1 - phi_in)[solution_ok]
+        theta[solution_ok, 0] = (arp + ang2 - theta0)[solution_ok] % (2 * np.pi)
+        # theta in overlap region
+        in_overlapping_region = solution_ok & (theta[..., 0] <= (theta1 - theta0) % (2 * np.pi))
+        flags[in_overlapping_region, 0] |= CobraAngleFlags.IN_OVERLAPPING_REGION
+        
+        # -- Solution type 2
+
+        solution_ok_2 = solution_ok & (ang1 <= np.pi / 2) & (ang1 > 0)
+        phi_ok_2 = (phi_in <= -ang1)
+        flags[solution_ok_2 & phi_ok_2, 1] |= CobraAngleFlags.SOLUTION_OK
+        flags[solution_ok_2, 1] |= CobraAngleFlags.PHI_NEGATIVE
+        # phiIn < 0
+        phi[solution_ok_2, 1] = (-ang1 - phi_in)[solution_ok_2]
+        theta[solution_ok_2, 1] = (arp - ang2 - theta0)[solution_ok_2] % (2 * np.pi)
+        # theta in overlap region
+        in_overlapping_region = solution_ok_2 & (theta[..., 1] <= (theta1 - theta0) % (2 * np.pi))
+        flags[in_overlapping_region, 1] |= CobraAngleFlags.IN_OVERLAPPING_REGION
+
+        # -- Solution type  3
+
+        solution_ok_3 = solution_ok & (ang1 > np.pi / 2) & (ang1 < np.pi)
+        phi_ok_3 = (phi_out >= 2 * np.pi - ang1)
+        flags[solution_ok_3 & phi_ok_3, 1] |= CobraAngleFlags.SOLUTION_OK
+        flags[solution_ok_3, 1] |= CobraAngleFlags.PHI_BEYOND_PI
+        # phiOut > np.pi
+        phi[solution_ok_3, 1] = (2 * np.pi - ang1 - phi_in)[solution_ok_3]
+        theta[solution_ok_3, 1] = (arp - ang2 - theta0)[solution_ok_3] % (2 * np.pi)
+        # theta in overlap region
+        in_overlapping_region = solution_ok_3 & (theta[..., 1] <= (theta1 - theta0) % (2 * np.pi))
+        flags[in_overlapping_region, 1] |= CobraAngleFlags.IN_OVERLAPPING_REGION
+                    
+        return theta, phi, flags
+    
+    def cobra_angles_to_fp_pos(self, theta, phi, cobraidx):
+        """
+        Convert cobra angles to focal plane position.
+        """
+
+        batch_shape = (Ellipsis,) + (theta.ndim - cobraidx.ndim) * (None,)
+
+        centers = self.__bench.cobras.centers[cobraidx][batch_shape]
+        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+
+        L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
+        L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
+
+        phi_in = self.__bench.cobras.phiIn[cobraidx][batch_shape] + np.pi
+        phi_out = self.__bench.cobras.phiOut[cobraidx][batch_shape] + np.pi
+        theta0 = self.__bench.cobras.tht0[cobraidx][batch_shape]
+        theta1 = self.__bench.cobras.tht1[cobraidx[batch_shape]]
+
+        theta_range = (theta1 - theta0 + np.pi) % (2 * np.pi) + np.pi
+        if np.any(0 > theta) or np.any(theta_range < theta):
+            self.logger.error('Some theta angles are out of range')
+        
+        phi_range = phi_out - phi_in
+        if np.any(0 > phi) or np.any(phi_range < phi):
+            self.logger.error('Some phi angles are out of range')
+
+        ang1 = theta0 + theta
+        ang2 = ang1 + phi + phi_in
+        fp_pos = centers + L1 * np.exp(1j * ang1) + L2 * np.exp(1j * ang2)
+
+        return fp_pos
+    
+    def fp_pos_to_eb_pos(self, fp_pos):
+        """
+        Convert focal plane position to elbow position.
+        """
+
+        # TODO: cobraOps function assumes one position per cobra, we need
+        #       to calculate the elbow position for every target to allow
+        #       for pre-filtering
+        #       this function should also take the angles as input
+
+        raise NotImplementedError()
+        return self.__bench.cobras.calculateElbowPositions(fp_pos)
 
     def find_associations(self, *coords, mask=None):
         
