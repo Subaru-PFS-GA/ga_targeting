@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import numpy.testing as npt
 import matplotlib.pyplot as plt
 from astropy.time import Time
 
@@ -77,10 +78,14 @@ class SubaruPFITest(TestBase):
         # TODO: test wrap-around
 
     def test_radec_to_altaz(self):
+        # TODO: move to telescope class
+
         inst = SubaruPFI()
         az, el, inr = inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2024-06-10T00:00:00.0Z"))
 
     def test_get_visibility(self):
+        # TODO: move to telescope class
+
         # Ursa Minor dSph visible
         inst = SubaruPFI()
         visible, airmass = inst.get_visibility(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
@@ -122,7 +127,7 @@ class SubaruPFITest(TestBase):
         # Radius is very slightly beyond the maximum reach of the cobra
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        theta, phi, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
 
         self.assertEqual(theta.shape, (120, 100, 2))
         self.assertEqual(phi.shape, (120, 100, 2))
@@ -137,6 +142,16 @@ class SubaruPFITest(TestBase):
         # Many second solutions are NaN, so not testing them for now
         self.assertTrue((theta[:, 0, 0][~inst.bench.cobras.hasProblem[s]] == theta2[:, 0][~inst.bench.cobras.hasProblem[s]]).all())
 
+        # Verify that the elbow positions are correct
+        L2 = inst.bench.cobras.L2[cidx][..., None]
+        theta0 = inst.bench.cobras.tht0[cidx][..., None]
+
+        solution_ok = (flags[..., 0] & CobraAngleFlags.SOLUTION_OK) != 0
+        npt.assert_almost_equal((np.abs(eb_pos[..., 0] - fp_pos) - L2)[solution_ok], 0)
+
+        solution_ok = (flags[..., 1] & CobraAngleFlags.SOLUTION_OK) != 0
+        npt.assert_almost_equal((np.abs(eb_pos[..., 1] - fp_pos) - L2)[solution_ok], 0)
+
     def test_cobra_angles_to_fp_pos(self):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
         inst = SubaruPFI(instrument_options=instrument_options)
@@ -147,7 +162,7 @@ class SubaruPFITest(TestBase):
 
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        theta, phi, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
         fp_pos2 = inst.cobra_angles_to_fp_pos(theta[..., 0], phi[..., 0], cidx)
 
         pass
@@ -171,3 +186,4 @@ class SubaruPFITest(TestBase):
     #     mask = inst.verify_cobra_angles(theta, phi, cidx)
 
     #     pass
+
