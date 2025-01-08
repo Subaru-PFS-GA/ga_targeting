@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import numpy.testing as npt
 import matplotlib.pyplot as plt
 from astropy.time import Time
 
@@ -90,6 +91,35 @@ class NetflowTest(TestBase):
 
         # Focal plane position is set such that observations don't cover it completely
         self.assertRaises(AssertionError, nf._Netflow__check_target_fp_pos)
+
+    def test_calculate_visibility_and_elbow(self):
+        instrument = SubaruPFI()
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        obs = self.load_test_observation()
+        config = NetflowConfig.default()
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     debug_options=config.debug_options)
+        nf.append_science_targets(obs, exp_time=1200, priority=1)
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+
+        nf._Netflow__calculate_target_fp_pos()
+        nf._Netflow__check_target_fp_pos()
+
+        targets_cobras, cobras_targets = nf._Netflow__calculate_visibility_and_elbow(nf._Netflow__target_fp_pos[0], nf._Netflow__fp_pos_to_cache_map[0])
+
+        # Find a few cases when there are multiple solutions and verify they give the same focal plane position
+        for cidx in cobras_targets:
+            two_sol = { ti: (eb, an) for ti, eb, an in cobras_targets[cidx] if len(eb) > 1 }
+            for tidx in two_sol:
+                eb, an = two_sol[tidx]
+                fp = nf._Netflow__target_fp_pos[0][nf._Netflow__cache_to_fp_pos_map[0][tidx]]
+                fp0 = instrument.cobra_angles_to_fp_pos(np.atleast_1d(an[0][0]), np.atleast_1d(an[0][1]), np.atleast_1d(cidx))
+                fp1 = instrument.cobra_angles_to_fp_pos(np.atleast_1d(an[1][0]), np.atleast_1d(an[1][1]), np.atleast_1d(cidx))
+
+                npt.assert_almost_equal(fp0, fp1)
         
     def test_solve(self):
         # This is a full coverage test, does not validate the results and

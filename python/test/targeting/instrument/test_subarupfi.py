@@ -119,7 +119,7 @@ class SubaruPFITest(TestBase):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
         inst = SubaruPFI(instrument_options=instrument_options)
 
-        s = np.s_[:120]
+        s = np.s_[:]
         cidx = np.arange(inst.bench.cobras.nCobras)[s]
         centers = inst.bench.cobras.centers[s][:, None]
 
@@ -127,20 +127,33 @@ class SubaruPFITest(TestBase):
         # Radius is very slightly beyond the maximum reach of the cobra
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
 
-        self.assertEqual(theta.shape, (120, 100, 2))
-        self.assertEqual(phi.shape, (120, 100, 2))
+        self.assertEqual(theta.shape, (2394, 100, 2))
+        self.assertEqual(phi.shape, (2394, 100, 2))
 
         # Make sure there's only secondary solution of there is a first one
         self.assertTrue(((flags[..., 1] & CobraAngleFlags.SOLUTION_OK) & ~(flags[..., 0] & CobraAngleFlags.SOLUTION_OK)).sum() == 0)
 
+        # Make sure the two solutions evaluate to the same position
+        fp_pos2 = inst.cobra_angles_to_fp_pos(theta, phi, cidx)
+
+        mask = (flags & CobraAngleFlags.SOLUTION_OK != 0)
+        npt.assert_almost_equal(fp_pos[mask[..., 0]], fp_pos2[..., 0][mask[..., 0]])
+        npt.assert_almost_equal(fp_pos[mask[..., 1]], fp_pos2[..., 1][mask[..., 1]])
+
         # Compare to CobraOps implementation
-        theta2, phi2, flags2 = inst.cobra_coach.pfi.positionsToAngles(inst.cobra_coach.allCobras[s], fp_pos[:, 0])
 
         # First solutions are the same for non-broken cobras
         # Many second solutions are NaN, so not testing them for now
-        self.assertTrue((theta[:, 0, 0][~inst.bench.cobras.hasProblem[s]] == theta2[:, 0][~inst.bench.cobras.hasProblem[s]]).all())
+        for j in range(fp_pos.shape[1]):
+            theta2, phi2, flags2 = inst.cobra_coach.pfi.positionsToAngles(inst.cobra_coach.allCobras[s], fp_pos[:, j])
+            for i in range(2):
+                npt.assert_almost_equal(theta[:, j, i][~inst.bench.cobras.hasProblem[s]], theta2[:, i][~inst.bench.cobras.hasProblem[s]])
+                npt.assert_almost_equal(phi[:, j, i][~inst.bench.cobras.hasProblem[s]], phi2[:, i][~inst.bench.cobras.hasProblem[s]])
+                
+                # Flags don't match by definition
+                # self.assertTrue((flags[:, j, i] == flags2[:, i]).all())
 
         # Verify that the elbow positions are correct
         L2 = inst.bench.cobras.L2[cidx][..., None]
@@ -162,7 +175,7 @@ class SubaruPFITest(TestBase):
 
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
         fp_pos2 = inst.cobra_angles_to_fp_pos(theta[..., 0], phi[..., 0], cidx)
 
         pass

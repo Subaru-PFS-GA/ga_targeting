@@ -6,4 +6,4 @@ class CobraAngleFlags:
     TOO_CLOSE_TO_CENTER   = 0x0010  # 1 if the position is too close to the center
     TOO_FAR_FROM_CENTER   = 0x0020  # 1 if the position is too far from the center
     THETA_OUT_OF_RANGE    = 0x0040  # 1 if the theta angle is out of range 
-    PHI_OUT_OF_RANGE      = 0x0100  # 1 if the phi angle is out of range 
+    PHI_OUT_OF_RANGE      = 0x0080  # 1 if the phi angle is out of range

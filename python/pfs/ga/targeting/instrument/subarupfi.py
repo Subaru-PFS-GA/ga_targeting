@@ -349,23 +349,30 @@ class SubaruPFI(Instrument, FiberAllocator):
         xy = fp_pos[:2, :].T
         return xy[..., 0] + 1j * xy[..., 1]
     
+    def __get_reshaped_cobra_config(self, ndim, cobraidx):
+        """
+        Reshape the cobra configuration to match the shape of the input data.
+        """
+        
+        batch_shape = (Ellipsis,) + (ndim - cobraidx.ndim) * (None,)
+        centers = self.__bench.cobras.centers[cobraidx][batch_shape]
+        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+        L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
+        L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
+
+        return batch_shape, bad_cobra, centers, L1, L2
+    
     def fp_pos_to_rel_fp_pos(self, fp_pos, cobraidx):
         """
         Convert focal plane positions to relative focal plane positions. It also returns
         a few precomputed parameters.
         """
 
-        batch_shape = (Ellipsis,) + (fp_pos.ndim - cobraidx.ndim) * (None,)
-
-        centers = self.__bench.cobras.centers[cobraidx][batch_shape]
-        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+        batch_shape, bad_cobra, centers, L1, L2 = self.__get_reshaped_cobra_config(fp_pos.ndim, cobraidx)
 
         rel_fp_pos = fp_pos - centers
         d = np.abs(rel_fp_pos)
         d_2 = d * d
-        
-        L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
-        L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
 
         return batch_shape, bad_cobra, rel_fp_pos, centers, L1, L2, d, d_2 
         
@@ -473,7 +480,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         theta_range = (theta1 - theta0 + np.pi) % (2 * np.pi) + np.pi
         theta_out_of_range = solution_ok & ((theta[..., 0] < 0) | (theta_range < theta[..., 0]))
         flags[theta_out_of_range, 0] |= CobraAngleFlags.THETA_OUT_OF_RANGE
-        theta_out_of_range = (solution_ok_2 | solution_ok_3) &  ((theta[..., 1] < 0) | (theta_range < theta[..., 1]))
+        theta_out_of_range = (solution_ok_2 | solution_ok_3) & ((theta[..., 1] < 0) | (theta_range < theta[..., 1]))
         flags[theta_out_of_range, 1] |= CobraAngleFlags.THETA_OUT_OF_RANGE
 
         phi_range = phi_out - phi_in
@@ -482,23 +489,22 @@ class SubaruPFI(Instrument, FiberAllocator):
         phi_out_of_range = (solution_ok_2 | solution_ok_3) & ((phi[..., 1] < 0) | (phi_range < phi[..., 1]))
         flags[phi_out_of_range, 1] |= CobraAngleFlags.PHI_OUT_OF_RANGE
 
-        # Calculate the elbow positions while were at it
+        # Calculate the elbow positions while we're at it
         eb_pos = np.full_like(theta, np.nan, dtype=complex)
         eb_pos[solution_ok, 0] = (centers + L1 * np.exp(1j * (theta[..., 0] + theta0)))[solution_ok]
         eb_pos[solution_ok_2 | solution_ok_3, 1] = (centers + L1 * np.exp(1j * (theta[..., 1] + theta0)))[solution_ok_2 | solution_ok_3]
                     
-        return theta, phi, eb_pos, flags
+        return theta, phi, d, eb_pos, flags
     
     def cobra_angles_to_fp_pos(self, theta, phi, cobraidx):
         """
         Convert cobra angles to focal plane position.
         """
 
-        batch_shape, bad_cobra, rel_fp_pos, centers, L1, L2, d, d_2 = \
-            self.fp_pos_to_rel_fp_pos(fp_pos, cobraidx)
+        batch_shape, bad_cobra, centers, L1, L2 = self.__get_reshaped_cobra_config(theta.ndim, cobraidx)
 
-        phi_in = self.__bench.cobras.phiIn[cobraidx][batch_shape] + np.pi
-        phi_out = self.__bench.cobras.phiOut[cobraidx][batch_shape] + np.pi
+        phi_in = self.__bench.cobras.phiIn[cobraidx][batch_shape]
+        phi_out = self.__bench.cobras.phiOut[cobraidx][batch_shape]
         theta0 = self.__bench.cobras.tht0[cobraidx][batch_shape]
         theta1 = self.__bench.cobras.tht1[cobraidx[batch_shape]]
 
@@ -507,13 +513,13 @@ class SubaruPFI(Instrument, FiberAllocator):
 
         theta_range = (theta1 - theta0 + np.pi) % (2 * np.pi) + np.pi
         if np.any(0 > theta) or np.any(theta_range < theta):
-            self.logger.error('Some theta angles are out of range')
+            logger.error('Some theta angles are out of range')
         
         phi_range = phi_out - phi_in
         if np.any(0 > phi) or np.any(phi_range < phi):
-            self.logger.error('Some phi angles are out of range')
+            logger.error('Some phi angles are out of range')
 
-        ang1 = theta0 + theta
+        ang1 = theta + theta0
         ang2 = ang1 + phi + phi_in
         fp_pos = centers + L1 * np.exp(1j * ang1) + L2 * np.exp(1j * ang2)
 
