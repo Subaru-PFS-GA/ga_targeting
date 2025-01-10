@@ -1,5 +1,7 @@
+from pandas import DataFrame
+
 from ..util import *
-from ..photometry import Photometry
+from ..photometry import Photometry, Magnitude
 
 class CatalogSerializer():
 
@@ -56,6 +58,95 @@ class CatalogSerializer():
 
     def append_photometry(self, photometry):
         self.__photometry[photometry.name] = photometry
+
+    def _read_photometry(self, df: DataFrame, name=None, latex=None):
+        """
+        Generate the photometry objects based on the columns defined in the
+        `filters` and `bands` columns of the data frame.
+        """
+    
+        if self.__filters is not None:
+            # Filter names are listed explicitly in the `filters` attribute.
+            filters = self.__filters
+        elif self.__bands is not None:
+            # The filter names are in a dataframe column. Get the unique values of this
+            # column for each band and try to separate the filters into several photometric
+            # systems.
+            
+            # Collect all unique filter names
+            # TODO: collect column names from config for each band
+            filters = {}
+            for b, band in self.__bands.items():
+                for f in df[band['filter']].unique():
+                    filters[f] = band
+        else:
+            # No photometry information available
+            return None
+
+        try:
+            photometry_names = self.__guess_photometry(filters, default_name=name, default_latex=latex)
+            for p in photometry_names:
+                photometry = Photometry(name=p, latex=p)
+                for m, config in photometry_names[p].items():
+                    magnitude = Magnitude(filter=m, latex=m)
+                    magnitude._set_columns(config)
+                    photometry.append_magnitude(magnitude)
+                self.append_photometry(photometry)
+        except ValueError:
+            pass
+
+        return self.__photometry
+        
+    def __guess_photometry(self, filters, default_name='unk', default_latex='unk'):
+        """
+        Guess the photometric systems and filter names from the provided filter names.
+        """
+
+        # Split filter names along underscores and look for common prefixes and
+        # postfixes. The longer repeating prefix/postfix will be the name of photometric
+        # system while the shorter ones are the filter names.
+        prefixes = {}
+        postfixes = {}
+        single_names = {}
+        for f, config in filters.items():
+            parts = f.split('_')
+            if len(parts) == 1:
+                single_names[f] = config
+            elif len(parts) == 2:
+                prefix = parts[0]
+                postfix = parts[-1]
+        
+                if prefix not in prefixes:
+                    prefixes[prefix] = {}
+
+                if postfix not in prefixes[prefix]:
+                    prefixes[prefix][postfix] = config
+
+                if postfix not in postfixes:
+                    postfixes[postfix] = {}
+
+                if prefix not in postfixes[postfix]:
+                    postfixes[postfix][prefix] = config
+            else:
+                raise ValueError('Filter names can contain zero or one underscore.')
+            
+        # See whether postfix or prefix is longer, because that will be the name of
+        # the photometric systems
+
+        # Find the length of the longest key in prefixes
+        pre_ml = max(map(lambda x: len(x), prefixes.keys()))
+        post_ml = max(map(lambda x: len(x), postfixes.keys()))
+
+        if pre_ml > post_ml:
+            photometry_names = prefixes
+        else:
+            photometry_names = postfixes
+
+        # Add single names as an unknown photometric system
+        if len(single_names) > 0:
+            photometry_names['unknown'] = single_names
+
+        return photometry_names
 
     def _create_catalog(self):
         raise NotImplementedError()

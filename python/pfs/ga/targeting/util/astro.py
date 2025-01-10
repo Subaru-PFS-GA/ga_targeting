@@ -9,9 +9,32 @@ def ABmag_to_flux(mag, mag_err=None, zero=0):
     else:
         return flux
 
-def flux_to_ABmag(flux, zero=0):
+def flux_to_ABmag(flux, flux_err=None, zero=0):
     """Convert flux in cgs units to AB mags"""
-    return -2.5 * np.log10(flux) - 48.6 + zero
+    mag = -2.5 * np.log10(flux) - 48.6 + zero
+    if flux_err is not None:
+        mag_err = 2.5 / np.log(10) * flux_err / flux
+        return mag, mag_err
+    else:
+        return mag
+
+def Jy_to_ABmag(flux, flux_err=None, zero=0):
+    """Convert flux in nJy to AB mags"""
+    mag = -2.5 * np.log10(flux) + 8.90 + zero
+    if flux_err is not None:
+        mag_err = 2.5 / np.log(10) * flux_err / flux
+        return mag, mag_err
+    else:
+        return mag
+
+def nJy_to_ABmag(flux, flux_err=None, zero=0):
+    """Convert flux in nJy to AB mags"""
+    mag = -2.5 * np.log10(flux * 1e-9) + 8.90 + zero
+    if flux_err is not None:
+        mag_err = 2.5 / np.log(10) * flux_err / flux
+        return mag, mag_err
+    else:
+        return mag
 
 def ABmag_to_sigma(mag, conversion, sky, sky_sigma=None, zero=0, softening=0):
     if sky_sigma is None:

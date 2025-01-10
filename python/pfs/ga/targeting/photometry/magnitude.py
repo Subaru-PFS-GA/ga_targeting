@@ -17,6 +17,7 @@ class Magnitude():
             self.__sky_sigma: float = sky_sigma or 0
             self.__zero: float = zero or 0
             self.__softening: float = softening or 0
+            self.__columns: dict = {}
         else:
             self.__photometry = orig.__photometry
             self.__filter: str = filter or safe_deep_copy(orig.__filter)
@@ -26,6 +27,7 @@ class Magnitude():
             self.__sky_sigma: float = sky_sigma or orig.__sky_sigma
             self.__zero: float = zero or orig.__zero
             self.__softening: float = softening or orig.__softening
+            self.__columns: dict = orig.__columns
 
         self._validate()
 
@@ -135,6 +137,38 @@ class Magnitude():
         self.__zero = value
 
     zero = property(__get_zero, __set_zero)
+
+    def __get_softening(self) -> float:
+        """
+        Gets the softening factor.
+        """
+
+        return self.__softening
+    
+    def __set_softening(self, value: float):
+        """
+        Sets the softening factor.
+        """
+
+        self.__softening = value
+
+    softening = property(__get_softening, __set_softening)
+
+    def __get_columns(self) -> dict:
+        """
+        Gets the column mappings.
+        """
+
+        return self.__columns
+    
+    def _set_columns(self, value: dict):
+        """
+        Sets the column mappings.
+        """
+
+        self.__columns = value
+
+    columns = property(__get_columns)
 
     def get_name(self, prefix=None, name_mappings=None):
         prefix = prefix or ''

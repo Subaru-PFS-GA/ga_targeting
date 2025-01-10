@@ -113,8 +113,100 @@ class Observation(Catalog):
                     return True
                     
         return False
+    
+    def get_magnitude(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
+        if magnitude.columns is not None and len(magnitude.columns) > 0:
+            return self.get_magnitude_by_column(magnitude, observed=observed, dered=dered, magnitude_type=magnitude_type, mask=mask)
+        else:
+            return self.get_magnitude_by_name(magnitude, observed=observed, dered=dered, magnitude_type=magnitude_type, mask=mask)
+        
+    def get_magnitude_by_column(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
+        """
+        Return the values of a magnitude from the data frame. If the magnitude is
+        not available, but there is a flux column, do the conversion on-the-fly.
+        """
 
-    def get_magnitude(self, magnitude: Magnitude, observed=True, dered=True, mask=None):
+        observed = observed if observed is not None else True
+        dered = dered if dered is not None else True
+        mask = mask if mask is not None else slice(None)
+
+        if magnitude_type is not None and not isinstance(magnitude_type, Iterable):
+            magnitude_type = [ magnitude_type ]
+        elif magnitude_type is None:
+            magnitude_type = [ 'psf', 'fiber', 'total', '' ]
+
+        def get_value(k, mask):
+            if k is not None and k in self.__data:
+                return self.__data[k][mask]
+            else:
+                return None
+            
+        # Depending on what's available in the column list, return the magnitude
+        # Ignore the 'observed' flag
+
+        # Try to find the requested magnitude columns by descreasing order of preference
+        for t in magnitude_type:
+            prefix = f'{t}_' if t != '' else ''
+
+            mag = None
+            flux = None
+            ext = None
+            err = None
+            
+            # Get the column names for the magnitude and its error
+            # Alternatively, use the flux column and its error if the magnitude is not available
+            mag = magnitude.columns.get(f'{prefix}mag')
+            if mag is not None and mag in self.__data:
+                flux = None
+                ext = magnitude.columns.get(f'{prefix}mag_ext')
+                err = magnitude.columns.get(f'{prefix}mag_err')
+            else:
+                mag = None
+                flux = magnitude.columns.get(f'{prefix}flux')
+                if flux is not None and flux in self.__data:
+                    # No extinction in flux units
+                    flux = magnitude.columns.get(f'{prefix}flux')
+                    err = magnitude.columns.get(f'{prefix}flux_err')
+
+            # Get the columns from the data frame
+            mag = get_value(mag, mask)
+            flux = get_value(flux, mask)
+            ext = get_value(ext, mask)
+            err = get_value(err, mask)
+
+            # No mag or flux available, try the next type
+            if mag is None and flux is None:
+                continue
+
+            # TODO: add a unit for flux
+
+            # If there is no magnitude available, convert from flux
+            if mag is None and flux is not None:
+                mag, err = astro.nJy_to_ABmag(flux, err)
+
+            # Apply extinction correction, if available
+            if dered and ext is not None:
+                mag = mag - ext
+            elif dered and ext is None:
+                logger.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
+
+            return mag, err
+        
+        # TODO: if there is a filter column given, only return those rows where
+        #       the column matches the raw filter name
+        #       this requires adding a raw name to the magnitude class
+
+        return None, None
+
+    def get_magnitude_by_name(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
+        """
+        Return the values of a magnitude from the data frame.
+        """
+
+        # Ignore magnitude type for now
+
+        observed = observed if observed is not None else True
+        dered = dered if dered is not None else True
         mask = mask if mask is not None else slice(None)
 
         def get_value(k, mask):

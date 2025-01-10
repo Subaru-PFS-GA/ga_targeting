@@ -27,9 +27,11 @@ class ObservationSerializer(CatalogSerializer, DataFrameSerializer):
     
     def read(self, filename: str, dataset=None, format=None, filter=None, **kwargs) -> pd.DataFrame:
         df = super().read(filename, dataset=dataset, format=format, mask=filter, **kwargs)
+        self._read_photometry(df)
         
         obs = self._create_catalog()
         obs._set_data(df)
+        obs._set_photometry(self.photometry)
 
         return obs
     

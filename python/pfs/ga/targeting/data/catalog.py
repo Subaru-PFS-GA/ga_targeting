@@ -39,7 +39,10 @@ class Catalog(DiagramValueProvider):
 
     def __get_photometry(self):
         return ReadOnlyDict(self.__photometry)
-
+    
+    def _set_photometry(self, value):
+        self.__photometry = value
+    
     photometry = property(__get_photometry)
 
     def __get_frame(self):
