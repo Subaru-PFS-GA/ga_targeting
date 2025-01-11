@@ -180,23 +180,17 @@ class SubaruPFITest(TestBase):
 
         pass
 
-    # def test_verify_cobra_angles(self):
-    #     instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-    #     inst = SubaruPFI(instrument_options=instrument_options)
+    def test_simulate_trajectories(self):
 
-    #     s = np.s_[:120]
-    #     cidx = np.arange(inst.bench.cobras.nCobras)[s]
-    #     centers = inst.bench.cobras.centers[s][:, None]
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        inst = SubaruPFI(instrument_options=instrument_options)
 
-    #     # Generate random focal plane positions around each cobra
-    #     # Radius is very slightly beyond the maximum reach of the cobra
+        s = np.s_[:120]
+        cidx = np.arange(inst.bench.cobras.nCobras)[s]
+        centers = inst.bench.cobras.centers[s][:, None]
 
-    #     phi = np.random.uniform(0, 2*np.pi, size=(1, 100))
-    #     r = np.sqrt(np.random.uniform(0, 1.0, size=(1, 100))) * 5.6
-    #     fp_pos = centers + r * np.cos(phi) + r * np.sin(phi) * 1j
+        fp_pos = self.generate_random_fp_pos(centers)
 
-    #     theta, phi = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
-    #     mask = inst.verify_cobra_angles(theta, phi, cidx)
+        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
 
-    #     pass
-
+        inst.simulate_trajectories(theta, phi, cidx)

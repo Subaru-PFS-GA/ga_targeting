@@ -3,6 +3,7 @@ import numpy as np
 from ics.cobraOps import TargetGroup, TrajectoryGroup
 from ics.cobraCharmer.cobraCoach import engineer
 from ics.cobraCharmer.pfi import PFI
+from ics.cobraCharmer.pfiDesign import PFIDesign
 
 from .setup_logger import logger
 
@@ -70,7 +71,8 @@ class CollisionSimulator():
     
         # Optimize the unassigned cobra positions to minimize their possible
         # collisions with other cobras
-        self.__optimize_unassigned_cobra_positions()
+        # self.__optimize_unassigned_cobra_positions()
+        self.__send_unassigned_cobras_to_home()
 
         # # Define the theta and phi movement directions
         # self.defineMovementDirections()
@@ -103,6 +105,14 @@ class CollisionSimulator():
         self.__final_fiber_positions = self.__instrument.bench.cobras.home0.copy()
         self.__final_fiber_positions[self.__assigned_cobras] = self.__targets.positions[self.__assigned_cobras]
 
+    def __send_unassigned_cobras_to_home(self):
+        """
+        Sends the unassigned cobras to their home positions.
+        """
+
+        # Set the final fiber positions to their home positions
+        self.__final_fiber_positions[~self.__assigned_cobras] = self.__instrument.bench.cobras.home0[~self.__assigned_cobras]
+
     def __optimize_unassigned_cobra_positions(self):
         """
         Finds the unassigned cobras final fiber positions that minimize
@@ -112,8 +122,9 @@ class CollisionSimulator():
         # positions
         elbow_positions = self.__instrument.bench.cobras.calculateElbowPositions(self.__final_fiber_positions)
 
-        # Get the unassigned cobra indices
-        (unassigned_cobra_idx,) = np.where(~self.__assigned_cobras)
+        # Get indexes of unassigned cobras that can be moved
+        broken_cobras = (self.__instrument.calib_model.status & PFIDesign.COBRA_BROKEN_MOTOR_MASK) != 0
+        (unassigned_cobra_idx,) = np.where(~self.__assigned_cobras & ~broken_cobras)
 
         # Find the optimal position for each unassigned cobra
         for cidx in unassigned_cobra_idx:
@@ -153,15 +164,15 @@ class CollisionSimulator():
         """
 
         # Calculate the theta and phi angle ranges based on the calibration product
-        cidx = np.where(self._CollisionSimulator__good_cobras)
+        # cidx = np.where(self.__good_cobras)
+        cidx = np.arange(self.__instrument.bench.cobras.nCobras)
+
         calib_model = self.__instrument.cobra_coach.pfi.calibModel
-        theta_range = (calib_model.tht1[cidx] - calib_model.tht0[cidx] + np.pi) % (2*np.pi) + np.pi
-        phi_range = calib_model.phiOut[cidx] - calib_model.phiIn[cidx]
 
         # Calculate the final theta and phi angles for the good cobras
         theta, phi, flags = self.__instrument.cobra_coach.pfi.positionsToAngles(
-            self.__instrument.cobra_coach.allCobras[self.__good_cobras],
-            self.__final_fiber_positions[self.__good_cobras])
+            self.__instrument.cobra_coach.allCobras[cidx],
+            self.__final_fiber_positions[cidx])
 
         # TODO: positionsToAngles returns two solutions, we should select the best one
 
@@ -178,8 +189,12 @@ class CollisionSimulator():
         engineer.setConstantOntimeMode(maxSteps=max_steps)
 
         # Calculate the cobra trajectories
+        # NOTE: this function will report out-of-range error for broken cobras.
+        #       this seems to be normal behavior, but we should check it.
+        #       cobra status is in self.__instrument.calib_model.status which provides a
+        #       status for each cobra.
         self.__trajectories, _ = engineer.createTrajectory(
-            np.where(self.__good_cobras)[0], theta, phi,
+            cidx, theta, phi,
             tries=8, twoSteps=True, threshold=20.0, timeStep=time_step)
 
         # Calculate the fiber and elbow positions along the cobra trajectories

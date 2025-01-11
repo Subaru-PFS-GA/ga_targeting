@@ -120,11 +120,8 @@ class NetflowTest(TestBase):
                 fp1 = instrument.cobra_angles_to_fp_pos(np.atleast_1d(an[1][0]), np.atleast_1d(an[1][1]), np.atleast_1d(cidx))
 
                 npt.assert_almost_equal(fp0, fp1)
-        
-    def test_solve(self):
-        # This is a full coverage test, does not validate the results and
-        # correctness of the individual features.
 
+    def test_get_colliding_endpoints(self):
         config = NetflowConfig.default()
         config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
 
@@ -144,19 +141,114 @@ class NetflowTest(TestBase):
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
         nf._Netflow__cache_targets()
+        
+        nf._Netflow__calculate_target_fp_pos()
+        nf._Netflow__calculate_visibility()
+    
+        pidx = 0
+        pairs = nf._Netflow__get_colliding_endpoints(pidx, 2.0)
 
+        # Verify that the pairs are always close to each other
+
+        for (t1, t2) in pairs:
+            fp1 = nf._Netflow__target_fp_pos[pidx][nf._Netflow__cache_to_fp_pos_map[pidx][t1]]
+            fp2 = nf._Netflow__target_fp_pos[pidx][nf._Netflow__cache_to_fp_pos_map[pidx][t2]]
+            self.assertTrue(np.abs(fp1 - fp2) <= 2.0)
+
+    def test_get_colliding_elbows(self):
+        config = NetflowConfig.default()
+        config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
+
+        instrument = SubaruPFI(instrument_options=config.instrument_options)
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     solver_options=config.gurobi_options,
+                     debug_options=config.debug_options)
+
+        obs = self.load_test_observation()
+        nf.append_science_targets(obs, exp_time=1200)
+
+        # Ignore some targets, this is to test the target index mappings
+        # This is for testing, do not access the target cache directly
+
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+        
+        nf._Netflow__calculate_target_fp_pos()
+        nf._Netflow__calculate_visibility()
+    
+        pidx = 0
+        pairs = nf._Netflow__get_colliding_elbows(pidx, 2.0)
+
+    def test_get_colliding_trajectories(self):
+        config = NetflowConfig.default()
+        config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
+
+        instrument = SubaruPFI(instrument_options=config.instrument_options)
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     solver_options=config.gurobi_options,
+                     debug_options=config.debug_options)
+
+        obs = self.load_test_observation()
+        nf.append_science_targets(obs, exp_time=1200)
+
+        # Ignore some targets, this is to test the target index mappings
+        # This is for testing, do not access the target cache directly
+
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+        
+        nf._Netflow__calculate_target_fp_pos()
+        nf._Netflow__calculate_visibility()
+    
+        pidx = 0
+        pairs = nf._Netflow__get_colliding_trajectories(pidx, 2.0)
+
+        pass
+        
+    def test_solve(self):
+        # This is a full coverage test, does not validate the results and
+        # correctness of the individual features.
+
+        config = NetflowConfig.default()
+        config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
+
+        instrument = SubaruPFI(instrument_options=config.instrument_options)
+        pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
+        nf = Netflow(f'test', instrument, [ pointing ],
+                     netflow_options=config.netflow_options,
+                     solver_options=config.gurobi_options,
+                     debug_options=config.debug_options)
+
+        obs = self.load_test_observation()
+        nf.append_science_targets(obs, exp_time=1200)
+
+        nf._Netflow__calculate_exp_time()
+        nf._Netflow__calculate_target_visits()
+        nf._Netflow__cache_targets()
+
+        # Ignore some targets, this is to test the target index mappings
+        # This is for testing, do not access the target cache directly
         # Pick the first and last target that's inside the pointings
         (id1, id2, id3, id4) = nf._Netflow__target_cache.id[[0, 1, -2, -1]]
 
         nf.netflow_options.forbidden_targets = [ id1, id2, id3, id4 ]
         nf.netflow_options.forbidden_pairs = [ [ id1, id2 ], [ id3, id4 ] ]
 
+        # Ignore cobra group minima because we have no sky or flux std targets in the test data
+        nf.debug_options.ignore_cobra_group_minimum = True
+
         nf._Netflow__targets.reset_index(names='targetid', inplace=True)
         
         nf.build()
         nf.solve()
 
-        assignments = nf.get_target_assignments(include_target_columns=True,
+        assignments = nf.get_fiber_assignments(include_target_columns=True,
                                                 include_unassigned_fibers=True,
                                                 include_engineering_fibers=True)
         
