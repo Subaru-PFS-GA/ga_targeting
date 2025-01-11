@@ -120,6 +120,61 @@ class Observation(Catalog):
         else:
             return self.get_magnitude_by_name(magnitude, observed=observed, dered=dered, magnitude_type=magnitude_type, mask=mask)
         
+    def get_magnitude_column_names(self, magnitude: Magnitude, magnitude_type=None):
+        """
+        Return the data frame columns corresponding to the magnitude, flux and their errors.
+        The type of magnitude is selected in the precendence order defined in `magnitude_type`.
+        """
+
+        # Normalize the magnitude type precedence order parameter
+        if magnitude_type is not None and not isinstance(magnitude_type, Iterable):
+            magnitude_type = [ magnitude_type ]
+        elif magnitude_type is None \
+             or isinstance(magnitude_type, Iterable) and len(magnitude_type) == 0:
+            
+            magnitude_type = [ 'psf', 'fiber', 'total', '' ]
+
+        # Try to find the requested magnitude columns by descreasing order of precedence
+        for t in magnitude_type:
+            prefix = f'{t}_' if t != '' else ''
+
+            mag = None
+            mag_err = None
+            flux = None
+            flux_err = None
+            ext = None
+
+            # Get the column names for the magnitude and its error
+            # Alternatively, use the flux column and its error if the magnitude is not available
+            mag = magnitude.columns.get(f'{prefix}mag')
+            mag_err = magnitude.columns.get(f'{prefix}mag_err')
+            flux = magnitude.columns.get(f'{prefix}flux')
+            flux_err = magnitude.columns.get(f'{prefix}flux_err')
+            ext = magnitude.columns.get(f'{prefix}mag_ext')
+            
+            # Reset values that are not available in the data frame
+            def reset(k):
+                return k if k is not None and k in self.__data else None
+            
+            mag = reset(mag)
+            mag_err = reset(mag_err)
+            flux = reset(flux)
+            flux_err = reset(flux_err)
+            ext = reset(ext)
+
+            # Error columns cannot exist without the value column
+            if mag is None:
+                mag_err = None
+                ext = None
+
+            if flux is None:
+                flux_err = None
+
+            if mag is not None or flux is not None:
+                return mag, mag_err, flux, flux_err, ext, magnitude_type
+
+        return None, None, None, None, None, None
+            
     def get_magnitude_by_column(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
         """
         Return the values of a magnitude from the data frame. If the magnitude is
@@ -132,7 +187,9 @@ class Observation(Catalog):
 
         if magnitude_type is not None and not isinstance(magnitude_type, Iterable):
             magnitude_type = [ magnitude_type ]
-        elif magnitude_type is None:
+        elif magnitude_type is None \
+             or isinstance(magnitude_type, Iterable) and len(magnitude_type) == 0:
+            
             magnitude_type = [ 'psf', 'fiber', 'total', '' ]
 
         def get_value(k, mask):
@@ -143,57 +200,32 @@ class Observation(Catalog):
             
         # Depending on what's available in the column list, return the magnitude
         # Ignore the 'observed' flag
+        mag, mag_err, flux, flux_err, ext, magnitude_type = \
+            self.get_magnitude_column_names(magnitude, magnitude_type=magnitude_type)
+        
+        # Get the columns from the data frame
+        mag = get_value(mag, mask)
+        mag_err = get_value(mag_err, mask)
+        ext = get_value(ext, mask)
+        flux = get_value(flux, mask)
+        flux_err = get_value(flux_err, mask)
+        
+        # If the magnitude is not available but we have the flux, calculate the AB magnitude
+        # TODO: add a unit for flux, now assuming nJy
+        if mag is None and flux is not None:
+            mag, mag_err = astro.nJy_to_ABmag(flux, flux_err)
 
-        # Try to find the requested magnitude columns by descreasing order of preference
-        for t in magnitude_type:
-            prefix = f'{t}_' if t != '' else ''
-
-            mag = None
-            flux = None
-            ext = None
-            err = None
-            
-            # Get the column names for the magnitude and its error
-            # Alternatively, use the flux column and its error if the magnitude is not available
-            mag = magnitude.columns.get(f'{prefix}mag')
-            if mag is not None and mag in self.__data:
-                flux = None
-                ext = magnitude.columns.get(f'{prefix}mag_ext')
-                err = magnitude.columns.get(f'{prefix}mag_err')
-            else:
-                mag = None
-                flux = magnitude.columns.get(f'{prefix}flux')
-                if flux is not None and flux in self.__data:
-                    # No extinction in flux units
-                    flux = magnitude.columns.get(f'{prefix}flux')
-                    err = magnitude.columns.get(f'{prefix}flux_err')
-
-            # Get the columns from the data frame
-            mag = get_value(mag, mask)
-            flux = get_value(flux, mask)
-            ext = get_value(ext, mask)
-            err = get_value(err, mask)
-
-            # No mag or flux available, try the next type
-            if mag is None and flux is None:
-                continue
-
-            # TODO: add a unit for flux
-
-            # If there is no magnitude available, convert from flux
-            if mag is None and flux is not None:
-                mag, err = astro.nJy_to_ABmag(flux, err)
-
+        if mag is not None:
             # Apply extinction correction, if available
             if dered and ext is not None:
                 mag = mag - ext
             elif dered and ext is None:
                 logger.warning(f'Extinction correction is not available in catalog `{self.name}` for magnitude `{magnitude.filter}`.')
 
-            return mag, err
+            return mag, mag_err
         
         # TODO: if there is a filter column given, only return those rows where
-        #       the column matches the raw filter name
+        #       the column matches the raw filter name and set everything else to NaN
         #       this requires adding a raw name to the magnitude class
 
         return None, None

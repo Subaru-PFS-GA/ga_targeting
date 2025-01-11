@@ -8,6 +8,8 @@ class CatalogSerializer():
     def __init__(self, 
                  filters=None,
                  bands=None,
+                 photometry=None,
+                 limits=None,
                  orig=None):
         
         """
@@ -17,11 +19,13 @@ class CatalogSerializer():
         if not isinstance(orig, CatalogSerializer):
             self.__filters = filters
             self.__bands = bands
-            self.__photometry = {}
+            self.__photometry = photometry if photometry is not None else {}
+            self.__limits = limits
         else:
-            self.__filters = safe_deep_copy(orig.__filters)
-            self.__bands = safe_deep_copy(orig.__bands)
-            self.__photometry = safe_deep_copy(orig.__photometry)
+            self.__filters = filters if filters is not None else safe_deep_copy(orig.__filters)
+            self.__bands = bands if bands is not None else safe_deep_copy(orig.__bands)
+            self.__photometry = photometry if photometry is not None else safe_deep_copy(orig.__photometry)
+            self.__limits = limits if limits is not None else safe_deep_copy(orig.__limits)
 
     #region Properties
 
@@ -53,6 +57,14 @@ class CatalogSerializer():
         return ReadOnlyDict(self.__photometry)
 
     photometry = property(__get_photometry)
+
+    def __get_limits(self):
+        return self.__limits
+    
+    def __set_limits(self, limits):
+        self.__limits = limits
+
+    limits = property(__get_limits, __set_limits)
 
     #endregion
 

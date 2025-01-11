@@ -27,9 +27,9 @@ class ObservationSerializerTest(TestBase):
             prefix = "sci",
             epoch = "J2000.0",
             catid = 15001,
-            proposalid = "Test",
+            proposalid_pattern = "Test",
             filters = {
-                "g_hsc": dict(
+                "hsc_g": dict(
                     mag = 'sdss_g',
                     mag_err = 'err_sdss_g',
                     # flux = "g_hsc_flux",
@@ -47,10 +47,13 @@ class ObservationSerializerTest(TestBase):
                     # total_flux = "g_hsc_flux",
                     # total_flux_err = "g_hsc_flux_err",
                 ),
-                "i_hsc": dict(
+                "hsc_i": dict(
                     mag = 'sdss_r',
                     mag_err = 'err_sdss_r',
                 ),
+            },
+            limits = {
+                'hsc_g': [17, 19],
             }
         )
 
@@ -104,6 +107,9 @@ class ObservationSerializerTest(TestBase):
                     # total_flux = None,
                     # total_flux_err = None,
                 ) for b in 'gr'
+            },
+            limits = {
+                'ps1_g': [17, 19],
             }
         )
         
@@ -116,6 +122,7 @@ class ObservationSerializerTest(TestBase):
             index = target_list_config.index,
             filters = target_list_config.filters,
             bands = target_list_config.bands,
+            limits = target_list_config.limits,
             kwargs = target_list_config.reader_args,
         )
         catalog = reader.read(target_list_config.path)

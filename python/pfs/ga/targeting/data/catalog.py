@@ -21,7 +21,7 @@ class Catalog(DiagramValueProvider):
             self.__equinox = equinox
         else:
             self.__name = name or orig.__name
-            self.__photometry = safe_deep_copy(orig.__photometry)
+            self.__photometry = orig.__photometry
             self.__frame = frame or orig.__frame
             self.__equinox = equinox or orig.__equinox
 
