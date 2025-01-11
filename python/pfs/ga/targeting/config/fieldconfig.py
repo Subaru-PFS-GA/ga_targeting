@@ -10,7 +10,8 @@ class FieldConfig(Config):
                  arms: str = None,
                  nvisits: int = None,
                  exp_time: float = None,
-                 obs_time: datetime = None):
+                 obs_time: datetime = None,
+                 resolution: str = None):
         
         # Short name for the main object of the field
         self.key = key
@@ -32,5 +33,7 @@ class FieldConfig(Config):
         # time, the difference in position is assumed to be negligible for the purposes of targeting.
         # The pfsDesign files will be further tweaked to position the fibers to the correct positions.
         self.obs_time = obs_time
+
+        self.resolution = resolution
 
         super().__init__()

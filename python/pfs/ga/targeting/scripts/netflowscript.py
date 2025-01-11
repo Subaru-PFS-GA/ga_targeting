@@ -183,7 +183,10 @@ class NetflowScript(Script):
             
         self.__run_netflow(netflow)
 
-        # We do not implement resume logic beyond this point because it's not worth it timewise.
+        # We do not implement resume logic beyond this point because it's not worth it time-wise.
+
+        # TODO: verify collisions and unassign cobras with lower priority targets
+        # self.__unassign_colliding_cobras(netflow)
         
         # Extract the assignments from the netflow solution
         assignments = self.__extract_assignments(netflow)
@@ -209,7 +212,21 @@ class NetflowScript(Script):
 
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
+
+        # # Verify each design
+        # # TODO: move this after any other step and throw exception on
+        # #       verification failure, such az endpoint collisions or 
+        # #       elbow collisions. Only report trajectory collisions.
+        # logger.info('Verifying solution.') 
+        # netflow.verify()
+
         self.__save_designs(designs)
+
+        # Save the assigned targets in the official web uploader format
+        for visit in netflow.visits:
+            assignments_web = self.__merge_assignments_web(assignments, target_lists, visit.visit_idx)
+            self.__save_assignments_web(assignments_web, visit.visit_idx, format='feather')
+            self.__save_assignments_web(assignments_web, visit.visit_idx, format='csv')
 
     def __create_instrument(self):
         return SubaruPFI(instrument_options=self.__config.instrument_options)
@@ -258,6 +275,7 @@ class NetflowScript(Script):
             index = target_list_config.index,
             filters = target_list_config.filters,
             bands = target_list_config.bands,
+            limits = target_list_config.limits,
             kwargs = target_list_config.reader_args,
         )
         catalog = reader.read(target_list_config.path)
@@ -305,6 +323,18 @@ class NetflowScript(Script):
         be included in the design files.
         """
 
+        logger.info(f'Appending extra columns to target list {key}.')
+
+        # Substitute these fields into obcode and proposal ID patterns
+        field_info = dict(
+            name=self.__config.field.key,               # Field short name, e.g. 'umi'
+            key=key,                                    # Target list key, e.g. 'dsph' or 'fluxstd'
+            obs_time=self.__config.field.obs_time,
+            resolution=self.__config.field.resolution,
+            prefix=self.__config.targets[key].prefix,
+            catid=self.__config.targets[key].catid,
+        )
+
         # If constants are defined for these columns in the config, assign them
         if self.__config.targets[key].epoch is not None:
             target_list.append_column('epoch', self.__config.targets[key].epoch, 'string')
@@ -320,8 +350,11 @@ class NetflowScript(Script):
         else:
             target_list.set_column_dtype('catid', pd.Int32Dtype())
 
-        if self.__config.targets[key].proposalid is not None:
-            target_list.append_column('proposalid', self.__config.targets[key].proposalid, 'string') 
+        if self.__config.targets[key].proposalid_pattern is not None:
+            proposalid = self.__config.targets[key].proposalid_pattern.format(**field_info)
+            if '{' in proposalid:
+                proposalid = target_list.data[['targetid']].apply(lambda row: proposalid.format(**row), axis=1)
+            target_list.append_column('proposalid', proposalid, 'string')
         elif 'proposalid' not in target_list.columns:
             target_list.append_column('proposalid', '', 'string')
         else:
@@ -338,11 +371,15 @@ class NetflowScript(Script):
         else:
             target_list.set_column_dtype('patch', 'string')
 
-        # TODO: how do we generate the obcodes?
-        if 'obcode' not in target_list.columns:
-            target_list.append_column('obcode', target_list.data['targetid'], 'string')
+        if self.__config.targets[key].obcode_pattern is not None:
+            obcode = self.__config.targets[key].obcode_pattern.format(**field_info)
+            if '{' in obcode:
+                obcode = target_list.data[['targetid']].apply(lambda row: obcode.format(**row), axis=1)
+            target_list.append_column('obcode', obcode, 'string')
         else:
             target_list.set_column_dtype('obcode', 'string')
+
+        logger.info(f'Successfully added extra columns to target list {key}.')
     
     def __validate_target_list(self, key, target_list_config, target_list):
         # Verify that columns are present
@@ -465,11 +502,14 @@ class NetflowScript(Script):
         logger.info('Saving netflow solution.')
         netflow.save_solution()
 
-        # TODO: move this after any other step and throw exception on
-        #       verification failure, such az endpoint collisions or 
-        #       elbow collisions. Only report trajectory collisions.
-        logger.info('Verifying solution.') 
-        netflow.verify()
+    def __unassign_colliding_cobras(self, netflow):
+        logger.info('Resolving cobra collisions by unassigning low priority targets.')
+        netflow.simulate_collisions()
+        netflow.unassign_colliding_cobras()
+
+        # Rerun the simulation to see if there's any remaining collisions
+        netflow.simulate_collisions()
+        netflow.simulate_collisions()
 
     def __extract_assignments(self, netflow):
         """
@@ -477,7 +517,7 @@ class NetflowScript(Script):
         necessary information to generate the design files.
         """
         
-        assignments = netflow.get_target_assignments(
+        assignments = netflow.get_fiber_assignments(
             include_target_columns=True,
             include_unassigned_fibers=True,
             include_engineering_fibers=True)
@@ -509,7 +549,7 @@ class NetflowScript(Script):
         return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_all.feather')
     
     def __save_assignments_all(self, assignments_all):
-        # This dataframe contains columns with dtype object that contain the list of
+        # This dataframe contains columns with dtype `object`` that contain the list of
         # magnitudes, fluxes, filter names, etc.
         
         path = self.__get_assignments_all_path()
@@ -642,6 +682,118 @@ class NetflowScript(Script):
         for d in designs:
             d.write(dirName=self.__outdir)
             logger.info(f'Saved design {d.pfsDesignId:016x} to `{d.filename}`.')
+
+    def __merge_assignments_web(self, assignments, target_lists, visit_idx):
+        """
+        Generate an assignment list that is compatible with the web uploader. This is for compatibility
+        with the rest of the targeting algorithms.
+        """
+
+        assignment_columns = ['targetid', 'RA', 'Dec', 'pm', 'pmra', 'pmdec', 'parallax', 'exp_time', 'priority']
+        target_list_columns = ['targetid', 'obcode']
+
+        assignments_web = None
+        all_flux_columns = set()
+
+        for k, target_list in target_lists.items():
+            
+            # Collect all available flux columns from the target list
+            column_map = {}         # column renames
+            extra_columns = {}      # flux columns calculated from magnitudes and other extra columns
+            
+            if target_list.photometry is not None:
+                for p, photometry in target_list.photometry.items():
+                    for m, magnitude in photometry.magnitudes.items():
+                        mag, mag_err, flux, flux_err, ext, magnitude_type = \
+                            target_list.get_magnitude_column_names(magnitude)
+                        
+                        # Select the flux column and its error and format column names
+                        # into the web uploader format. If the flux is not available,
+                        # calculate it from the magnitude. The flux unit is nJy.
+                        if flux is not None:
+                            name = f'{m}_{p}'
+                            extra_columns[name] = target_list.data[flux]
+                            all_flux_columns.add(name)
+                            if flux_err is not None:
+                                name = f'{m}_{p}_error'
+                                extra_columns[name] = target_list.data[flux_err]
+                                all_flux_columns.add(name)
+                        elif mag is not None:
+                            mag = target_list.data[mag] if mag is not None and mag in target_list.data else None
+                            mag_err = target_list.data[mag_err] if mag_err is not None and mag_err in target_list.data else None
+
+                            flux, flux_err = ABmag_to_nJy(mag, mag_err)
+                            if flux is not None:
+                                name = f'{m}_{p}'
+                                extra_columns[name] = flux
+                                all_flux_columns.add(name)
+                                if flux_err is not None:
+                                    name = f'{m}_{p}_error'
+                                    extra_columns[name] = flux_err
+                                    all_flux_columns.add(name)
+
+            mask = assignments['visit_idx'] == visit_idx
+            a = pd_to_nullable(assignments[assignment_columns][mask])
+            a = a.set_index('targetid')
+
+            b = target_list.data[target_list_columns].assign(**extra_columns)
+            b = pd_to_nullable(b).rename(columns=column_map).set_index('targetid')
+
+            aw = pd.merge(a, b, how='inner', left_index=True, right_index=True)
+            aw.reset_index(inplace=True, names='targetid')
+            aw.rename(inplace=True,
+                      columns={
+                          'targetid': 'obj_id',
+                          'obcode': 'ob_code',
+                          'RA': 'ra',
+                          'Dec': 'dec',
+                          'exp_time': 'exptime',
+                    })
+            
+            # TODO: make these command-line arguments
+            aw['resolution'] = 'm'
+            aw['reference_arm'] = 'r'
+
+            # Substitute <N/A> values
+            for c in ['pm', 'pmra', 'pmdec']:
+                aw[c] = aw[c].fillna(0.0).astype('float64')
+            for c in ['parallax']:
+                aw[c] = aw[c].fillna(1e-7).astype('float64')
+            
+            # Add columns: tract, patch ??
+
+            if assignments_web is None:
+                assignments_web = aw
+            else:
+                assignments_web = pd.concat([assignments_web, aw])
+
+        # Substitute remaining <N/A> values with NaN
+        pd_null_to_nan(assignments_web, columns=all_flux_columns, in_place=True)
+
+        # Reorder columns
+        columns = ['obj_id', 'ob_code', 'ra', 'dec', 'pm', 'pmra', 'pmdec', 'parallax', 'exptime', 'priority', 'resolution', 'reference_arm']
+        for c in assignments_web.columns:
+            if c not in columns:
+                columns.append(c)
+        assignments_web = assignments_web.reindex(columns, axis=1)
+
+        return assignments_web
+    
+    def __get_assignments_web_path(self, visit_idx, format='feather'):
+        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_web_{visit_idx:03d}.{format}')
+    
+    def __save_assignments_web(self, assignments_web, visit_idx, format='feather'):
+        # This dataframe contains columns with dtype `object`` that contain the list of
+        # magnitudes, fluxes, filter names, etc.
+        
+        path = self.__get_assignments_web_path(visit_idx, format=format)
+        logger.info(f'Saving assignments for web upload to `{path}`.')
+        if format == 'csv':
+            assignments_web.to_csv(path, index=False)
+        elif format == 'feather':
+            assignments_web.to_feather(path)
+        else:
+            raise NotImplementedError()
 
 if __name__ == '__main__':
     script = NetflowScript()

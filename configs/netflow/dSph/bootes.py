@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from pfs.ga.targeting.targets.dsph import Fornax
 from pfs.ga.targeting.instrument import SubaruHSC
 
-DATA_DIR = '/raid/pfs'
+DATA_DIR = '/datascope/subaru'
 
 config = dict(
     targets = {
@@ -14,7 +14,8 @@ config = dict(
             prefix = "sci",
             epoch = "J2000.0",
             catid = 15001,
-            proposalid = "PFS-2024-001",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
             filters = {
                 "g_hsc": dict(
                     mag = 'obs_hsc_g',
@@ -48,7 +49,9 @@ config = dict(
                 'ra': 'RA',
                 'dec': 'Dec',
             },
-            prefix = "sky"
+            prefix = "sky",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
         ),
         "fluxstd": dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
@@ -59,6 +62,8 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "cal",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
             bands = {
                 b: dict(
                     filter = f'filter_{b}',                   # Column storing filter names
@@ -67,14 +72,24 @@ config = dict(
                     psf_flux = f'psf_flux_{b}',
                     psf_flux_err = f'psf_flux_error_{b}',
                 ) for b in 'gri'
+            },
+            limits = {
+                'ps1_g': [17, 19],
             }
         ),
     },
     # Override the minimum number of calibration targets
     netflow_options = dict(
+        target_classes = {
+            'cal': dict(
+                min_targets = 200,
+                max_targets = 300,
+            )
+        },
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 0,
+                min_targets = 15,
+                max_targets = 20,
             )
         }
     )

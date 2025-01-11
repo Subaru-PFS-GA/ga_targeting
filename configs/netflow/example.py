@@ -56,6 +56,9 @@ config = dict(
         # time, the difference in position is assumed to be negligible for the purposes of targeting.
         # The pfsDesign files will be further tweaked to position the fibers to the correct positions.
         obs_time = datetime(2025, 5, 1, 10, 0, 0),
+
+        # Specify m for medium resolution or l for low resolution of the red arm
+        resolution = 'm'
     ),
 
     # The following section defines the pointings of the field.
@@ -101,7 +104,13 @@ config = dict(
             catid = 15001,
 
             # Override the proposal ID of the target list
-            proposalid = "Test",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+
+            # Override the observation code pattern of the target list
+            # Single curly braces are resolved first with values that are common
+            # to all objects of the target list. Double curly braces are resolved
+            # second on an object-by-object basis.
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
 
             # Magnitudes/fluxes and filter names can be provided in two different ways:
             #
@@ -156,7 +165,9 @@ config = dict(
                 'ra': 'RA',
                 'dec': 'Dec'
             },
-            prefix = "sky"
+            prefix = "sky",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
         ),
         "fluxstd": dict(
             path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi_fluxstd.feather'),
@@ -174,6 +185,8 @@ config = dict(
                 'pmdec_error': 'err_pmdec',
             },
             prefix = "cal",
+            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
 
             # Define the bands used to measure the flux of the calibration targets. The filter
             # name is taken from the column defined in the `filter` key. Missing fluxes and
@@ -194,6 +207,16 @@ config = dict(
                     # total_flux = None,
                     # total_flux_err = None,
                 ) for b in 'gr'
+            },
+
+            # Define magnitude limits for the calibration targets. The limits can only include
+            # minimum and maximum limits on the magnitudes. If magnitude are not available,
+            # the are calculated from the corresponding fluxes. The dictionary keys must match
+            # be composed of '{photometry}_{magnitude}'. The names stored in the data frame columns
+            # are parsed automatically into the name of the photometric systems and the filter.
+            # Magnitude (flux) types are searched in the following order: `psf`, `fiber`, `total`.
+            limits = {
+                'ps1_g': [17, 19],
             }
         ),
     },
