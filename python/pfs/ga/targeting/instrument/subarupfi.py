@@ -130,10 +130,16 @@ class SubaruPFI(Instrument, FiberAllocator):
         fiberids_path = self.__get_instrument_option(self.__instrument_options.fiberids_path, SubaruPFI.DEFAULT_FIBERIDS_PATH)
         fiber_map = FiberIds(path=fiberids_path)
 
+        logger.info(f"Loading the grand fiber map from `{os.path.abspath(fiberids_path)}`")
+
         # Load the list of blocked fibers
         config_root = os.path.join(self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH), 'data')
         butler = Butler(configRoot=config_root)
         blocked_fibers = butler.get('fiberBlocked').set_index('fiberId')
+
+        logger.info(f"Loaded configuration for {len(fiber_map.fiberId)} fibers.")
+        logger.info(f"Number of fibers connected to cobras: {(fiber_map.cobraId != fiber_map.MISSING_VALUE).sum()}")
+        logger.info(f"Number of science fibers: {(fiber_map.scienceFiberId < fiber_map.ENGINEERING).sum()}")
 
         return fiber_map, blocked_fibers
 
@@ -199,7 +205,10 @@ class SubaruPFI(Instrument, FiberAllocator):
         cobra_ids_use = np.array([], dtype=np.uint16)
         for sm in spectrograph_modules:
             cobra_ids_use = np.append(cobra_ids_use, gfm.cobrasForSpectrograph(sm))
-        logger.info(f"Using {len(cobra_ids_use)} cobras from {len(spectrograph_modules)} spectrograph modules")
+        logger.info(f"Using {calib_model.nCobras} cobras from {len(spectrograph_modules)} spectrograph modules.")
+        logger.info(f"Number of operational cobras: {(calib_model.status == PFIDesign.COBRA_OK_MASK).sum()}.")
+        logger.info(f"Number of broken cobras: {((calib_model.status & PFIDesign.COBRA_BROKEN_MOTOR_MASK) != 0).sum()}.")
+        logger.info(f"Number of broken fibers: {((calib_model.status & PFIDesign.FIBER_BROKEN_MASK) != 0).sum()}.")
 
         # Set Bad Cobra status for unused spectral modules
         for cobra_id in range(calib_model.nCobras):
@@ -411,6 +420,8 @@ class SubaruPFI(Instrument, FiberAllocator):
         L2_2 = L2 ** 2
 
         arp = np.angle(rel_fp_pos)
+
+        # This might generate warnings because we don't filter on unreachable targets yet
         ang1 = np.arccos((L1_2 + L2_2 - d_2) / (2 * L1 * L2))
         ang2 = np.arccos((L1_2 + d_2 - L2_2) / (2 * L1 * d))
         
@@ -524,6 +535,9 @@ class SubaruPFI(Instrument, FiberAllocator):
         fp_pos = centers + L1 * np.exp(1j * ang1) + L2 * np.exp(1j * ang2)
 
         return fp_pos
+    
+    def simulate_trajectories(self, theta, phi, cobraidx, nsteps=100, two_step_mode=False):
+        raise NotImplementedError()
 
     def find_associations(self, *coords, mask=None):
         

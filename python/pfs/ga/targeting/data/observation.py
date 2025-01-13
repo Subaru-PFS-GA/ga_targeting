@@ -378,11 +378,11 @@ class Observation(Catalog):
                 flux = None
                 flux_err = None
                 if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list {self.name}.')
+                    logger.warning(f'Missing flux column `{flux_key}` in target list `{self.name}`.')
 
                     if mag_col is not None:
                         # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter {filter}.')
+                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter `{filter}`.')
 
                         mag = self.__data[mag_col]
                         mag_err = self.__data[mag_err_col] if mag_err_col is not None else None
@@ -392,7 +392,7 @@ class Observation(Catalog):
                             flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
                     elif any_flux is not None:
                         # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter {filter}.')
+                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter `{filter}`.')
                         flux = any_flux
                         flux_err = any_flux_err
                 else:
@@ -439,11 +439,11 @@ class Observation(Catalog):
                 flux = None
                 flux_err = None
                 if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list {self.name}.')
+                    logger.warning(f'Missing flux column `{flux_key}` in target list `{self.name}`.')
 
                     if mag_col is not None:
                         # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter {filter}.')
+                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in band `{band}`.')
 
                         mag = self.__data[mag_col]
                         mag_err = self.__data[mag_err_col] if mag_err_col is not None else None
@@ -453,7 +453,7 @@ class Observation(Catalog):
                             flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
                     elif any_flux is not None:
                         # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter {filter}.')
+                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in band `{filter}`.')
                         flux = any_flux
                         flux_err = any_flux_err
                 else:

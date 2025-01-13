@@ -222,6 +222,30 @@ class Script():
         self.add_arg('--profile', action='store_true', help='Enable performance profiler')
         self.add_arg('--log-level', type=str, help='Set log level')
 
+    def _init_from_args_pre_logging(self, args):
+        """
+        Initialize the most basic script settings from command-line arguments necessary
+        to initialize the logging. Override this method to customize initialization.
+
+        Parameters
+        ---------
+        args: dict
+            Arguments dictionary.
+        """
+
+        self.__debug = self.get_arg('debug', args, self.__debug)
+        self.__profile = self.get_arg('profile', args, self.__profile)
+
+        if self.is_arg('log_level', args):
+            log_level = self.get_arg('log_level', args)
+            if isinstance(log_level, str) and hasattr(logging, log_level.upper()):
+                self.__log_level = getattr(logging, log_level.upper())
+            else:
+                raise ValueError(f'Invalid log level `{log_level}`.')
+            
+        if self.__debug and self.__log_level > logging.DEBUG:
+            self.__log_level = logging.DEBUG
+
     def _init_from_args(self, args):
         """
         Initialize script settings from command-line arguments. Override this method to
@@ -233,18 +257,7 @@ class Script():
             Arguments dictionary.
         """
 
-        self.__debug = self.get_arg('debug', args, self.__debug)
-        self.__profile = self.get_arg('profile', args, self.__profile)
-        
-        if self.is_arg('log_level', args):
-            log_level = self.get_arg('log_level', args)
-            if isinstance(log_level, str) and hasattr(logging, log_level.upper()):
-                self.__log_level = getattr(logging, log_level.upper())
-            else:
-                raise ValueError(f'Invalid log level `{log_level}`.')
-
-        if self.__debug and self.__log_level > logging.DEBUG:
-            self.__log_level = logging.DEBUG
+        pass
 
     def _create_dir(self, name, dir, logger=logger):
         """
@@ -502,19 +515,27 @@ class Script():
         Do not override this method.
         """
 
+        # Initialize the command-line parser and parse the arguments
         self._add_args()
         self.__parse_args()
-        self._init_from_args(self.__args)
+
+        # Initialize the script settings before logging is started
+        self._init_from_args_pre_logging(self.__args)
 
         # NOTE: debugging is started from the wrapper shell script
 
+        # Initialize output directory, override log file location, etc.
         self.prepare()
 
+        # Start logging and profiler
         self.start_logging()    
+        self._init_from_args(self.__args)
         self._dump_settings()
         self.__start_profiler()
 
+        logger.info(f'Starting execution of {self.get_command_name()}.')
         self.run()
+        logger.info(f'Finsihed execution of {self.get_command_name()}.')
 
         self.__stop_profiler()
         self.stop_logging()

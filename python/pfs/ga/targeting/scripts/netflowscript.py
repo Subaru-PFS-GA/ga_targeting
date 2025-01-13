@@ -105,6 +105,12 @@ class NetflowScript(Script):
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
         self.add_arg('--time-limit', type=int, help='Time limit for the optimization in seconds.')
 
+    def _init_from_args_pre_logging(self, args):
+        super()._init_from_args_pre_logging(args)
+
+        self.__outdir = self.get_arg('out', args, self.__outdir)
+        self.__resume = self.get_arg('resume', args, self.__resume)
+
     def _init_from_args(self, args):
         super()._init_from_args(args)
 
@@ -120,9 +126,9 @@ class NetflowScript(Script):
         # Load the configuration template files and merge with the default config
         config_files = self.get_arg('config', args)
         self.__config.load(config_files, ignore_collisions=True)
+        logger.info(f'Loaded {len(config_files)} config files from {config_files}.')
+        logger.info(f'Found {len(self.__config.targets)} target lists in the configuration.')
 
-        self.__outdir = self.get_arg('out', args, self.__outdir)
-        self.__resume = self.get_arg('resume', args, self.__resume)
         self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
@@ -146,12 +152,17 @@ class NetflowScript(Script):
         # Update log file path to point to the output directory
         self.log_file = os.path.join(self.__outdir, os.path.basename(self.log_file))
 
+    def _dump_settings(self):
+        super()._dump_settings()
+
         # Save the active configuration to the output directory
         command = self.get_command_name()
-        self.__config.save(os.path.join(self.__outdir, f'{command}_{self.timestamp}.config'))
+        path = os.path.join(self.__outdir, f'{command}_{self.timestamp}.config')
+        self.__config.save(path)
+
+        logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 
     def run(self):
-        logger.info(f'Found {len(self.__config.targets)} target lists in the configuration.')
 
         # Load instrument calibration data
         instrument = self.__create_instrument()
@@ -280,7 +291,7 @@ class NetflowScript(Script):
         )
         catalog = reader.read(target_list_config.path)
         
-        logger.info(f'Read {len(catalog.shape)} targets from target list.')
+        logger.info(f'Read {catalog.shape[0]} targets from target list.')
 
         return catalog
     
@@ -323,7 +334,7 @@ class NetflowScript(Script):
         be included in the design files.
         """
 
-        logger.info(f'Appending extra columns to target list {key}.')
+        logger.info(f'Appending extra columns to target list `{key}`.')
 
         # Substitute these fields into obcode and proposal ID patterns
         field_info = dict(
@@ -379,12 +390,12 @@ class NetflowScript(Script):
         else:
             target_list.set_column_dtype('obcode', 'string')
 
-        logger.info(f'Successfully added extra columns to target list {key}.')
+        logger.info(f'Successfully added extra columns to target list `{key}`.')
     
     def __validate_target_list(self, key, target_list_config, target_list):
         # Verify that columns are present
 
-        logger.info(f'Validating target list {key}.')
+        logger.info(f'Validating target list `{key}`.')
 
         must = ['targetid', 'RA', 'Dec']
         if target_list_config.prefix == 'sci':
@@ -392,7 +403,7 @@ class NetflowScript(Script):
 
         for col in must:
             if col not in target_list.data.columns:
-                raise Exception(f'Missing column "{col}" in target list {key}.')
+                raise Exception(f'Missing column "{col}" in target list `{key}`.')
 
         should = []
         if target_list_config.prefix in ['sci', 'cal']:
@@ -400,18 +411,18 @@ class NetflowScript(Script):
             
         for col in should:
             if col not in target_list.data.columns:
-                logger.warning(f'Missing column "{col}" in target list {key}.')
+                logger.warning(f'Missing column "{col}" in target list `{key}`.')
 
         # Verify that targetid is unique and print duplicates
         duplicates = target_list.data[target_list.data.duplicated('targetid', keep=False)]
         if not duplicates.empty:
-            logger.warning(f'Duplicate targetids found in target list {key}.')
+            logger.warning(f'Duplicate targetids found in target list `{key}`.')
             logger.warning(list(duplicates['targetid']))
 
         # TODO: verify that all columns are present that are in the filter list
         #       epoch, catid, proposalid, etc.
 
-        logger.info(f'Successfully validated target list {key}.')
+        logger.info(f'Successfully validated target list `{key}`.')
 
     def __validate_source_target_lists(self, target_lists):
         # TODO: make sure all targetids are unique across all target lists
