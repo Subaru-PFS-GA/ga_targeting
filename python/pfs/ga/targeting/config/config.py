@@ -289,7 +289,14 @@ class Config():
 
         global_variables = {}
         local_variables = {}
-        exec(code, global_variables, local_variables)
+        try:
+            exec(code, global_variables, local_variables)
+        except SyntaxError as ex:
+            logger.error(f"Syntax error in config file: `{filename}`.")
+            raise ex
+        except:
+            logger.error(f"Error in config file: `{filename}`.")
+            raise
 
         if 'config' in local_variables:
             return local_variables['config']

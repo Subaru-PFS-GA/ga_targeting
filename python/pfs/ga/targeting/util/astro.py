@@ -1,56 +1,76 @@
 import numpy as np
 
-def ABmag_to_flux(mag, mag_err=None, zero=0):
+EMPTY = object()
+
+def ABmag_to_flux(mag, mag_err=EMPTY, zero=0):
     """Convert AB mags to flux in cgs units"""
     flux = 10**(-0.4 * (mag - zero + 48.6))
-    if mag_err is not None:
-        flux_err = 0.4 * np.log(10) * flux * mag_err
-        return flux, flux_err
+    if mag_err is not EMPTY:
+        if mag_err is not None:
+            flux_err = 0.4 * np.log(10) * flux * mag_err
+            return flux, flux_err
+        else:
+            return flux, None
     else:
         return flux
 
-def ABmag_to_Jy(mag, mag_err=None, zero=0):
+def ABmag_to_Jy(mag, mag_err=EMPTY, zero=0):
     """Convert AB mags to flux in nJy"""
     flux = 10**(-0.4 * (mag - zero - 8.90))
-    if mag_err is not None:
-        flux_err = 0.4 * np.log(10) * flux * mag_err
-        return flux, flux_err
+    if mag_err is not EMPTY:
+        if mag_err is not None:
+            flux_err = 0.4 * np.log(10) * flux * mag_err
+            return flux, flux_err
+        else:
+            return flux, None
     else:
         return flux
 
-def ABmag_to_nJy(mag, mag_err=None, zero=0):
+def ABmag_to_nJy(mag, mag_err=EMPTY, zero=0):
     """Convert AB mags to flux in nJy"""
     flux = 10**(-0.4 * (mag - zero - 8.90) + 9)
-    if mag_err is not None:
-        flux_err = 0.4 * np.log(10) * flux * mag_err
-        return flux, flux_err
+    if mag_err is not EMPTY:
+        if mag_err is not None:
+            flux_err = 0.4 * np.log(10) * flux * mag_err
+            return flux, flux_err
+        else:
+            return flux, None
     else:
         return flux
 
-def flux_to_ABmag(flux, flux_err=None, zero=0):
+def flux_to_ABmag(flux, flux_err=EMPTY, zero=0):
     """Convert flux in cgs units to AB mags"""
     mag = -2.5 * np.log10(flux) - 48.6 + zero
-    if flux_err is not None:
-        mag_err = 2.5 / np.log(10) * flux_err / flux
-        return mag, mag_err
+    if flux_err is not EMPTY:
+        if flux_err is not None:
+            mag_err = 2.5 / np.log(10) * flux_err / flux
+            return mag, mag_err
+        else:
+            return mag, None
     else:
         return mag
 
-def Jy_to_ABmag(flux, flux_err=None, zero=0):
+def Jy_to_ABmag(flux, flux_err=EMPTY, zero=0):
     """Convert flux in nJy to AB mags"""
     mag = -2.5 * np.log10(flux) + 8.90 + zero
-    if flux_err is not None:
-        mag_err = 2.5 / np.log(10) * flux_err / flux
-        return mag, mag_err
+    if flux_err is not EMPTY:
+        if flux_err is not None:
+            mag_err = 2.5 / np.log(10) * flux_err / flux
+            return mag, mag_err
+        else:
+            return mag, None
     else:
         return mag
 
-def nJy_to_ABmag(flux, flux_err=None, zero=0):
+def nJy_to_ABmag(flux, flux_err=EMPTY, zero=0):
     """Convert flux in nJy to AB mags"""
     mag = -2.5 * np.log10(flux * 1e-9) + 8.90 + zero
-    if flux_err is not None:
-        mag_err = 2.5 / np.log(10) * flux_err / flux
-        return mag, mag_err
+    if flux_err is not EMPTY:
+        if flux_err is not None:
+            mag_err = 2.5 / np.log(10) * flux_err / flux
+            return mag, mag_err
+        else:
+            return mag, None
     else:
         return mag
 

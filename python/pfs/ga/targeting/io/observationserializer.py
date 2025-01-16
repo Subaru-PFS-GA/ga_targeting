@@ -6,7 +6,8 @@ from .dataframeserializer import DataFrameSerializer
 from ..photometry import Photometry, Magnitude
 
 class ObservationSerializer(CatalogSerializer, DataFrameSerializer):
-    def __init__(self, 
+    def __init__(self,
+                 catalog_name=None,
                  filters=None,
                  bands=None,
                  photometry=None,
@@ -16,6 +17,7 @@ class ObservationSerializer(CatalogSerializer, DataFrameSerializer):
         
         DataFrameSerializer.__init__(self, orig=orig, **kwargs)
         CatalogSerializer.__init__(self,
+                                   catalog_name=catalog_name,
                                    filters=filters,
                                    bands=bands,
                                    photometry=photometry,
@@ -27,8 +29,8 @@ class ObservationSerializer(CatalogSerializer, DataFrameSerializer):
         else:
             pass
 
-    def _create_catalog(self, name=None):
-        obs = Observation(name=name)
+    def _create_catalog(self):
+        obs = Observation(name=self.catalog_name)
         for _, p in self.photometry.items():
             obs.append_photometry(p)
         return obs

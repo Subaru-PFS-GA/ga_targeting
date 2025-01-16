@@ -33,13 +33,15 @@ class DiagramValueProvider():
             return self.has_coords(ra=axes[0].coord, dec=axes[1].coord)
         else:
             # Check if all magnitudes are available (for plotting, for example)
+            found = True
             for ax in axes:
                 if isinstance(ax, (Color, ColorAxis)):
-                    return self.has_color(ax.color, observed=observed)
+                    found &= self.has_color(ax.color, observed=observed)
                 elif isinstance(ax, (Magnitude, MagnitudeAxis)):
-                    return self.get_magnitude(ax.magnitude, observed=observed)
+                    found &= self.has_magnitude(ax.magnitude, observed=observed)
                 else:
                     raise NotImplementedError()
+            return found
 
     def get_diagram_values(self, axes, observed=False, mask=None):
         if isinstance(axes, Diagram):

@@ -95,6 +95,12 @@ class Observation(Catalog):
     observed = property(__get_observed)
 
     def has_magnitude(self, magnitude: Magnitude, observed=True, dered=True):
+        if magnitude.columns is not None and len(magnitude.columns) > 0:
+            return self.has_magnitude_by_column_name(magnitude, observed=observed, dered=dered)
+        else:
+            return self.has_magnitude_by_name(magnitude, observed=observed, dered=dered)
+
+    def has_magnitude_by_name(self, magnitude: Magnitude, observed=True, dered=True):
         if observed:
             if dered:
                 if magnitude.get_name('dered_') in self.__data:
@@ -113,6 +119,15 @@ class Observation(Catalog):
                     return True
                     
         return False
+    
+    def has_magnitude_by_column_name(self, magnitude: Magnitude, observed=True, dered=True):
+        """
+        Return True if the magnitude in the specified filter is available in any form or
+        can be calculated from a corresponding flux value.
+        """
+
+        mag, mag_err, flux, flux_err, ext, magnitude_type = self.get_magnitude_column_names(magnitude)
+        return mag is not None or flux is not None
     
     def get_magnitude(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
         if magnitude.columns is not None and len(magnitude.columns) > 0:

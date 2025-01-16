@@ -14,7 +14,7 @@ def pd_append_column(df, name, data, dtype=None):
         df[name] = pd.Series([data] * len(df), dtype=dtype)
     elif isinstance(data, pd.Series):
         #df[name] = data.reset_index(drop=True)
-        df[name] = data
+        df[name] = data.astype(dtype)
     else:
         df[name] = pd.Series(data, dtype=dtype)
 

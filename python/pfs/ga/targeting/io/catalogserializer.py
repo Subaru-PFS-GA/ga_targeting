@@ -6,6 +6,7 @@ from ..photometry import Photometry, Magnitude
 class CatalogSerializer():
 
     def __init__(self, 
+                 catalog_name=None,
                  filters=None,
                  bands=None,
                  photometry=None,
@@ -17,11 +18,13 @@ class CatalogSerializer():
         """
     
         if not isinstance(orig, CatalogSerializer):
+            self.__catalog_name = catalog_name
             self.__filters = filters
             self.__bands = bands
             self.__photometry = photometry if photometry is not None else {}
             self.__limits = limits
         else:
+            self.__catalog_name = catalog_name if catalog_name is not None else orig.__catalog_name
             self.__filters = filters if filters is not None else safe_deep_copy(orig.__filters)
             self.__bands = bands if bands is not None else safe_deep_copy(orig.__bands)
             self.__photometry = photometry if photometry is not None else safe_deep_copy(orig.__photometry)
@@ -36,6 +39,14 @@ class CatalogSerializer():
     def _can_write(self, catalog=None, filename=None, format=None):
         # TODO: implement this method
         return True
+    
+    def __get_catalog_name(self):
+        return self.__catalog_name
+    
+    def __set_catalog_name(self, catalog_name):
+        self.__catalog_name = catalog_name
+
+    catalog_name = property(__get_catalog_name, __set_catalog_name)
     
     def __get_filters(self):
         return self.__filters

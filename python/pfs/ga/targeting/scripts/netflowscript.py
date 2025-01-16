@@ -2,6 +2,7 @@ import os
 import commentjson as json
 from datetime import datetime, timedelta, tzinfo
 import pandas as pd
+from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 
 from ..config import NetflowConfig
@@ -84,6 +85,7 @@ class NetflowScript(Script):
         self.__exp_time = None
         self.__obs_time = None
         self.__time_limit = None
+        self.__nan_values = True
         
         self.__field = None
         self.__config = None
@@ -104,6 +106,9 @@ class NetflowScript(Script):
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
         self.add_arg('--time-limit', type=int, help='Time limit for the optimization in seconds.')
+
+        self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
+        self.add_arg('--no-nan-values', action='store_false', dest='nan_values', help='Do not use NaN values in the output files.')
 
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
@@ -133,6 +138,7 @@ class NetflowScript(Script):
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
+        self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
 
         # Override the configuration with the command-line arguments
         if self.__time_limit is not None:
@@ -197,7 +203,7 @@ class NetflowScript(Script):
         # We do not implement resume logic beyond this point because it's not worth it time-wise.
 
         # TODO: verify collisions and unassign cobras with lower priority targets
-        # self.__unassign_colliding_cobras(netflow)
+        self.__unassign_colliding_cobras(netflow)
         
         # Extract the assignments from the netflow solution
         assignments = self.__extract_assignments(netflow)
@@ -220,6 +226,12 @@ class NetflowScript(Script):
 
         assignments_all = self.__join_assignments(assignments, assigned_targets_all)
         self.__save_assignments_all(assignments_all)
+
+        # What's left is to write out the design files and the assigned targets
+        # in the web uploader format. For this, substitute all NA and NaN values with
+        # zeros
+        if not self.__nan_values:
+            self.__substitute_nans(assignments_all)
 
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
@@ -258,7 +270,7 @@ class NetflowScript(Script):
                 loaded = True
 
             if not loaded:
-                target_list = self.load_target_list(target_list_config)
+                target_list = self.load_target_list(k, target_list_config)
                 target_list.name = k
                 
                 self.__validate_target_list(k, target_list_config, target_list)
@@ -272,14 +284,16 @@ class NetflowScript(Script):
         return target_lists
 
     @staticmethod
-    def load_target_list(target_list_config):
+    def load_target_list(key, target_list_config):
         if target_list_config.reader is not None:
             # TODO: implement custom reader function
             raise NotImplementedError()
         
-        logger.info(f'Reading target list from `{target_list_config.path}`.')
+        fn = os.path.expandvars(target_list_config.path)
+        logger.info(f'Reading target list from `{fn}`.')
 
         reader = ObservationSerializer(
+            catalog_name=key,
             columns = target_list_config.columns,
             column_map = target_list_config.column_map,
             data_types = target_list_config.data_types,
@@ -289,7 +303,8 @@ class NetflowScript(Script):
             limits = target_list_config.limits,
             kwargs = target_list_config.reader_args,
         )
-        catalog = reader.read(target_list_config.path)
+        catalog = reader.read(fn)
+        catalog.name = key
         
         logger.info(f'Read {catalog.shape[0]} targets from target list.')
 
@@ -676,6 +691,33 @@ class NetflowScript(Script):
         # TODO: substitute NaN values
 
         return assignments_all
+    
+    def __substitute_nans(self, df):
+        """
+        Substitute NaN values with zeros or other default values.
+        """
+
+        special = {
+            'parallax': 1e-7,
+        }
+
+        for c in df.columns:
+            if c in special:
+                value = special[c]
+            else:
+                value = 0.0
+
+            if df.dtypes[c] == float or df.dtypes[c] == np.float64 or df.dtypes[c] == np.float32:
+                df.loc[df[c].isna(), c] = value
+            elif df.dtypes[c] == Float64Dtype() or df.dtypes[c] == Float32Dtype():
+                df[c] = df[c].fillna(value)
+                df.loc[df[c].isna(), c] = value
+            elif df.dtypes[c] == 'string':
+                df[c] = df[c].fillna('')
+            elif df.dtypes[c] == object:
+                pass
+            else:
+                pass
             
     def __create_designs(self, netflow, assignments_all):
         designs = []
