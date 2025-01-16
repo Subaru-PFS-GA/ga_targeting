@@ -90,3 +90,58 @@ class SubaruHSC(Instrument):
         reader.kwargs = dict(delimiter=r'\s+')
 
         return reader
+    
+    @staticmethod
+    def text_observation_reader_m31(mags=None, ext=None):
+        if mags is None:
+            mags = ['g', 'i', 'nb515']
+        
+        if ext is None:
+            ext = ['g', 'i', 'nb515']
+
+        reader = ObservationSerializer(format='.csv')
+        reader.append_photometry(SubaruHSC.photometry())
+        reader.column_names.append(f'targetid')
+        
+        reader.column_map = {
+            'RA': 'RA',
+            'Dec': 'Dec',
+        }
+        #reader.column_names = ['RA', 'Dec', 'xi', 'eta']
+
+        for m in mags:
+            reader.column_map[f'{m[0][0]}psf'] = f'obs_hsc_{m}'
+            reader.column_map[f'{m[0][0]}psferr'] = f'err_hsc_{m}'
+
+        for m in ext:
+            reader.column_map[f'a_{m[0]}'] = f'ext_hsc_{m}'
+
+        # These have to be done is separate loops because column order matters!
+
+        #for m in mags:
+        #    reader.column_names.append(f'{m[0]}psf')
+
+        #for m in mags:
+        #    reader.column_names.append(f'{m[0]}psferr')
+
+        #for m in mags:
+        #    reader.column_names.append(f'cl{m[0]}')
+
+        #for m in ext:
+        #    reader.column_names.append(f'a_{m[0]}')
+
+        def filter(df):
+            ff = None
+            for m in mags:
+                if m[0] != 'n':
+                    f = df[f'cl{m[0]}'] < 0.1
+                    if ff is None:
+                        ff = f
+                    else:
+                        ff = ff | f
+            return ff
+
+        reader.filter = filter
+        reader.kwargs = dict(delimiter=',')
+
+        return reader
