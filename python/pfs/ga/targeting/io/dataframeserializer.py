@@ -25,6 +25,10 @@ class DataFrameSerializer():
     data_types : dict
         Data types for each column, if cannot be inferred. Otherwise, override
         the data types.
+    value_map: dict of dict
+        Map values in columns. First key is the column name, second key is the
+        value to map, value is the new value. If value is not found in the map,
+        the original value in the column is used.
     index : str
         Column to use as the index.
     mask : function, mask or index
@@ -48,6 +52,7 @@ class DataFrameSerializer():
                  column_names=None,
                  column_map=None,
                  data_types=None,
+                 value_map=None,
                  index=None,
                  mask=None,
                  format=None,
@@ -62,8 +67,9 @@ class DataFrameSerializer():
             self.__column_names = column_names                  # Column names, if cannot be inferred
             self.__column_map = column_map                      # Column name mapping dictionary
             self.__data_types = data_types                      # Data types for each column
+            self.__value_map = value_map                        # Map values in columns
             self.__index = index                                # Column to use as the index
-            self.__mask = mask                              # Filter function, mask or index
+            self.__mask = mask                                  # Filter function, mask or index
             self.__format = format                              # Data file format, can be inferred from file extension
             self.__kwargs = kwargs                              # Additional keyword arguments for read/write functions
             self.__compression = compression                    # Compression algorithm, when supported
@@ -74,6 +80,7 @@ class DataFrameSerializer():
             self.__column_names = column_names if column_names is not None else safe_deep_copy(orig.__column_names)
             self.__column_map = column_map if column_map is not None else safe_deep_copy(orig.__column_map)
             self.__data_types = data_types if data_types is not None else safe_deep_copy(orig.__data_types)
+            self.__value_map = value_map if value_map is not None else safe_deep_copy(orig.__value_map)
             self.__index = index if index is not None else safe_deep_copy(orig.__index)
             self.__mask = mask if mask is not None else orig.__mask
             self.__format = format if format is not None else orig.__format
@@ -114,6 +121,14 @@ class DataFrameSerializer():
         self.__data_types = data_types
 
     data_types = property(__get_data_types, __set_data_types)
+
+    def __get_value_map(self):
+        return self.__value_map
+    
+    def __set_value_map(self, value_map: dict):
+        self.__value_map = value_map
+
+    value_map = property(__get_value_map, __set_value_map)
 
     def __get_index(self):
         return self.__index
@@ -186,7 +201,7 @@ class DataFrameSerializer():
 
         format = self.__get_format(filename, format)
 
-        if format == ".csv":
+        if format == ".csv" or format == ".ecsv":
             read_func = self.__read_csv
             write_func = self.__write_csv
         elif format == ".feather":
@@ -237,6 +252,10 @@ class DataFrameSerializer():
         # Rename columns using a mapping dictionary
         if self.__column_map is not None:
             df = df.rename(columns=self.__column_map)
+
+        # Apply the value map
+        if self.__value_map is not None:
+            df = df.replace(self.__value_map)
 
         # Convert data types
         if self.__data_types is not None:

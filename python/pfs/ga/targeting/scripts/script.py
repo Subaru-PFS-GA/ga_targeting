@@ -535,7 +535,7 @@ class Script():
 
         logger.info(f'Starting execution of {self.get_command_name()}.')
         self.run()
-        logger.info(f'Finsihed execution of {self.get_command_name()}.')
+        logger.info(f'Finished execution of {self.get_command_name()}.')
 
         self.__stop_profiler()
         self.stop_logging()

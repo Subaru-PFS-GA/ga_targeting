@@ -273,9 +273,10 @@ class NetflowScript(Script):
                 target_list = self.load_target_list(k, target_list_config)
                 target_list.name = k
                 
-                self.__validate_target_list(k, target_list_config, target_list)
                 self.__calculate_target_list_flux(k, target_list)
                 self.__append_target_list_extra_columns(k, target_list)
+                self.__validate_target_list(k, target_list_config, target_list)
+                
                 target_lists[k] = target_list
 
                 if self.__outdir is not None:
@@ -297,6 +298,7 @@ class NetflowScript(Script):
             columns = target_list_config.columns,
             column_map = target_list_config.column_map,
             data_types = target_list_config.data_types,
+            value_map = target_list_config.value_map,
             index = target_list_config.index,
             filters = target_list_config.filters,
             bands = target_list_config.bands,
@@ -351,7 +353,7 @@ class NetflowScript(Script):
 
         logger.info(f'Appending extra columns to target list `{key}`.')
 
-        # Substitute these fields into obcode and proposal ID patterns
+        # Substitute these fields into column patterns
         field_info = dict(
             name=self.__config.field.key,               # Field short name, e.g. 'umi'
             key=key,                                    # Target list key, e.g. 'dsph' or 'fluxstd'
@@ -361,30 +363,76 @@ class NetflowScript(Script):
             catid=self.__config.targets[key].catid,
         )
 
+        def set_extra_column_constant(name, dtype, default_value, config_value):
+            if config_value is not None:
+                target_list.append_column(name, config_value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using the config value {config_value}.')
+            elif name not in target_list.columns and default_value is not None:
+                target_list.append_column(name, default_value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using the default value {default_value}.')
+            elif name in target_list.columns:
+                target_list.set_column_dtype(name, dtype)
+                logger.debug(f'Updated dtype of column `{name}` in target list `{key}`.')
+
+        def set_extra_column_lambda(name, dtype, default_value, func, args):
+            if func is not None:
+                if isinstance(args, list):
+                    value = target_list.data[args].apply(func, axis=1)
+                else:
+                    value = target_list.data[args].apply(func)
+                target_list.append_column(name, value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using a lambda function.')
+            elif name not in target_list.columns and default_value is not None:
+                target_list.append_column(name, default_value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using the default value {default_value}.')
+            elif name in target_list.columns:
+                target_list.set_column_dtype(name, dtype)
+                logger.debug(f'Updated dtype of column `{name}` in target list `{key}`.')
+
+        def set_extra_column_pattern(name, dtype, default_value, config_pattern):
+            if config_pattern is not None:
+                value = config_pattern.format(**field_info)
+                if '{' in value:
+                    value = target_list.data[['targetid']].apply(lambda row: value.format(**row), axis=1)
+                target_list.append_column(name, value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using a config pattern.')
+            elif name not in target_list.columns and default_value is not None:
+                target_list.append_column(name, default_value, dtype)
+                logger.debug(f'Added column `{name}` to target list `{key}` using the default value {default_value}.')
+            elif name in target_list.columns:
+                target_list.set_column_dtype(name, dtype)
+                logger.debug(f'Updated dtype of column `{name}` in target list `{key}`.')
+
+        # Verify extra columns config, only one type of pattern is allowed
+        if self.__config.targets[key].extra_columns is not None:
+            for c, config in self.__config.targets[key].extra_columns.items():
+                patterns = [config.constant, config.lambda_func, config.pattern]
+                if np.sum([p is not None for p in patterns]) > 1:
+                    raise Exception(f'Only one type of pattern is allowed for extra column `{c}`.')
+                
+            # The order of column generation is: constants, lambda, pattern
+            for c, config in self.__config.targets[key].extra_columns.items():
+                if config.constant is not None:
+                    set_extra_column_constant(c, config.dtype, None, config.constant)
+            
+            for c, config in self.__config.targets[key].extra_columns.items():
+                if config.lambda_func is not None:
+                    set_extra_column_lambda(c, config.dtype, None, config.lambda_func, config.lambda_args)
+
+            for c, config in self.__config.targets[key].extra_columns.items():
+                if config.pattern is not None:
+                    set_extra_column_pattern(c, config.dtype, None, config.pattern)
+
         # If constants are defined for these columns in the config, assign them
-        if self.__config.targets[key].epoch is not None:
-            target_list.append_column('epoch', self.__config.targets[key].epoch, 'string')
-        elif 'epoch' not in target_list.columns:
-            target_list.append_column('epoch', 'J2000.0', 'string')
-        else:
-            target_list.set_column_dtype('epoch', 'string')
+        set_extra_column_constant('epoch', 'string', 'J2000.0', self.__config.targets[key].epoch)
+        set_extra_column_constant('catid', pd.Int32Dtype(), -1, self.__config.targets[key].catid)
+        set_extra_column_constant('priority', pd.Int32Dtype(), None, self.__config.targets[key].priority)
+        set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self.__config.targets[key].exp_time)
 
-        if self.__config.targets[key].catid is not None:
-            target_list.append_column('catid', self.__config.targets[key].catid, pd.Int32Dtype())
-        elif 'catid' not in target_list.columns:
-            target_list.append_column('catid', -1, pd.Int32Dtype())
-        else:
-            target_list.set_column_dtype('catid', pd.Int32Dtype())
-
-        if self.__config.targets[key].proposalid_pattern is not None:
-            proposalid = self.__config.targets[key].proposalid_pattern.format(**field_info)
-            if '{' in proposalid:
-                proposalid = target_list.data[['targetid']].apply(lambda row: proposalid.format(**row), axis=1)
-            target_list.append_column('proposalid', proposalid, 'string')
-        elif 'proposalid' not in target_list.columns:
-            target_list.append_column('proposalid', '', 'string')
-        else:
-            target_list.set_column_dtype('proposalid', 'string')
+        # Create a targetid column automatically if it's not present
+        if 'targetid' not in target_list.columns:
+            target_list.append_column('targetid', target_list.data.index, pd.Int64Dtype())
+            logger.warning(f'Automatically generated column `targetid` in target list `{key}`.')
 
         # TODO: these must be calculated from the coordinates
         if 'tract' not in target_list.columns:
@@ -396,14 +444,6 @@ class NetflowScript(Script):
             target_list.append_column('patch', '0,0', 'string')
         else:
             target_list.set_column_dtype('patch', 'string')
-
-        if self.__config.targets[key].obcode_pattern is not None:
-            obcode = self.__config.targets[key].obcode_pattern.format(**field_info)
-            if '{' in obcode:
-                obcode = target_list.data[['targetid']].apply(lambda row: obcode.format(**row), axis=1)
-            target_list.append_column('obcode', obcode, 'string')
-        else:
-            target_list.set_column_dtype('obcode', 'string')
 
         logger.info(f'Successfully added extra columns to target list `{key}`.')
     
