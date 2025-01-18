@@ -42,3 +42,6 @@ class NetflowConfigTest(TestBase):
         self.assertIsNotNone(config.gurobi_options)
 
         self.assertIsNotNone(config.debug_options)
+
+        path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../tmp/netflow/example.json')
+        config.save(path)

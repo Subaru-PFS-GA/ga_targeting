@@ -5,7 +5,7 @@ import pfs.utils
 from pfs.utils.fibers import fiberHoleFromFiberId
 
 from ..instrument import SubaruHSC, SubaruPFI
-from .config import Config
+from .config import Config, Lambda
 from .targetclassconfig import TargetClassConfig
 from .timebudgetconfig import TimeBudgetConfig
 from .cobragroupconfig import CobraGroupConfig
@@ -18,16 +18,18 @@ class NetflowOptionsConfig(Config):
     FLUXSTD_MAX_TARGETS = 240
 
     def __init__(self,
+                 black_dot_penalty: Lambda = None,
+                 cobra_move_cost: Lambda = None,
                  target_classes: Dict[str, TargetClassConfig] = None,
                  cobra_groups: Dict[str, CobraGroupConfig] = None,
                  time_budgets: Dict[str, TimeBudgetConfig] = None):
         
         # Add a penalty if the target is too close to a black dot
-        self.black_dot_penalty = None
+        self.black_dot_penalty = black_dot_penalty
         # self.black_dot_penalty = lambda dist: 0
 
         # Do not penalize cobra moves with respect to cobra center
-        self.cobra_move_cost = None
+        self.cobra_move_cost = cobra_move_cost
         # self.cobra_move_cost = lambda dist: 0
 
         self.collision_distance = 2.0

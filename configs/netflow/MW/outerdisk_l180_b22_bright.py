@@ -28,11 +28,24 @@ config = dict(
                 'dec': 'Dec',
                 'exptime': 'exp_time',
             },
+            value_map = {
+                'priority': {
+                    0: 1,
+                }
+            },
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
+                ),
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string',
+                )
+            },
             prefix = "sci",
             # epoch = "J2000.0",
             catid = 15002,
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
             filters = {
                 "g_gaia": dict(
                     flux = 'g_gaia'
@@ -62,8 +75,18 @@ config = dict(
             },
             prefix = "sci",
             catid = 15003,
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+            priority = 0,
+            exp_time = 900,
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
+                ),
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string',
+                )
+            },
             filters = {
                 "g_gaia": dict(
                     mag = 'GMAG',
@@ -88,8 +111,16 @@ config = dict(
                 'dec': 'Dec'
             },
             prefix = "sky",
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
+                ),
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string',
+                )
+            },
         ),
         "fluxstd": dict(
             path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b22/outerdisk_b22_fluxstd.feather',
@@ -107,8 +138,16 @@ config = dict(
                 'pmdec_error': 'err_pmdec',
             },
             prefix = "cal",
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
+                ),
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string',
+                )
+            },
             bands = {
                 b: dict(
                     filter = f'filter_{b}',                   # Column storing filter names
@@ -152,6 +191,12 @@ config = dict(
                 non_observation_cost = 0,
             ),
             'sci_P0': dict(
+                prefix = 'sci',
+                min_targets = 5,
+                max_targets = None,
+                non_observation_cost = 10000,
+            ),
+            'sci_P1': dict(
                 prefix = 'sci',
                 min_targets = None,
                 max_targets = None,

@@ -8,9 +8,12 @@ from ..setup_logger import logger
 from .configjsonencoder import ConfigJSONEncoder
 from .configyamlencoder import *
 
+class Lambda():
+    pass
+
 class Config():
     """
-    Base class for configurations objects. Implements function to convert
+    Base class for configurations objects. Implements functions to convert
     a hierarchy of configuration classes into a dictionary and back. The
     dictionaries, in turn, can be saved to a file or loaded from a file. It
     supports loading dictionaries from Python files (via `exec`), JSON files
@@ -56,6 +59,10 @@ class Config():
             return os.environ[name]
         else:
             return None
+
+    @staticmethod
+    def _get_lambda_private_member_name(obj, key):
+        return f'_{type(obj).__name__}__{key}_str'
         
     #endregion
     #region Load
@@ -175,6 +182,8 @@ class Config():
                 setattr(self, key, None)
                 continue
             
+            # TODO: remove `type_map`/`type_hint` logic because it's not used anymore
+
             # If the member is found and it's a subclass of `Config`, just pass the dictionary
             # to it for further processing. If the member is found but its value if not a subclass
             # of `Config` but its name is in `type_map`, then instantiate the particular type defined
@@ -190,6 +199,23 @@ class Config():
                     # This member is a type-annotated member where the type is a subclass of Config,
                     # convert the value to the type
                     setattr(self, key, Config.__config_to_class(annotations[key], config=value, existing=None, ignore_collisions=ignore_collisions))
+                elif isinstance(annotations[key], type) and issubclass(annotations[key], Lambda):
+                    # If a member is annotated as a lambda expression, but it's a string representation,
+                    # evaluate the lambra and set the value of a private variable to the string representation.
+                    # This will allow us to save the config into a file with the lambda expression included.
+                    key_str = Config._get_lambda_private_member_name(self, key)
+                    
+                    if callable(value):
+                        # This is a real lambda expression, although it should've been provided as a string
+                        setattr(self, key, value)
+                        setattr(self, key_str, value.__qualname__)
+                    elif isinstance(value, str):
+                        # This is assumed to be a string representation of a lambda expression, evaluate it
+                        setattr(self, key, eval(value))
+                        setattr(self, key_str, value)
+                    else:
+                        # It is not necessary a lambda expression, just set the value
+                        setattr(self, key, value)
                 else:
                     # This is an annotation in the form of List or Dict or similar
                     args = get_args(annotations[key])
@@ -320,6 +346,7 @@ class Config():
         return config
 
     #endregion Load
+    #region Save
         
     def save(self, path):
         # Save configuration to a file
@@ -342,12 +369,33 @@ class Config():
         Save configuration to a dictionary
         """
 
+        # Copy the values of members of an object to a dictionary one by one.
+        # Only copy public members, i.e. those not starting with an underscore
+        # Some members that have corresponding annotated arguments in the class's
+        # __init__ function, need special treatment, particularly:
+        # - lambda functions might have the source code in an associated private
+        #   variable, which should be saved instead of the compiled lambda
+
+        annotations = type(obj).__init__.__annotations__
+
         config = {}
-        for k in obj.__dict__:
+        for key in obj.__dict__:
             # Save public members only
-            if not k.startswith('_'):
-                v = getattr(obj, k)
-                config[k] = Config.__class_to_config(v)
+            if not key.startswith('_'):
+                if key in annotations and isinstance(annotations[key], type) and issubclass(annotations[key], Lambda):
+                    v = getattr(obj, key)
+                    if callable(v):
+                        # This is an actual lambda expression, look for a private variable which might
+                        # contain the string representation
+                        key_str = Config._get_lambda_private_member_name(obj, key)
+                        if hasattr(obj, key_str):
+                            v = getattr(obj, key_str)
+                        else:
+                            v = v.__qualname__
+                else:
+                    v = getattr(obj, key)
+            
+                config[key] = Config.__class_to_config(v)
         return config
     
     @staticmethod
@@ -416,6 +464,7 @@ class Config():
         with open(filename, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
+    #endregion
     #region Dictionary utilities
         
     @staticmethod
