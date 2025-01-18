@@ -193,6 +193,8 @@ class Netflow():
 
         # Internally used variables
 
+        self.__use_named_variables = None
+
         self.__bench = instrument.bench             # Bench object
         self.__fiber_map = instrument.fiber_map     # Grand fiber map
         self.__blocked_fibers = instrument.blocked_fibers
@@ -439,14 +441,14 @@ class Netflow():
 
         for i, c in enumerate(constrs):
             if c.constrName.startswith('Tv_o_coll'):
-                m = re.match(r'Tv_o_coll_(\d+)_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Tv_o_coll_(\d+)_(\d+)_(\d+)$', c.constrName)
                 if m is not None:
                     tidx1 = int(m.group(1))
                     tidx2 = int(m.group(2))
                     vidx = int(m.group(3))
                     self.__constraints.Tv_o_coll[(tidx1, tidx2, vidx)] = c
                 else:
-                    m = re.match(r'Tv_o_coll_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)', c.constrName)
+                    m = re.match(r'^Tv_o_coll_(\d+)_(\d+)_(\d+)_(\d+)_(\d+)$', c.constrName)
                     tidx1 = int(m.group(1))
                     cidx1 = int(m.group(2))
                     tidx2 = int(m.group(3))
@@ -454,83 +456,85 @@ class Netflow():
                     vidx = int(m.group(5))
                     self.__constraints.Tv_o_coll[(tidx1, cidx1, tidx2, cidx2, vidx)] = c
             elif c.constrName.startswith('Tv_o_broken'):
-                m = re.match(r'Tv_o_broken_(\d+)_(\d+)', c.constrName)
-                tidx = int(m.group(1))
-                vidx = int(m.group(2))
-                self.__constraints.Tv_o_broken[(tidx, vidx)] = c
+                m = re.match(r'^Tv_o_broken_(\d+)_(\d+)_(\d+)_(\d+)$', c.constrName)
+                cidx = int(m.group(1))
+                ncidx = int(m.group(2))
+                tidx = int(m.group(3))
+                vidx = int(m.group(4))
+                self.__constraints.Tv_o_broken[(cidx, ncidx, tidx, vidx)] = c
             elif c.constrName.startswith('Tv_o_forb'):
-                m = re.match(r'Tv_o_forb_(\d+)_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Tv_o_forb_(\d+)_(\d+)_(\d+)$', c.constrName)
                 tidx1 = int(m.group(1))
                 tidx2 = int(m.group(2))
                 vidx = int(m.group(3))
                 self.__constraints.Tv_o_forb[(tidx1, tidx2, vidx)] = c
             elif c.constrName.startswith('STC_o_sum'):
-                m = re.match(r'STC_o_sum_(\w+)', c.constrName)
+                m = re.match(r'^STC_o_sum_(\w+)$', c.constrName)
                 target_class = m.group(1)
                 self.__constraints.STC_o_sum[target_class] = c
             elif c.constrName.startswith('STC_o_min'):
-                m = re.match(r'STC_o_min_(\w+)', c.constrName)
+                m = re.match(r'^STC_o_min_(\w+)$', c.constrName)
                 target_class = m.group(1)
                 self.__constraints.STC_o_min[target_class] = c
             elif c.constrName.startswith('STC_o_max'):
-                m = re.match(r'STC_o_max_(\w+)', c.constrName)
+                m = re.match(r'^STC_o_max_(\w+)$', c.constrName)
                 target_class = m.group(1)
                 self.__constraints.STC_o_max[target_class] = c
             elif c.constrName.startswith('CTCv_o_sum'):
-                m = re.match(r'CTCv_o_sum_(\w+)_(\d+)', c.constrName)
+                m = re.match(r'^CTCv_o_sum_(\w+)_(\d+)$', c.constrName)
                 target_class = m.group(1)
                 vidx = int(m.group(2))
                 self.__constraints.CTCv_o_sum[(target_class, vidx)] = c
             elif c.constrName.startswith('CTCv_o_min'):
-                m = re.match(r'CTCv_o_min_(\w+)_(\d+)', c.constrName)
+                m = re.match(r'^CTCv_o_min_(\w+)_(\d+)$', c.constrName)
                 target_class = m.group(1)
                 vidx = int(m.group(2))
                 self.__constraints.CTCv_o_min[(target_class, vidx)] = c
             elif c.constrName.startswith('CTCv_o_max'):
-                m = re.match(r'CTCv_o_max_(\w+)_(\d+)', c.constrName)
+                m = re.match(r'^CTCv_o_max_(\w+)_(\d+)$', c.constrName)
                 target_class = m.group(1)
                 vidx = int(m.group(2))
                 self.__constraints.CTCv_o_max[(target_class, vidx)] = c
             elif c.constrName.startswith('T_i_T_o_sum_0'):
-                m = re.match(r'T_i_T_o_sum_0_(\d+)', c.constrName)
+                m = re.match(r'^T_i_T_o_sum_0_(\d+)$', c.constrName)
                 tidx = int(m.group(1))
                 self.__constraints.T_i_T_o_sum[(tidx, 0)] = c
             elif c.constrName.startswith('T_i_T_o_sum_1'):
-                m = re.match(r'T_i_T_o_sum_1_(\d+)', c.constrName)
+                m = re.match(r'^T_i_T_o_sum_1_(\d+)$', c.constrName)
                 tidx = int(m.group(1))
                 self.__constraints.T_i_T_o_sum[(tidx, 1)] = c
             elif c.constrName.startswith('T_i_T_o_sum'):
-                m = re.match(r'T_i_T_o_sum_(\d+)', c.constrName)
+                m = re.match(r'^T_i_T_o_sum_(\d+)$', c.constrName)
                 tidx = int(m.group(1))
                 self.__constraints.T_i_T_o_sum[tidx] = c
             elif c.constrName.startswith('Tv_i_Tv_o_sum'):
-                m = re.match(r'Tv_i_Tv_o_sum_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Tv_i_Tv_o_sum_(\d+)_(\d+)$', c.constrName)
                 tidx = int(m.group(1))
                 vidx = int(m.group(2))
                 self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = c
             elif c.constrName.startswith('Cv_i_sum'):
-                m = re.match(r'Cv_i_sum_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Cv_i_sum_(\d+)_(\d+)$', c.constrName)
                 cidx = int(m.group(1))
                 vidx = int(m.group(2))
                 self.__constraints.Cv_i_sum[(cidx, vidx)] = c
             elif c.constrName.startswith('Tv_i_sum'):
-                m = re.match(r'Tv_i_sum_(\w+)', c.constrName)
+                m = re.match(r'^Tv_i_sum_(\w+)$', c.constrName)
                 budget_name = m.group(1)
                 self.__constraints.Tv_i_sum[budget_name] = c
             elif c.constrName.startswith('Cv_CG_min'):
-                m = re.match(r'Cv_CG_min_(\w+)_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Cv_CG_min_(\w+)_(\d+)_(\d+)$', c.constrName)
                 cg_name = m.group(1)
                 vidx = int(m.group(2))
                 cidx = int(m.group(3))
                 self.__constraints.Cv_CG_min[(cg_name, vidx, cidx)] = c
             elif c.constrName.startswith('Cv_CG_max'):
-                m = re.match(r'Cv_CG_max_(\w+)_(\d+)_(\d+)', c.constrName)
+                m = re.match(r'^Cv_CG_max_(\w+)_(\d+)_(\d+)$', c.constrName)
                 cg_name = m.group(1)
                 vidx = int(m.group(2))
                 cidx = int(m.group(3))
                 self.__constraints.Cv_CG_min[(cg_name, vidx, cidx)] = c
             elif c.constrName.startswith('Cv_i_max'):
-                m = re.match(r'Cv_i_max_(\d+)', c.constrName)
+                m = re.match(r'^Cv_i_max_(\d+)$', c.constrName)
                 vidx = int(m.group(1))
                 self.__constraints.Cv_i_max[vidx] = c
             else:
@@ -765,7 +769,7 @@ class Netflow():
 
         Returns
         =======
-        set : pairs of target indices that would cause fiber top collisions.
+        set : pairs of target indices that would cause fiber tip collisions.
         """
 
         fp_pos = self.__target_fp_pos[pidx]
@@ -821,18 +825,23 @@ class Netflow():
                 if ncidx in visibility.cobras_targets:
                     ntidx_elbows_angles = visibility.cobras_targets[ncidx]
 
-                    # Check each pair for elbow collision
+                    # Loop over targets visible by the first cobra
                     for tidx, elbows, angles in tidx_elbows_angles:
                         fp = fp_pos[[tidx_to_fpidx_map[tidx]]]
-                        # Check all possible elbow positions
 
+                        # Check all possible elbow positions but make sure one collision is counted
+                        # only once, otherwise we get duplicate (tidx1, cidx1, tidx2, cidx2, vidx) values
                         # TODO: now we exclude a target if ANY of the angle solution collide with a neighbor
                         #       but this could be changed to an OR
+                        ntidx = []
                         for eb in elbows:
-                            ntidx = np.array([ ti for ti, _, _ in ntidx_elbows_angles ], dtype=int)
-                            nfp = fp_pos[tidx_to_fpidx_map[ntidx]]
-                            d = self.__bench.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
-                            res[(cidx, tidx)] += list(ntidx[d < collision_distance])
+                            ntidx += [ ti for ti, _, _ in ntidx_elbows_angles ]
+                        
+                        ntidx = np.unique(ntidx)
+                        nfp = fp_pos[tidx_to_fpidx_map[ntidx]]
+                        d = self.__bench.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
+                        for nti in ntidx[d < collision_distance]:
+                            res[(cidx, tidx)].append((ncidx, nti))
 
         return res
     
@@ -1357,11 +1366,17 @@ class Netflow():
         )
 
     def __add_variable(self, name, lo=None, hi=None):
+        if self.__use_named_variables and name in self.__variables.all:
+            raise ValueError('Duplicate variable name')
+        
         v = self.__problem.add_variable(name, lo=lo, hi=hi)
         self.__variables.all[name] = v
         return v
     
     def __add_variable_array(self, name, indexes, lo=None, hi=None, cost=None):
+        if self.__use_named_variables and name in self.__variables.all:
+            raise ValueError('Duplicate variable name')
+
         v = self.__problem.add_variable_array(name, indexes, lo=lo, hi=hi, cost=cost)
         self.__variables.all[name] = v
         return v
@@ -1395,7 +1410,11 @@ class Netflow():
         )
 
     def __add_constraint(self, name, constraint):
+        if self.__use_named_variables and name in self.__constraints.all:
+            raise ValueError('Duplicate constraint name')
+        
         self.__constraints.all[name] = constraint
+        
         if isinstance(constraint, tuple):
             self.__problem.add_linear_constraint(name, *constraint)
         else:
@@ -1406,8 +1425,9 @@ class Netflow():
         Construct the ILP problem by defining the variables and constraints.
         """
 
-        use_named_variables = self.__get_netflow_option(self.__netflow_options.use_named_variables, False)
-        if use_named_variables:
+        self.__use_named_variables = self.__get_netflow_option(self.__netflow_options.use_named_variables, False)
+        
+        if self.__use_named_variables:
             self.__make_name = self.__make_name_full
         else:
             self.__name_counter = 0
@@ -1448,10 +1468,11 @@ class Netflow():
             # > Tv_Cv_{visit_idx}_{cobra_idx}[target_idx]
             logger.debug("Creating target and cobra visit variables.")
             self.__create_visit_variables(visit)
+            self.__problem.update()
 
             # > Tv_o_coll_{?}_{?}_{visit_idx} (endpoint collisions)
             # > Tv_o_coll_{target_idx1}_{cobra_idx1}_{target_idx2}_{cobra_idx2}{visit_idx} (elbow collisions)
-            # > Tv_o_broken_{target_idx}_{visit_idx} (collision with broken cobras)
+            # > Tv_o_broken_{cobra_idx1}_{cobra_idx2}_{target_idx}_{visit_idx} (collision with broken cobras)
             logger.debug("Creating cobra collision constraints.")
             self.__create_cobra_collision_constraints(visit)
 
@@ -1829,7 +1850,7 @@ class Netflow():
                 logger.debug("Ignoring elbow collision constraints")
 
             if not ignore_broken_cobra_collisions:
-                # > Tv_o_broken_{target_idx}_{visit_idx}
+                # > Tv_o_broken_{cobra_idx1}_{cobra_idx2}_{target_idx}_{visit_idx}
                 logger.debug('Adding broken cobra collision constraints')
                 self.__create_broken_cobra_collision_constraints(visit)
             else:
@@ -1846,8 +1867,9 @@ class Netflow():
         """
 
         vidx = visit.visit_idx
+        collisions = self.__collisions[visit.pointing_idx]
         
-        for tidx1, tidx2 in self.__collisions[visit.pointing_idx].endpoints:
+        for tidx1, tidx2 in collisions.endpoints:
             vars = [ v for v, cidx in self.__variables.Tv_o[(tidx1, vidx)] ] + \
                    [ v for v, cidx in self.__variables.Tv_o[(tidx2, vidx)] ]
             
@@ -1858,22 +1880,30 @@ class Netflow():
             self.__add_constraint(name, constr)
 
     def __create_elbow_collision_constraints(self, visit):
+        """
+        Create constraints to prevent collisions between the tip of one cobra with the phi arm
+        of another.
+
+        The constraint prevents allocating fibers to both targets at the same time and not by
+        completely excluding the targets. Separate constraints are created for each visit to allow for more
+        scheduling flexibility.
+        """
+
         vidx = visit.visit_idx
         collisions = self.__collisions[visit.pointing_idx]
 
-        for (cidx1, tidx1), tidx2_list in collisions.elbows.items():
+        for (cidx1, tidx1), cidx2_tidx2_list in collisions.elbows.items():
 
-            # TODO: inefficient loop
-            for f, cidx2 in self.__variables.Tv_o[(tidx1, vidx)]:
-                if cidx2 == cidx1:
-                    var0 = f
+            # Find the Tv_o variable that corresponds to tidx1 and cidx1 for visit vidx
+            vars = [ f for f, ci in self.__variables.Tv_o[(tidx1, vidx)] if ci == cidx1]
 
-            for tidx2 in tidx2_list:
-                # TODO: is this test necessary
-                # if True:  # idx2 != tidx1:
+            # Loop over targets seen by neighboring cobras that would cause an
+            # elbow collision with cidx1
+            for cidx2, tidx2 in cidx2_tidx2_list:
                 
-                vars = [ var0 ]
-                vars += [ f for f, cidx2 in self.__variables.Tv_o[(tidx2, vidx)] if cidx2 != cidx1 ]
+                # Find the Tv_o variables of all targets seen by neighboring cobras that would
+                # cause an elbow collision with cidx1 poiting at tidx1
+                vars += [ f for f, ci2 in self.__variables.Tv_o[(tidx2, vidx)] if ci2 != cidx1 ]
     
                 name = self.__make_name("Tv_o_coll", tidx1, cidx1, tidx2, cidx2, vidx)
                 # constr = self.__problem.sum(vars) <= 1
@@ -1891,15 +1921,21 @@ class Netflow():
         """
 
         vidx = visit.visit_idx
+        collisions = self.__collisions[visit.pointing_idx]
         
-        for (cidx, ncidx), tidx_list in self.__collisions[visit.pointing_idx].broken_cobras.items():
+        # cidx is the broken cobra, ncidx is its neighbor
+        # tidx_list is the list of targets visible by both that would cause a collision
+        # due to cidx parked at a dead position
+        # None of these can be observed which is expressed by the constraint that the
+        # sum of the Tv_Cv variables must be zero.
+        for (cidx, ncidx), tidx_list in collisions.broken_cobras.items():
             for tidx in tidx_list:
-                vars = [ v for v, cidx in self.__variables.Tv_o[(tidx, vidx)] ]
+                vars = [ v for v, ci in self.__variables.Tv_o[(tidx, vidx)] ]
                 
-                name = self.__make_name("Tv_o_broken", tidx, vidx)
+                name = self.__make_name("Tv_o_broken", cidx, ncidx, tidx, vidx)
                 # constr = self.__problem.sum(vars) = 0
                 constr = ([1] * len(vars), vars, '=', 0)
-                self.__constraints.Tv_o_broken[(tidx, vidx)] = constr
+                self.__constraints.Tv_o_broken[(cidx, ncidx, tidx, vidx)] = constr
                 self.__add_constraint(name, constr)
 
     def __create_forbidden_target_constraints(self, visit):
