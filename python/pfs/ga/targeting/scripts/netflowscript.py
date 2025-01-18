@@ -5,6 +5,7 @@ import pandas as pd
 from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 
+import pfs.ga.targeting.netflow
 from ..config import NetflowConfig
 from ..targets.dsph import GALAXIES
 from ..instrument import SubaruPFI
@@ -13,6 +14,7 @@ from ..netflow import Netflow, Design
 from ..core import Pointing
 from ..util.astro import *
 from ..util.pandas import *
+from ..util.notebookrunner import NotebookRunner
 from .script import Script
 
 from ..setup_logger import logger
@@ -86,6 +88,7 @@ class NetflowScript(Script):
         self.__obs_time = None
         self.__time_limit = None
         self.__nan_values = True
+        self.__skip_notebooks = False
         
         self.__field = None
         self.__config = None
@@ -109,6 +112,8 @@ class NetflowScript(Script):
 
         self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
         self.add_arg('--no-nan-values', action='store_false', dest='nan_values', help='Do not use NaN values in the output files.')
+
+        self.add_arg('--skip-notebooks', action='store_true', help='Skip execution of evaluation notebooks.')
 
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
@@ -139,6 +144,7 @@ class NetflowScript(Script):
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
         self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
+        self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
         if self.__time_limit is not None:
@@ -158,12 +164,16 @@ class NetflowScript(Script):
         # Update log file path to point to the output directory
         self.log_file = os.path.join(self.__outdir, os.path.basename(self.log_file))
 
+    def __get_output_config_path(self):
+        command = self.get_command_name()
+        path = os.path.join(self.__outdir, f'{command}_{self.timestamp}.config')
+        return path
+
     def _dump_settings(self):
         super()._dump_settings()
 
         # Save the active configuration to the output directory
-        command = self.get_command_name()
-        path = os.path.join(self.__outdir, f'{command}_{self.timestamp}.config')
+        path = self.__get_output_config_path()
         self.__config.save(path)
 
         logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
@@ -250,6 +260,12 @@ class NetflowScript(Script):
             assignments_web = self.__merge_assignments_web(assignments, target_lists, visit.visit_idx)
             self.__save_assignments_web(assignments_web, visit.visit_idx, format='feather')
             self.__save_assignments_web(assignments_web, visit.visit_idx, format='csv')
+
+        # Execute the evaluation notebooks
+        if not self.__skip_notebooks:
+            for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
+                logger.info(f'Executing evaluation notebook {notebook}...')
+                self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.netflow.__file__), f'nb/{notebook}.ipynb'))
 
     def __create_instrument(self):
         return SubaruPFI(instrument_options=self.__config.instrument_options)
@@ -564,6 +580,8 @@ class NetflowScript(Script):
 
         logger.info('Solving netflow model.')
         netflow.solve()
+
+        # TODO: report netflow results or turn on logging
 
         logger.info('Saving netflow solution.')
         netflow.save_solution()
@@ -887,6 +905,29 @@ class NetflowScript(Script):
             assignments_web.to_feather(path)
         else:
             raise NotImplementedError()
+        
+    def __execute_notebook(self, notebook_path):
+        fn = os.path.basename(notebook_path)
+        logger.info('Executing notebook {}'.format(fn))
+
+        nr = NotebookRunner()
+        nr.parameters = {
+            'DEBUG': False,
+            'CONFIG_FILE': self.__get_output_config_path(),
+            'OUTPUT_PATH': self.__outdir,
+        }
+        # nr.kernel = kernel
+        nr.open_ipynb(notebook_path)
+
+        # Suspend logging because nbconvert writes and insane
+        # amount of messages at debug level
+        self.suspend_logging()
+        nr.run()
+        self.resume_logging()
+
+        fn, ext = os.path.splitext(os.path.basename(notebook_path))
+        nr.save_ipynb(os.path.join(self.__outdir, fn + '.ipynb'))
+        nr.save_html(os.path.join(self.__outdir, fn + '.html'))
 
 if __name__ == '__main__':
     script = NetflowScript()

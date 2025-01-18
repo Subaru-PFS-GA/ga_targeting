@@ -339,6 +339,14 @@ class Script():
         if self.log_to_file and self.__log_file is not None:
             logger.info(f'Logging started to `{self.__log_file}`.')
 
+    def suspend_logging(self):
+        root = logging.getLogger()
+        root.level = logging.CRITICAL
+
+    def resume_logging(self):
+        root = logging.getLogger()
+        root.level = self.__log_level
+
     def stop_logging(self):
         """
         Stop logging and clean up log handlers.
@@ -558,3 +566,4 @@ class Script():
         """
         
         raise NotImplementedError()
+    
