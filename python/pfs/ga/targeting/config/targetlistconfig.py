@@ -1,11 +1,14 @@
 from typing import Dict
-from .config import Config
+from .config import Config, Lambda
 
 from .extracolumnconfig import ExtraColumnConfig
+from .photometryconfig import PhotometryConfig
 
 class TargetListConfig(Config):
     def __init__(self,
-                 extra_columns: Dict[str, ExtraColumnConfig] = None):
+                 extra_columns: Dict[str, ExtraColumnConfig] = None,
+                 photometry: PhotometryConfig = None,
+                 mask: Lambda = None):
         
         # Path to the data file
         self.path = None
@@ -51,13 +54,10 @@ class TargetListConfig(Config):
         # Overrides the exposure time of the targets
         self.exp_time = None
 
-        # Defines the magnitudes. See example.py for more details
-        self.filters = None
+        # Definition of the filters for the photometric system
+        self.photometry = photometry
 
-        # Defines the filter bands. See example.py for more details
-        self.bands = None
-
-        # Defines magnitude limits. See example.py for more details
-        self.limits = None
+        # Catalog filter, expressed as a lambda, rendered in string
+        self.mask = None
 
         super().__init__()

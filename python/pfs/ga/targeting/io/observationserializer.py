@@ -12,10 +12,11 @@ class ObservationSerializer(CatalogSerializer, DataFrameSerializer):
                  bands=None,
                  photometry=None,
                  limits=None,
+                 mask=None,
                  orig=None,
                  **kwargs):
         
-        DataFrameSerializer.__init__(self, orig=orig, **kwargs)
+        DataFrameSerializer.__init__(self, orig=orig, mask=mask, **kwargs)
         CatalogSerializer.__init__(self,
                                    catalog_name=catalog_name,
                                    filters=filters,

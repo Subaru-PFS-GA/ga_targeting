@@ -23,10 +23,10 @@ class NetflowConfigTest(TestBase):
         self.assertEqual(len(config.pointings), 2)
         
         self.assertEqual(len(config.targets), 3)
-        self.assertEqual(len(config.targets['dsph'].filters), 2)
-        self.assertIsNone(config.targets['dsph'].bands)
-        self.assertIsNone(config.targets['fluxstd'].filters)
-        self.assertEqual(len(config.targets['fluxstd'].bands), 2)
+        self.assertEqual(len(config.targets['dsph'].photometry.filters), 2)
+        self.assertIsNone(config.targets['dsph'].photometry.bands)
+        self.assertIsNone(config.targets['fluxstd'].photometry.filters)
+        self.assertEqual(len(config.targets['fluxstd'].photometry.bands), 2)
         
         self.assertIsNotNone(config.instrument_options)
 

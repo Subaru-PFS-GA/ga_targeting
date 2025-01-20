@@ -64,8 +64,8 @@ class ObservationSerializerTest(TestBase):
             column_map = target_list_config.column_map,
             data_types = target_list_config.data_types,
             index = target_list_config.index,
-            filters = target_list_config.filters,
-            bands = target_list_config.bands,
+            filters = target_list_config.photometry.filters,
+            bands = target_list_config.photometry.bands,
             kwargs = target_list_config.reader_args,
         )
         catalog = reader.read(target_list_config.path)
@@ -120,9 +120,9 @@ class ObservationSerializerTest(TestBase):
             column_map = target_list_config.column_map,
             data_types = target_list_config.data_types,
             index = target_list_config.index,
-            filters = target_list_config.filters,
-            bands = target_list_config.bands,
-            limits = target_list_config.limits,
+            filters = target_list_config.photometry.filters,
+            bands = target_list_config.photometry.bands,
+            limits = target_list_config.photometry.limits,
             kwargs = target_list_config.reader_args,
         )
         catalog = reader.read(target_list_config.path)

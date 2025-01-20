@@ -256,15 +256,15 @@ class NetflowScript(Script):
         self.__save_designs(designs)
 
         # Save the assigned targets in the official web uploader format
-        for visit in netflow.visits:
+        for (visit, design) in zip(netflow.visits, designs):
             assignments_web = self.__merge_assignments_web(assignments, target_lists, visit.visit_idx)
-            self.__save_assignments_web(assignments_web, visit.visit_idx, format='feather')
-            self.__save_assignments_web(assignments_web, visit.visit_idx, format='csv')
+            self.__save_assignments_web(assignments_web, visit.visit_idx, design.pfsDesignId, format='feather')
+            self.__save_assignments_web(assignments_web, visit.visit_idx, design.pfsDesignId, format='csv')
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
             for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
-                logger.info(f'Executing evaluation notebook {notebook}...')
+                logger.info(f'Executing evaluation notebook `{notebook}`...')
                 self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.netflow.__file__), f'nb/{notebook}.ipynb'))
 
     def __create_instrument(self):
@@ -301,12 +301,13 @@ class NetflowScript(Script):
         return target_lists
 
     @staticmethod
-    def load_target_list(key, target_list_config):
+    def load_target_list(key, target_list_config, fn=None):
         if target_list_config.reader is not None:
             # TODO: implement custom reader function
             raise NotImplementedError()
         
-        fn = os.path.expandvars(target_list_config.path)
+        fn = fn if fn is not None else os.path.expandvars(target_list_config.path)
+        
         logger.info(f'Reading target list from `{fn}`.')
 
         reader = ObservationSerializer(
@@ -316,9 +317,10 @@ class NetflowScript(Script):
             data_types = target_list_config.data_types,
             value_map = target_list_config.value_map,
             index = target_list_config.index,
-            filters = target_list_config.filters,
-            bands = target_list_config.bands,
-            limits = target_list_config.limits,
+            filters = target_list_config.photometry.filters if target_list_config.photometry is not None else None,
+            bands = target_list_config.photometry.bands if target_list_config.photometry is not None else None,
+            limits = target_list_config.photometry.limits if target_list_config.photometry is not None else None,
+            mask = target_list_config.mask,
             kwargs = target_list_config.reader_args,
         )
         catalog = reader.read(fn)
@@ -339,9 +341,11 @@ class NetflowScript(Script):
         # a list, we assume that the filter names are stored in a filter column. This latter is
         # typical for flux standard lists.
 
-        if self.__config.targets[key].filters is not None:
+        photometry = self.__config.targets[key].photometry
+
+        if photometry is not None and photometry.filters is not None:
             return self.__calculate_target_list_flux_filters(key, target_list)
-        elif self.__config.targets[key].bands is not None:
+        elif photometry is not None and  photometry.bands is not None:
             return self.__calculate_target_list_flux_bands(key, target_list)
         else:
             # No fluxes or magnitudes available (sky)
@@ -352,14 +356,14 @@ class NetflowScript(Script):
         Calculate the missing flux values from other columns that are available
         """
 
-        target_list.calculate_flux_filters(self.__config.targets[key].filters)
+        target_list.calculate_flux_filters(self.__config.targets[key].photometry.filters)
 
     def __calculate_target_list_flux_bands(self, key, target_list):
         """
         Calculate the missing flux values from other columns that are available
         """
 
-        target_list.calculate_flux_bands(self.__config.targets[key].bands)
+        target_list.calculate_flux_bands(self.__config.targets[key].photometry.bands)
 
     def __append_target_list_extra_columns(self, key, target_list):
         """
@@ -497,7 +501,12 @@ class NetflowScript(Script):
 
     def __validate_source_target_lists(self, target_lists):
         # TODO: make sure all targetids are unique across all target lists
-        pass
+
+        required_columns = [ 'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode']
+        for key, target_list in target_lists.items():
+            for col in required_columns:
+                if col not in target_list.columns:
+                    raise Exception(f'Missing required column "{col}" in target list `{key}`.')
 
     def __validate_fluxstd_targets(self, target_lists):
         # TODO: make sure cobra group constraints are satisfiable
@@ -664,35 +673,37 @@ class NetflowScript(Script):
             # If the config entry is a dictionary, we assume that the keys are the filter names.
             # If it is a list, we assume that the filter names are stored as values in a column.
 
-            if self.__config.targets[k].filters is not None:
+            photometry = self.__config.targets[k].photometry
+
+            if photometry is not None and photometry.filters is not None:
                 # Convert the flux columns into a single column of list objects
                 # Refer to canonical column names in __calculate_target_list_flux_filters
 
                 def flux_to_list(row, prefix, postfix):    
-                    return [ row[f'{b}_{prefix}flux{postfix}'] for b in self.__config.targets[k].filters.keys() ]
+                    return [ row[f'{b}_{prefix}flux{postfix}'] for b in photometry.filters.keys() ]
                 
                 def filter_to_list(row):
-                    return list(self.__config.targets[k].filters.keys())
+                    return list(photometry.filters.keys())
                 
                 for prefix in [ 'psf_', 'fiber_', 'total_' ]:
                     assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, prefix, ''), axis=1)
                     assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, prefix, '_err'), axis=1)
                     
                 assigned['filter'] = assigned.apply(filter_to_list, axis=1)
-            elif self.__config.targets[k].bands is not None:
+            elif photometry is not None and photometry.bands is not None:
                 # Convert the flux columns into a single column of list objects
                 # Refer to canonical column names in __calculate_target_list_flux_bands
 
                 def flux_to_list(row, prefix='psf_flux_'):
                     fluxes = []
-                    for b in self.__config.targets[k].bands.keys():
+                    for b in photometry.bands.keys():
                         if row[f'filter_{b}'] is not None:
                             fluxes.append(row[f'{prefix}{b}'])
                     return fluxes
                 
                 def filter_to_list(row):
                     filters = []
-                    for b in self.__config.targets[k].bands.keys():
+                    for b in photometry.bands.keys():
                         if row[f'filter_{b}'] is not None:
                             filters.append(row[f'filter_{b}'])
                     return filters
@@ -890,14 +901,16 @@ class NetflowScript(Script):
 
         return assignments_web
     
-    def __get_assignments_web_path(self, visit_idx, format='feather'):
-        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_web_{visit_idx:03d}.{format}')
+    def __get_assignments_web_path(self, visit_idx, pfsDesignId, format='feather'):
+        # return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_web_{visit_idx:03d}.{format}')
+        fn = f'assignments-0x{pfsDesignId:016x}.{format}'
+        return os.path.join(self.__outdir, fn)
     
-    def __save_assignments_web(self, assignments_web, visit_idx, format='feather'):
+    def __save_assignments_web(self, assignments_web, visit_idx, pfsDesignId, format='feather'):
         # This dataframe contains columns with dtype `object`` that contain the list of
         # magnitudes, fluxes, filter names, etc.
         
-        path = self.__get_assignments_web_path(visit_idx, format=format)
+        path = self.__get_assignments_web_path(visit_idx, pfsDesignId, format=format)
         logger.info(f'Saving assignments for web upload to `{path}`.')
         if format == 'csv':
             assignments_web.to_csv(path, index=False)
@@ -908,7 +921,7 @@ class NetflowScript(Script):
         
     def __execute_notebook(self, notebook_path):
         fn = os.path.basename(notebook_path)
-        logger.info('Executing notebook {}'.format(fn))
+        logger.info(f'Executing notebook `{fn}`.')
 
         nr = NotebookRunner()
         nr.parameters = {

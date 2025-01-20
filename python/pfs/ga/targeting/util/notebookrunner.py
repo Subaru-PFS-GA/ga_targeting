@@ -22,6 +22,7 @@ class NotebookRunner():
             self.__kernel = orig.__kernel
 
         self.__nb = None
+        self.__notebook_path = None
 
     #region Properties
 
@@ -54,6 +55,7 @@ class NotebookRunner():
     def open_ipynb(self, fn):
         with open(fn, 'r') as f:
             self.__nb = nbformat.read(f, as_version=4)
+            self.__notebook_path = fn
 
     def save_ipynb(self, fn):
         with open(fn, 'w') as f:
@@ -80,7 +82,7 @@ class NotebookRunner():
         try:
             self.__nb, resources = epp.preprocess(self.__nb, resources)
         except Exception as ex:
-            logger.error('An error has occurred while executing notebook {}'.format(self.__notebook_path))
+            logger.error(f'An error has occurred while executing notebook `{self.__notebook_path}`')
             # Error is not propagated to allow saving notebook
 
     def run(self):        

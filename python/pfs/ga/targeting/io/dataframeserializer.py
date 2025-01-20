@@ -138,13 +138,13 @@ class DataFrameSerializer():
 
     index = property(__get_index, __set_index)
 
-    def __get_filter(self):
+    def __get_mask(self):
         return self.__mask
     
-    def __set_filter(self, filter):
-        self.__mask = filter
+    def __set_mask(self, mask):
+        self.__mask = mask
 
-    filter = property(__get_filter, __set_filter)
+    mask = property(__get_mask, __set_mask)
 
     def __get_format(self) -> str:
         return self.__format
