@@ -5,20 +5,20 @@ import pandas as pd
 from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 
-import pfs.ga.targeting.netflow
-from ..config import NetflowConfig
-from ..targets.dsph import GALAXIES as DSPH_FIELDS
-from ..targets.m31 import M31_FIELDS
-from ..instrument import SubaruPFI
-from ..io import ObservationSerializer
-from ..netflow import Netflow, Design
-from ..core import Pointing
-from ..util.astro import *
-from ..util.pandas import *
-from ..util.notebookrunner import NotebookRunner
-from .script import Script
+import pfs.ga.targeting
+from ...config import NetflowConfig
+from ...targets.dsph import GALAXIES as DSPH_FIELDS
+from ...targets.m31 import M31_FIELDS
+from ...instrument import SubaruPFI
+from ...io import ObservationSerializer
+from ...netflow import Netflow, Design
+from ...core import Pointing
+from ...util.astro import *
+from ...util.pandas import *
+from ...util.notebookrunner import NotebookRunner
+from ..script import Script
 
-from ..setup_logger import logger
+from ...setup_logger import logger
 
 class NetflowScript(Script):
     """
@@ -271,7 +271,7 @@ class NetflowScript(Script):
         if not self.__skip_notebooks:
             for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
-                self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.netflow.__file__), f'nb/{notebook}.ipynb'))
+                self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb'))
 
     def __create_instrument(self):
         return SubaruPFI(instrument_options=self.__config.instrument_options)
