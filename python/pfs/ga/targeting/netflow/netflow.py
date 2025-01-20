@@ -2282,7 +2282,7 @@ class Netflow():
             endpoint_collisions = self.__instrument.bench.cobraAssociations[:, simulator.associationEndPointCollisions]
 
             logger.warning(f'{trajectory_collisions.shape[1]} trajectory collisions found for visit {vidx}.')
-            logger.debug(f'The colliding cobras are {trajectory_collisions}')
+            logger.info(f'The colliding cobras are {trajectory_collisions}')
             
             # Extract the collisions
             self.__cobra_collisions[vidx] = trajectory_collisions
@@ -2294,10 +2294,11 @@ class Netflow():
             # broken. Verify if this is the case.
             cobra_assignments = self.__cobra_assignments[vidx]
             tidx = cobra_assignments[trajectory_collisions]
-            bad_cobra = self.__instrument.bench.cobras.hasProblem[trajectory_collisions[tidx == -1]]
-            if not np.all(bad_cobra):
-                logger.warning(f'Collision detected for a working cobra that is not assigned to a target.'
-                               f'Visit index {vidx}, cobra ID {np.where(~bad_cobra)[0] + 1}.')
+            cidx = trajectory_collisions[tidx == -1]
+            good_cobra = ~self.__instrument.bench.cobras.hasProblem[cidx]
+            if not np.any(good_cobra):
+                logger.warning(f'Collision detected for working cobras that are not assigned to a target.'
+                               f'Visit index {vidx}, cobra ID {cidx[good_cobra] + 1}.')
 
     def unassign_colliding_cobras(self):
         """
