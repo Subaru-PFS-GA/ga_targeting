@@ -7,7 +7,8 @@ import astropy.units as u
 
 import pfs.ga.targeting.netflow
 from ..config import NetflowConfig
-from ..targets.m31 import GALAXIES
+from ..targets.dsph import GALAXIES as DSPH_FIELDS
+from ..targets.m31 import M31_FIELDS
 from ..instrument import SubaruPFI
 from ..io import ObservationSerializer
 from ..netflow import Netflow, Design
@@ -101,7 +102,9 @@ class NetflowScript(Script):
     def _add_args(self):
         super()._add_args()
 
-        self.add_arg('--dsph', type=str, help='Name of a predefined target.')
+        self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
+        self.add_arg('--m31', type=str, choices=M31_FIELDS, help='Name of a predefined M31 field.')
+
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
         self.add_arg('--resume', action='store_true', help='Resume from a previous run.')
@@ -125,7 +128,10 @@ class NetflowScript(Script):
         super()._init_from_args(args)
 
         if self.is_arg('dsph', args):
-            self.__field = GALAXIES[self.get_arg('dsph', args)]
+            self.__field = DSPH_FIELDS[self.get_arg('dsph', args)]
+
+        if self.is_arg('m31', args):
+            self.__field = M31_FIELDS[self.get_arg('m31', args)]
 
         # If a field is specified, load its default configuration      
         if self.__field is not None:
@@ -449,10 +455,16 @@ class NetflowScript(Script):
         set_extra_column_constant('priority', pd.Int32Dtype(), None, self.__config.targets[key].priority)
         set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self.__config.targets[key].exp_time)
 
-        # Create a targetid column automatically if it's not present
+        # Create required columns with default values
         if 'targetid' not in target_list.columns:
             target_list.append_column('targetid', target_list.data.index, pd.Int64Dtype())
             logger.warning(f'Automatically generated column `targetid` in target list `{key}`.')
+
+        if 'proposalid' not in target_list.columns:
+            target_list.append_column('proposalid', '', 'string')
+
+        if 'obcode' not in target_list.columns:
+            target_list.append_column('obcode', target_list.data['targetid'], 'string')
 
         # TODO: these must be calculated from the coordinates
         if 'tract' not in target_list.columns:
@@ -502,9 +514,14 @@ class NetflowScript(Script):
     def __validate_source_target_lists(self, target_lists):
         # TODO: make sure all targetids are unique across all target lists
 
-        required_columns = [ 'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode']
+        required_columns = {
+            'sci': [ 'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode' ],
+            'cal': [ 'epoch', ],
+            'sky': [ 'epoch', ],
+        }
+
         for key, target_list in target_lists.items():
-            for col in required_columns:
+            for col in required_columns[self.__config.targets[key].prefix]:
                 if col not in target_list.columns:
                     raise Exception(f'Missing required column "{col}" in target list `{key}`.')
 
