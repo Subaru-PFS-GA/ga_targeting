@@ -112,7 +112,8 @@ class M31(M31Galaxy):
         #    SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg) for ra, dec, pa in zip(rastr, decstr, pa0) ]
         #}
 
-        i = 21             # just do one pointing for now
+        i = 10
+        # just do one pointing for now
         rastr = rastr[i]
         decstr = decstr[i]
         pa = pa0[i]
@@ -220,7 +221,7 @@ class M31(M31Galaxy):
             bot_pri = np.maximum(np.floor((i0 - 20)/(23.0 - 20) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
           
             w = ~np.isnan(prob)
-            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
+            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w]**(1/10) * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
             
             # Everything without membership probability
             w = np.isnan(prob) | (prob == 0.0)
@@ -243,7 +244,7 @@ class M31(M31Galaxy):
             code[w] = 3
 
         else:
-            rais(NotImplementedError)
+            raise(NotImplementedError)
         
         exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10**((i0-19.0)/2.5)) + 1).astype(int), 10), 1)
 

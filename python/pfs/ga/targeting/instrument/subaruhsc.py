@@ -101,7 +101,7 @@ class SubaruHSC(Instrument):
 
         reader = ObservationSerializer(format='.csv')
         reader.append_photometry(SubaruHSC.photometry())
-        reader.column_names.append(f'targetid')
+        #reader.column_names.append(f'targetid')
         
         reader.column_map = {
             'RA': 'RA',
@@ -143,5 +143,23 @@ class SubaruHSC(Instrument):
 
         reader.filter = filter
         reader.kwargs = dict(delimiter=',')
+
+        return reader
+    
+    @staticmethod
+    def text_observation_reader_pn(mags=None):
+        if mags is None:
+            mags = ['g']
+        
+        reader = ObservationSerializer(format='.csv')
+        reader.append_photometry(SubaruHSC.photometry())
+        
+        reader.column_map = {
+            'RA': 'RA',
+            'DEC': 'Dec',
+            'mag_g': 'obs_hsc_g',
+            'flag': 'pnflag'
+        }
+        reader.kwargs = dict(delimiter=' ', comment='#')
 
         return reader
