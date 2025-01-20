@@ -7,7 +7,7 @@ import astropy.units as u
 
 import pfs.ga.targeting.netflow
 from ..config import NetflowConfig
-from ..targets.dsph import GALAXIES
+from ..targets.m31 import GALAXIES
 from ..instrument import SubaruPFI
 from ..io import ObservationSerializer
 from ..netflow import Netflow, Design
