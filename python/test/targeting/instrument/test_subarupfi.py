@@ -6,6 +6,9 @@ from astropy.time import Time
 
 from test_base import TestBase
 
+from ics.cobraCharmer.cobraCoach import engineer
+from ics.cobraCharmer.pfiDesign import PFIDesign
+
 from pfs.ga.targeting.config import NetflowConfig
 from pfs.ga.targeting.config.instrumentoptionsconfig import InstrumentOptionsConfig
 from pfs.ga.targeting.projection import Pointing
@@ -14,42 +17,42 @@ from pfs.ga.targeting.diagram import FOV
 
 class SubaruPFITest(TestBase):
     def test_init(self):
-        inst = SubaruPFI()
+        pfi = SubaruPFI()
 
         config = NetflowConfig()
-        inst = SubaruPFI(instrument_options=config.instrument_options)
+        pfi = SubaruPFI(instrument_options=config.instrument_options)
 
     def test_load_grand_fiber_map(self):
-        inst = SubaruPFI()
-        inst._SubaruPFI__load_grand_fiber_map()
+        pfi = SubaruPFI()
+        pfi._SubaruPFI__load_grand_fiber_map()
 
     def test_get_fiber_map(self):
-        inst = SubaruPFI()
-        fiber_map = inst.fiber_map
+        pfi = SubaruPFI()
+        fiber_map = pfi.fiber_map
 
     def test_create_default_bench(self):
-        inst = SubaruPFI()
-        inst._SubaruPFI__create_default_bench()
+        pfi = SubaruPFI()
+        pfi._SubaruPFI__create_default_bench()
 
     def test_create_configured_bench(self):
-        inst = SubaruPFI()
-        inst._SubaruPFI__create_configured_bench()
+        pfi = SubaruPFI()
+        pfi._SubaruPFI__create_configured_bench()
 
     def test_get_bench(self):
-        inst = SubaruPFI()
-        bench = inst.bench
+        pfi = SubaruPFI()
+        bench = pfi.bench
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'full'})
-        inst = SubaruPFI(instrument_options=instrument_options)
-        bench = inst.bench
+        pfi = SubaruPFI(instrument_options=instrument_options)
+        bench = pfi.bench
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-        inst = SubaruPFI(instrument_options=instrument_options)
-        bench = inst.bench
+        pfi = SubaruPFI(instrument_options=instrument_options)
+        bench = pfi.bench
 
     def test_find_associations(self):
-        inst = SubaruPFI()
-        b = inst.bench
+        pfi = SubaruPFI()
+        b = pfi.bench
         obs = self.load_test_observation()
         ra, dec = obs.get_coords()
         mask = np.full_like(ra, True, dtype=bool)
@@ -80,31 +83,31 @@ class SubaruPFITest(TestBase):
     def test_radec_to_altaz(self):
         # TODO: move to telescope class
 
-        inst = SubaruPFI()
-        az, el, inr = inst.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2024-06-10T00:00:00.0Z"))
+        pfi = SubaruPFI()
+        az, el, inr = pfi.radec_to_altaz(226.3, 67.5, posang=0.0, obs_time=Time("2024-06-10T00:00:00.0Z"))
 
     def test_get_visibility(self):
         # TODO: move to telescope class
 
         # Ursa Minor dSph visible
-        inst = SubaruPFI()
-        visible, airmass = inst.get_visibility(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
+        pfi = SubaruPFI()
+        visible, airmass = pfi.get_visibility(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
         self.assertTrue(visible)
 
         # Below horizon
-        visible, airmass = inst.get_visibility(0, 0, posang=0, obs_time=Time("2016-04-03T08:00:00Z"))
+        visible, airmass = pfi.get_visibility(0, 0, posang=0, obs_time=Time("2016-04-03T08:00:00Z"))
         self.assertFalse(visible)
 
         # Bootes I is visible at a very large airmass
-        visible, airmass = inst.get_visibility(210.025, 14.5, posang=30, obs_time=Time("2025-01-24T11:00:00Z"))
+        visible, airmass = pfi.get_visibility(210.025, 14.5, posang=30, obs_time=Time("2025-01-24T11:00:00Z"))
         self.assertTrue(visible)
         self.assertTrue(airmass > 5)
 
     def test_radec_to_fp_pos(self):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-        inst = SubaruPFI(instrument_options=instrument_options)
+        pfi = SubaruPFI(instrument_options=instrument_options)
         pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"))
-        fp_pos = inst.radec_to_fp_pos(np.array(226.3),
+        fp_pos = pfi.radec_to_fp_pos(np.array(226.3),
                                       np.array(67.5),
                                       pointing=pointing)
         
@@ -117,17 +120,17 @@ class SubaruPFITest(TestBase):
         
     def test_fp_pos_to_cobra_angles(self):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-        inst = SubaruPFI(instrument_options=instrument_options)
+        pfi = SubaruPFI(instrument_options=instrument_options)
 
         s = np.s_[:]
-        cidx = np.arange(inst.bench.cobras.nCobras)[s]
-        centers = inst.bench.cobras.centers[s][:, None]
+        cidx = np.arange(pfi.bench.cobras.nCobras)[s]
+        centers = pfi.bench.cobras.centers[s][:, None]
 
         # Generate random focal plane positions around each cobra
         # Radius is very slightly beyond the maximum reach of the cobra
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        theta, phi, d, eb_pos, flags = pfi.fp_pos_to_cobra_angles(fp_pos, cidx)
 
         self.assertEqual(theta.shape, (2394, 100, 2))
         self.assertEqual(phi.shape, (2394, 100, 2))
@@ -136,7 +139,7 @@ class SubaruPFITest(TestBase):
         self.assertTrue(((flags[..., 1] & CobraAngleFlags.SOLUTION_OK) & ~(flags[..., 0] & CobraAngleFlags.SOLUTION_OK)).sum() == 0)
 
         # Make sure the two solutions evaluate to the same position
-        fp_pos2 = inst.cobra_angles_to_fp_pos(theta, phi, cidx)
+        fp_pos2 = pfi.cobra_angles_to_fp_pos(theta, phi, cidx)
 
         mask = (flags & CobraAngleFlags.SOLUTION_OK != 0)
         npt.assert_almost_equal(fp_pos[mask[..., 0]], fp_pos2[..., 0][mask[..., 0]])
@@ -147,17 +150,17 @@ class SubaruPFITest(TestBase):
         # First solutions are the same for non-broken cobras
         # Many second solutions are NaN, so not testing them for now
         for j in range(fp_pos.shape[1]):
-            theta2, phi2, flags2 = inst.cobra_coach.pfi.positionsToAngles(inst.cobra_coach.allCobras[s], fp_pos[:, j])
+            theta2, phi2, flags2 = pfi.cobra_coach.pfi.positionsToAngles(pfi.cobra_coach.allCobras[s], fp_pos[:, j])
             for i in range(2):
-                npt.assert_almost_equal(theta[:, j, i][~inst.bench.cobras.hasProblem[s]], theta2[:, i][~inst.bench.cobras.hasProblem[s]])
-                npt.assert_almost_equal(phi[:, j, i][~inst.bench.cobras.hasProblem[s]], phi2[:, i][~inst.bench.cobras.hasProblem[s]])
+                npt.assert_almost_equal(theta[:, j, i][~pfi.bench.cobras.hasProblem[s]], theta2[:, i][~pfi.bench.cobras.hasProblem[s]])
+                npt.assert_almost_equal(phi[:, j, i][~pfi.bench.cobras.hasProblem[s]], phi2[:, i][~pfi.bench.cobras.hasProblem[s]])
                 
                 # Flags don't match by definition
                 # self.assertTrue((flags[:, j, i] == flags2[:, i]).all())
 
         # Verify that the elbow positions are correct
-        L2 = inst.bench.cobras.L2[cidx][..., None]
-        theta0 = inst.bench.cobras.tht0[cidx][..., None]
+        L2 = pfi.bench.cobras.L2[cidx][..., None]
+        theta0 = pfi.bench.cobras.tht0[cidx][..., None]
 
         solution_ok = (flags[..., 0] & CobraAngleFlags.SOLUTION_OK) != 0
         npt.assert_almost_equal((np.abs(eb_pos[..., 0] - fp_pos) - L2)[solution_ok], 0)
@@ -167,30 +170,90 @@ class SubaruPFITest(TestBase):
 
     def test_cobra_angles_to_fp_pos(self):
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-        inst = SubaruPFI(instrument_options=instrument_options)
+        pfi = SubaruPFI(instrument_options=instrument_options)
 
         s = np.s_[:120]
-        cidx = np.arange(inst.bench.cobras.nCobras)[s]
-        centers = inst.bench.cobras.centers[s][:, None]
+        cidx = np.arange(pfi.bench.cobras.nCobras)[s]
+        centers = pfi.bench.cobras.centers[s][:, None]
 
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
-        fp_pos2 = inst.cobra_angles_to_fp_pos(theta[..., 0], phi[..., 0], cidx)
+        theta, phi, d, eb_pos, flags = pfi.fp_pos_to_cobra_angles(fp_pos, cidx)
+        fp_pos2 = pfi.cobra_angles_to_fp_pos(theta[..., 0], phi[..., 0], cidx)
 
         pass
 
     def test_simulate_trajectories(self):
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
-        inst = SubaruPFI(instrument_options=instrument_options)
+        pfi = SubaruPFI(instrument_options=instrument_options)
+
+        cidx = np.where(pfi.calib_model.status == PFIDesign.COBRA_OK_MASK)[0][:120]
+        centers = pfi.bench.cobras.centers[cidx][:, None]
+
+        fp_pos = self.generate_random_fp_pos(centers, n=10)
+        cobraidx = np.broadcast_to(cidx[..., None], fp_pos.shape)
+        theta, phi, d, eb_pos, flags = pfi.fp_pos_to_cobra_angles(fp_pos, cidx)
+
+        # Send all cobras to home position
+        cobra_state = pfi.create_cobra_state(cobraidx)
+        pfi.set_cobra_state_to_home(cobra_state)
+        
+        # Simulate the trajectories from the current state to the target state
+        # Use the first solution for the angles
+        pfi.simulate_trajectories(cobra_state, theta[..., 0], phi[..., 0],
+                                  use_scaling=pfi.cobra_coach.useScaling, 
+                                  max_segments=pfi.cobra_coach.maxSegments,
+                                  max_total_steps=pfi.cobra_coach.maxTotalSteps)
+
+    def test_simulate_trajectories_cobraCharmer(self):
+        # This is how it's done in the original code
+
+
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        pfi = SubaruPFI(instrument_options=instrument_options)
+        cc = pfi.cobra_coach
 
         s = np.s_[:120]
-        cidx = np.arange(inst.bench.cobras.nCobras)[s]
-        centers = inst.bench.cobras.centers[s][:, None]
+        cidx = np.arange(pfi.bench.cobras.nCobras)[s]
+        centers = pfi.bench.cobras.centers[s][:, None]
 
         fp_pos = self.generate_random_fp_pos(centers)
 
-        theta, phi, d, eb_pos, flags = inst.fp_pos_to_cobra_angles(fp_pos, cidx)
+        # Calculate the final theta and phi angles for the good cobras
+        timeStep=20
+        maxSteps = 2000
+        nCobras = cc.nCobras
+        goodCobras = np.full(nCobras, False)
+        goodCobras[cc.goodIdx] = True
 
-        inst.simulate_trajectories(theta, phi, cidx)
+        thetaAngles, phiAngles, _ = cc.pfi.positionsToAngles(cc.allCobras[s][goodCobras[s]], fp_pos[goodCobras[s], 0])
+
+        # Select the first angles solution
+        thetaAngles = thetaAngles[:, 0]
+        phiAngles = phiAngles[:, 0]
+
+        # Initialize the engineer module
+        engineer.setCobraCoach(cc)
+        engineer.setConstantOntimeMode(maxSteps=maxSteps)
+
+        # Calculate the cobra trajectories
+        trajectories, _ = engineer.createTrajectory(
+            np.where(goodCobras[s])[0], thetaAngles, phiAngles,
+            tries=8, twoSteps=True, threshold=20.0, timeStep=timeStep)
+
+        # Calculate the fiber and elbow positions along the cobra trajectories
+        fiberPositions = trajectories.calculateFiberPositions(cc)
+        elbowPositions = trajectories.calculateElbowPositions(cc)
+        
+        # self.nSteps = self.fiberPositions.shape[1]
+
+        pass
+
+    def test_batch_interpolate(self):
+        x = np.random.uniform(0, 113, (120, 80, 100))
+        xp = np.broadcast_to(np.arange(113), (120, 80, 113))
+        fp = np.zeros((120, 80, 113))
+
+        SubaruPFI._SubaruPFI__batch_interp(None, x, xp, fp)
+        pass
