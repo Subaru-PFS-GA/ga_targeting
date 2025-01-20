@@ -4,7 +4,7 @@ import numpy as np
 
 import pfs.ga.targeting
 
-path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b22_ENG/ga_targets_outerdisk_l180_b22_ENG_bright-v2.csv'
+path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b25_ENG/ga_targets_outerdisk_l180_b25_ENG_faint-v2.csv'
 
 column_map = {
     'ob_code': 'obcode',
@@ -27,13 +27,13 @@ extra_columns = {
 
 config = dict(
     field = dict(
-        key = "outerdisk_l180_b22_bright",
-        name = "Outer Disk l=180 b=22 Bright",
+        key = "outerdisk_l180_b25_bright",
+        name = "Outer Disk l=180 b=25 Bright",
         obs_time = datetime(2025, 1, 25, 10, 0, 0),
-        exp_time = 30 * 60, # sec
+        exp_time = 60 * 60, # sec
     ),
     pointings = [
-        dict(ra=111, dec=38.4, posang=30),
+        dict(ra=114.4, dec=39.2, posang=30),
     ],
     targets = {
         "gaia": dict(
@@ -69,7 +69,7 @@ config = dict(
             )
         ),
         "sky": dict(
-            path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b22_ENG/outerdisk_b22_sky.feather',
+            path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b25_ENG/outerdisk_b25_sky.feather',
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -81,7 +81,7 @@ config = dict(
             extra_columns = extra_columns,
         ),
         "fluxstd": dict(
-            path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b22_ENG/outerdisk_b22_fluxstd.feather',
+            path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b25_ENG/outerdisk_b25_fluxstd.feather',
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
@@ -107,7 +107,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [13, 16],
+                    'ps1_g': [14, 17],
                 }
             )
         ),
