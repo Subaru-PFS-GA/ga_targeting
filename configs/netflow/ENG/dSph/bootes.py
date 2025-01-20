@@ -14,32 +14,28 @@ config = dict(
             prefix = "sci",
             epoch = "J2000.0",
             catid = 15001,
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
-            filters = {
-                "g_hsc": dict(
-                    mag = 'obs_hsc_g',
-                    mag_err = 'err_hsc_g',
-                    # flux = "g_hsc_flux",
-                    # flux_err = "g_hsc_flux_err",
-                    # psf_mag = "g_hsc",
-                    # psf_mag_err = "g_hsc_err",
-                    # psf_flux = "g_hsc_flux",
-                    # psf_flux_err = "g_hsc_flux_err",
-                    # fiber_mag = "g_hsc",
-                    # fiber_mag_err = "g_hsc_err",
-                    # fiber_flux = "g_hsc_flux",
-                    # fiber_flux_err = "g_hsc_flux_err",
-                    # total_mag = "g_hsc",
-                    # total_mag_err = "g_hsc_err",
-                    # total_flux = "g_hsc_flux",
-                    # total_flux_err = "g_hsc_flux_err",
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
                 ),
-                "r_hsc": dict(
-                    mag = 'obs_hsc_r',
-                    mag_err = 'err_hsc_r',
-                ),
-            }
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_hsc": dict(
+                        mag = 'obs_hsc_g',
+                        mag_err = 'err_hsc_g',
+                    ),
+                    "r_hsc": dict(
+                        mag = 'obs_hsc_r',
+                        mag_err = 'err_hsc_r',
+                    ),
+                }
+            ),
         ),
         "sky": dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/sky_bootesi.feather",
@@ -50,8 +46,6 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "sky",
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
         ),
         "fluxstd": dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
@@ -62,20 +56,30 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "cal",
-            proposalid_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-            obcode_pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
-            bands = {
-                b: dict(
-                    filter = f'filter_{b}',                   # Column storing filter names
-                    psf_mag = f'psf_mag_{b}',
-                    psf_mag_err = f'psf_mag_error_{b}',
-                    psf_flux = f'psf_flux_{b}',
-                    psf_flux_err = f'psf_flux_error_{b}',
-                ) for b in 'gri'
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+                    dtype = 'string',
+                ),
+                'obcode': dict(
+                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+                    dtype = 'string'
+                )
             },
-            limits = {
-                'ps1_g': [17, 19],
-            }
+            photometry = dict(
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',                   # Column storing filter names
+                        psf_mag = f'psf_mag_{b}',
+                        psf_mag_err = f'psf_mag_error_{b}',
+                        psf_flux = f'psf_flux_{b}',
+                        psf_flux_err = f'psf_flux_error_{b}',
+                    ) for b in 'gri'
+                },
+                limits = {
+                    'ps1_g': [17, 19],
+                }
+            ),
         ),
     },
     # Override the minimum number of calibration targets
