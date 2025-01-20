@@ -157,36 +157,37 @@ config = dict(
             #    defined that contains the filter name for each band. This method is typically
             #    used for calibration target lists where the targets might come from different
             #    photometric catalogs.
-
-            # Define the filters used to measure the flux of the targets.
-            # At least one filter must be defined and either the flux or the magnitude must be
-            # defined for each filter. The missing fluxes and/or magnitudes are automatically
-            # calculated from the provided values but no aperture or fiber effects are taken
-            # into account, so the values are only indicative.
-            filters = {
-                "g_hsc": dict(
-                    mag = 'sdss_g',
-                    mag_err = 'err_sdss_g',
-                    # flux = "g_hsc_flux",
-                    # flux_err = "g_hsc_flux_err",
-                    # psf_mag = "g_hsc",
-                    # psf_mag_err = "g_hsc_err",
-                    # psf_flux = "g_hsc_flux",
-                    # psf_flux_err = "g_hsc_flux_err",
-                    # fiber_mag = "g_hsc",
-                    # fiber_mag_err = "g_hsc_err",
-                    # fiber_flux = "g_hsc_flux",
-                    # fiber_flux_err = "g_hsc_flux_err",
-                    # total_mag = "g_hsc",
-                    # total_mag_err = "g_hsc_err",
-                    # total_flux = "g_hsc_flux",
-                    # total_flux_err = "g_hsc_flux_err",
-                ),
-                "i_hsc": dict(
-                    mag = 'sdss_r',
-                    mag_err = 'err_sdss_r',
-                ),
-            }
+            photometry = dict(
+                # Define the filters used to measure the flux of the targets.
+                # At least one filter must be defined and either the flux or the magnitude must be
+                # defined for each filter. The missing fluxes and/or magnitudes are automatically
+                # calculated from the provided values but no aperture or fiber effects are taken
+                # into account, so the values are only indicative.
+                filters = {
+                    "g_hsc": dict(
+                        mag = 'sdss_g',
+                        mag_err = 'err_sdss_g',
+                        # flux = "g_hsc_flux",
+                        # flux_err = "g_hsc_flux_err",
+                        # psf_mag = "g_hsc",
+                        # psf_mag_err = "g_hsc_err",
+                        # psf_flux = "g_hsc_flux",
+                        # psf_flux_err = "g_hsc_flux_err",
+                        # fiber_mag = "g_hsc",
+                        # fiber_mag_err = "g_hsc_err",
+                        # fiber_flux = "g_hsc_flux",
+                        # fiber_flux_err = "g_hsc_flux_err",
+                        # total_mag = "g_hsc",
+                        # total_mag_err = "g_hsc_err",
+                        # total_flux = "g_hsc_flux",
+                        # total_flux_err = "g_hsc_flux_err",
+                    ),
+                    "i_hsc": dict(
+                        mag = 'sdss_r',
+                        mag_err = 'err_sdss_r',
+                    ),
+                }
+            )
         ),
         "sky": dict(
             path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi_sky.feather'),
@@ -244,37 +245,38 @@ config = dict(
                     dtype = 'string',
                 ),
             },
+            photometry = dict(
+                # Define the bands used to measure the flux of the calibration targets. The filter
+                # name is taken from the column defined in the `filter` key. Missing fluxes and
+                # magnitudes are automatically calculated from the provided values as described above.
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',                   # Column storing filter names
+                        # psf_mag = f'psf_mag_{b}',
+                        # psf_mag_err = f'psf_mag_error_{b}',
+                        psf_flux = f'psf_flux_{b}',
+                        psf_flux_err = f'psf_flux_error_{b}',
+                        # fiber_mag = None,
+                        # fiber_mag_err = None,
+                        # fiber_flux = None,
+                        # fiber_flux_err = None,
+                        # total_mag = None,
+                        # total_mag_err = None,
+                        # total_flux = None,
+                        # total_flux_err = None,
+                    ) for b in 'gr'
+                },
 
-            # Define the bands used to measure the flux of the calibration targets. The filter
-            # name is taken from the column defined in the `filter` key. Missing fluxes and
-            # magnitudes are automatically calculated from the provided values as described above.
-            bands = {
-                b: dict(
-                    filter = f'filter_{b}',                   # Column storing filter names
-                    # psf_mag = f'psf_mag_{b}',
-                    # psf_mag_err = f'psf_mag_error_{b}',
-                    psf_flux = f'psf_flux_{b}',
-                    psf_flux_err = f'psf_flux_error_{b}',
-                    # fiber_mag = None,
-                    # fiber_mag_err = None,
-                    # fiber_flux = None,
-                    # fiber_flux_err = None,
-                    # total_mag = None,
-                    # total_mag_err = None,
-                    # total_flux = None,
-                    # total_flux_err = None,
-                ) for b in 'gr'
-            },
-
-            # Define magnitude limits for the calibration targets. The limits can only include
-            # minimum and maximum limits on the magnitudes. If magnitude are not available,
-            # the are calculated from the corresponding fluxes. The dictionary keys must match
-            # be composed of '{photometry}_{magnitude}'. The names stored in the data frame columns
-            # are parsed automatically into the name of the photometric systems and the filter.
-            # Magnitude (flux) types are searched in the following order: `psf`, `fiber`, `total`.
-            limits = {
-                'ps1_g': [17, 19],
-            }
+                # Define magnitude limits for the calibration targets. The limits can only include
+                # minimum and maximum limits on the magnitudes. If magnitude are not available,
+                # the are calculated from the corresponding fluxes. The dictionary keys must match
+                # be composed of '{photometry}_{magnitude}'. The names stored in the data frame columns
+                # are parsed automatically into the name of the photometric systems and the filter.
+                # Magnitude (flux) types are searched in the following order: `psf`, `fiber`, `total`.
+                limits = {
+                    'ps1_g': [17, 19],
+                }
+            ),
         ),
     },
 
