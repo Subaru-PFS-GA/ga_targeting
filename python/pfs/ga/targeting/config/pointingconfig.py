@@ -20,6 +20,16 @@ class PointingConfig(Config):
 
         super().__init__()
 
+    @staticmethod
+    def from_pointing(pointing: Pointing):
+        return PointingConfig(
+            ra=pointing.ra,
+            dec=pointing.dec,
+            posang=pointing.posang,
+            obs_time=pointing.obs_time.value if pointing.obs_time is not None else None,
+            exp_time=pointing.exp_time.to_value('s') if pointing.exp_time is not None else None
+        )
+
     def get_pointing(self):
         return Pointing(self.ra, self.dec, posang=self.posang, obs_time=self.obs_time, exp_time=self.exp_time)
     

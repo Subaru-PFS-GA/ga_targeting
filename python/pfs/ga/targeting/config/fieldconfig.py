@@ -2,11 +2,13 @@ from typing import List, Dict
 from datetime import datetime
 
 from .config import Config
+from .pointingconfig import PointingConfig
 
 class FieldConfig(Config):
     def __init__(self,
                  key: str = None,
                  name: str = None,
+                 center: PointingConfig = None,
                  arms: str = None,
                  nvisits: int = None,
                  exp_time: float = None,
@@ -18,6 +20,9 @@ class FieldConfig(Config):
 
         # Full name of the field
         self.name = name
+
+        # Field center
+        self.center = center
 
         # List of arms to be used to observe the field. It has no effect on the
         # targeting algorithm, but these values are used to generate the pfsDesign files.

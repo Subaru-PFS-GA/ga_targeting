@@ -23,12 +23,15 @@ class Bootes(DSphGalaxy):
         pm_err = [ 0.122, 0.098 ] * u.mas / u.yr
         RV, RV_err = (99.0, 2.1) * u.kilometer / u.second     # Simbad
 
-        #ra0 = [ 210.5, 209.6, 210.1, 210.1 ] * u.deg
-        #dec0 = [ 14.5, 14.5, 14.15, 14.8 ] * u.deg
-        #pa0 = [ 30, 30, 30, 30 ] * u.deg
-        ra0 = [ 210.025 ] * u.deg
-        dec0 = [ 14.5 ] * u.deg
-        pa0 = [ 30 ] * u.deg
+        # SSP pointings
+        ra0 = [ 210.5, 209.6, 210.1, 210.1 ] * u.deg
+        dec0 = [ 14.5, 14.5, 14.15, 14.8 ] * u.deg
+        pa0 = [ 30, 30, 30, 30 ] * u.deg
+
+        # Engineering run
+        # ra0 = [ 210.025 ] * u.deg
+        # dec0 = [ 14.5 ] * u.deg
+        # pa0 = [ 30 ] * u.deg
 
         pointings = {
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
@@ -63,14 +66,15 @@ class Bootes(DSphGalaxy):
         config.field = FieldConfig(
             key = self.ID,
             name = self.name,
+            center = PointingConfig.from_pointing(self.get_center()),
             arms = 'bmn',
             nvisits = 1,
             exp_time = 6 * 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 1, 24, 4, 00, 0) + timedelta(hours=10),
+            obs_time = datetime(2025, 1, 24, 4, 0, 0) + timedelta(hours=10),
             resolution = 'm',
         )
 
-        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
 
         return config
     

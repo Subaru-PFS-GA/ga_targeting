@@ -61,6 +61,7 @@ class Sculptor(DSphGalaxy):
         config.field = FieldConfig(
             key = self.ID,
             name = self.name,
+            center = self.get_center(),
             arms = 'bmn',
             nvisits = 1,
             exp_time = 6 * 30 * 60.,        # 3 hr total
