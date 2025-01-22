@@ -98,3 +98,4 @@ pushd . > /dev/null
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"
 }
+export -f ga-netflow
