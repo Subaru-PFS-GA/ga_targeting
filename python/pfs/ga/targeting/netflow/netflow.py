@@ -1171,8 +1171,8 @@ class Netflow():
         self.__visit_exp_time = None
         for p in self.__pointings:
             if self.__visit_exp_time is None:
-                self.__visit_exp_time = p.exp_time
-            elif self.__visit_exp_time != p.exp_time:
+                self.__visit_exp_time = p.exp_time.to_value('s')
+            elif self.__visit_exp_time != p.exp_time.to_value('s'):
                 raise NetflowException("Exposure time of every pointing and visit should be the same.")
             
     def __calculate_target_visits(self):
@@ -2316,6 +2316,7 @@ class Netflow():
         for vidx, visit in enumerate(self.__visits):
             collisions = self.__cobra_collisions[vidx]
             cobra_assignments = self.__cobra_assignments[vidx]
+            target_assignments = self.__target_assignments[vidx]
 
             # Get the target ids for each colliding cobra
             tidx = cobra_assignments[collisions]
@@ -2332,6 +2333,12 @@ class Netflow():
             # the broken cobra
             cost[cost == -1] = np.max(cost) + 1
             cidx = collisions[np.argmin(cost, axis=0), np.arange(collisions.shape[1])]
+
+            # First remove the target assignments
+            for ci in cidx:
+                target_assignments.pop(cobra_assignments[ci], None)
+
+            # Then unassign the cobras
             cobra_assignments[cidx] = -1
 
             if collisions.size > 0:

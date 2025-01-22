@@ -55,6 +55,9 @@ def normalize_time(time, scale='utc', allow_none=True):
         pass
     elif isinstance(time, datetime):
         time = Time(time, format='datetime', scale=scale)
+    elif isinstance(time, str):
+        # Assume ISO time
+        time = Time(time, scale=scale)
     else:
         raise NotImplementedError()
     

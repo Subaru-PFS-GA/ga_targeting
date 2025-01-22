@@ -5,6 +5,8 @@ import pandas as pd
 from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 
+from pfs.datamodel import TargetType, FiberStatus
+
 import pfs.ga.targeting
 from ...config import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
@@ -153,6 +155,16 @@ class NetflowScript(Script):
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
+        if self.__nvisits is not None:
+            self.__config.field.nvisits = self.__nvisits
+
+        if self.__exp_time is not None:
+            self.__config.field.exp_time = self.__exp_time
+
+        if self.__obs_time is not None:
+            self.__obs_time = datetime.fromisoformat(self.__obs_time)
+            self.__config.field.obs_time = self.__obs_time
+
         if self.__time_limit is not None:
             self.__config.gurobi_options.timelimit = self.__time_limit
 
@@ -251,6 +263,9 @@ class NetflowScript(Script):
 
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
+
+        # Verify the final target lists
+        self.__verify_designs(designs)
 
         # # Verify each design
         # # TODO: move this after any other step and throw exception on
@@ -579,15 +594,10 @@ class NetflowScript(Script):
             raise NotImplementedError()
         
         # The number of visits can be overridden from the command-line argument
-        nvisits = self.__nvisits if self.__nvisits is not None else self.__config.field.nvisits
-        exp_time = self.__exp_time if self.__exp_time is not None else self.__config.field.exp_time
-
-        if self.__obs_time is not None:
-            obs_time = datetime.fromisoformat(self.__obs_time)
-        else:
-            obs_time = self.__config.field.obs_time
+        nvisits = self.__config.field.nvisits
+        exp_time = self.__config.field.exp_time
+        obs_time = self.__config.field.obs_time
         
-
         # Create new pointing objects with obs_time, exp_time etc.
         pointings = []
         for p in pp:   
@@ -816,6 +826,27 @@ class NetflowScript(Script):
             logger.info(f'Generated design {d.pfsDesignId:016x} for visit {visit.visit_idx} with name `{d.designName}`.')
 
         return designs
+    
+    def __verify_designs(self, designs):
+        for design in designs:
+
+            if not np.all(np.bincount(design.fiberId) <= 1):
+                logger.error(f'Duplicate fiber assignments in design {design.pfsDesignId:016x}.')
+
+            if not np.all(design.dec[design.targetType == TargetType.UNASSIGNED] == 0.0):
+                logger.error(f'Unassigned targets with coordinates found in design {design.pfsDesignId:016x}.')
+
+            # Further verifications - probably better done in the notebook or in a separate script
+            # - make sure unassigned cobras are in home position
+            # - make sure all assigned fibers have flux given
+
+            # design.pfiNominal[design.targetType == TargetType.UNASSIGNED]
+            # 'na': TargetType.UNASSIGNED,
+            # 'sky': TargetType.SKY,
+            # 'cal': TargetType.FLUXSTD,
+            # 'sci': TargetType.SCIENCE,
+            # 'eng': TargetType.ENGINEERING,
+
     
     def __save_designs(self, designs):
         for d in designs:
