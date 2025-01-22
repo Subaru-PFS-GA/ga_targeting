@@ -5,15 +5,6 @@ from pfs.ga.targeting.instrument import SubaruHSC
 DATA_DIR = '/datascope/subaru'
 
 config = dict(
-    field = dict(
-        key = "bootes",
-        name = "Bootes I",
-        obs_time = datetime(2025, 1, 25, 10, 0, 0),
-        exp_time = 6 * 30 * 60, # sec
-    ),
-    pointings = [
-        dict(ra=210.025, dec=14.5, posang=30),
-    ],
     targets = {
         "dsph": dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/bootesi_obs.feather",

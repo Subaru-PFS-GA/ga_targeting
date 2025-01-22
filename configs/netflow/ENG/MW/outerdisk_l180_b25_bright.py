@@ -95,6 +95,7 @@ config = dict(
                 'pmdec': 'pmdec',
                 'pmdec_error': 'err_pmdec',
             },
+            mask = 'lambda df: df["prob_f_star"] > 0.5',
             prefix = "cal",
             catid = 3006,
             extra_columns = extra_columns,
@@ -107,7 +108,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [13, 16],
+                    'ps1_g': [13, 17],
                 }
             )
         ),
