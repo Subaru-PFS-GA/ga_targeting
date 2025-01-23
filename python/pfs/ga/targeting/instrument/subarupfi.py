@@ -1705,34 +1705,44 @@ class SubaruPFI(Instrument, FiberAllocator):
         if data is not None:
             style = styles.closed_circle(**kwargs)
             vmin, vmax = find_plot_limits(data, vmin=vmin, vmax=vmax)
-            color = get_plot_normalized_color(cmap, data, vmin=vmin, vmax=vmax)
+            color = get_plot_normalized_color(cmap, data, vmin=vmin, vmax=vmax, alpha=0.5)
         else:
             style = styles.open_circle(**kwargs)
             vmin, vmax = None, None
             color = None
 
-        for i in range(len(self.__bench.cobras.centers)):
-            # TODO: we are cheating here and assume that the patrol region will appear as a cirle
-            #       in the plots, regardless of the actual projection
+        # Draw the cobra patrol areas with actual circles - this is slow
+        if False:
+            for i in range(len(self.__bench.cobras.centers)):
+                # TODO: we are cheating here and assume that the patrol region will appear as a cirle
+                #       in the plots, regardless of the actual projection
 
-            # TODO: This projects cobras into FP coordinates so it won't work 
-            #       when we draw a FOV plot with some projection defines on the axis
+                # TODO: This projects cobras into FP coordinates so it won't work 
+                #       when we draw a FOV plot with some projection defines on the axis
 
-            # TODO: review plotting broken cobras
+                # TODO: review plotting broken cobras
 
-            xy = (self.__bench.cobras.centers[i].real, self.__bench.cobras.centers[i].imag)
-            rr = (self.__bench.cobras.centers[i].real + self.__bench.cobras.rMax[i], self.__bench.cobras.centers[i].imag)
-            xy = diagram.project_coords(ax, xy, native_frame='pixel')
-            rr = diagram.project_coords(ax, rr, native_frame='pixel')
-            r = rr[0] - xy[0]
+                if isinstance(color, Iterable):
+                    style['facecolor'] = color[i]
+                elif color is not None:
+                    style['facecolor'] = color
 
-            if isinstance(color, Iterable):
-                style['facecolor'] = color[i]
-            elif color is not None:
-                style['facecolor'] = color
+                xy = (self.__bench.cobras.centers[i].real, self.__bench.cobras.centers[i].imag)
+                rr = (self.__bench.cobras.centers[i].real + self.__bench.cobras.rMax[i], self.__bench.cobras.centers[i].imag)
+                xy = diagram.project_coords(ax, xy, native_frame='pixel')
+                rr = diagram.project_coords(ax, rr, native_frame='pixel')
+                r = rr[0] - xy[0]
 
-            c = Circle(xy, r, **style)
-            diagram.add_patch(ax, c)
+                c = Circle(xy, r, **style)
+                diagram.add_patch(ax, c)
+
+        # Draw the cobras with symbols
+        if True:
+            ax.scatter(self.__bench.cobras.centers.real,
+                        self.__bench.cobras.centers.imag,
+                        marker='o',
+                        s=8,
+                        c=color, **style)
 
         return ScalarMappable(cmap=cmap, norm=Normalize(vmin, vmax))
 

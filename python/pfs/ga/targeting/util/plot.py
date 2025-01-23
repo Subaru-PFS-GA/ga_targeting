@@ -8,8 +8,8 @@ def find_plot_limits(data, vmin=None, vmax=None):
 
     return vmin, vmax
 
-def get_plot_normalized_color(cmap, data, vmin=None, vmax=None):
+def get_plot_normalized_color(cmap, data, vmin=None, vmax=None, alpha=1):
     if vmin is None or vmax is None:
-        return cmap(data)
+        return cmap(data, alpha=alpha)
     else:
-        return cmap((data - vmin) / (vmax - vmin))
+        return cmap((data - vmin) / (vmax - vmin), alpha=alpha)
