@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 
 config = dict(
+    field = dict(
+        name = "GA M31 ENG",
+    ),
     targets = {
         "m31": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/M31/M31_ENG/m31_obs.feather",
@@ -55,12 +58,12 @@ config = dict(
             path = "$PFS_TARGETING_DATA/data/targeting/M31/M31_ENG/sky_m31.feather",
             reader_args = dict(),
             column_map = {
-                'sky_id': 'targetid',
+                'obj_id': 'targetid',
                 'ra': 'RA',
                 'dec': 'Dec',
             },
             prefix = "sky",
-            catid = 2007,
+            catid = 10088,
         ),
         "fluxstd": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/M31/M31_ENG/fluxstd_m31.feather",
@@ -71,7 +74,7 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "cal",
-            catid = 3006,
+            catid = 10088,
             photometry = dict(
                 bands = {
                     b: dict(
@@ -81,6 +84,9 @@ config = dict(
                         psf_flux = f'psf_flux_{b}',
                         psf_flux_err = f'psf_flux_error_{b}',
                     ) for b in 'gri'
+                },
+                limits = {
+                    'ps1_g': [17, 19],
                 }
             ),
         ),

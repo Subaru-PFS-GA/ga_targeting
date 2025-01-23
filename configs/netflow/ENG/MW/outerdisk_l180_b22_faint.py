@@ -28,7 +28,7 @@ extra_columns = {
 config = dict(
     field = dict(
         key = "outerdisk_l180_b22_faint",
-        name = "Outer Disk l=180 b=22 Faint",
+        name = "GA Outer Disk l=180 b=22 Faint ENG",
         obs_time = datetime(2025, 1, 25, 10, 0, 0),
         exp_time = 60 * 60, # sec
     ),
@@ -72,12 +72,12 @@ config = dict(
             path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b22_ENG/outerdisk_b22_sky.feather',
             reader_args = dict(),
             column_map = {
-                'sky_id': 'targetid',
+                'obj_id': 'targetid',
                 'ra': 'RA',
                 'dec': 'Dec'
             },
             prefix = "sky",
-            catid = 2007,
+            catid = 1007,
             extra_columns = extra_columns,
         ),
         "fluxstd": dict(
@@ -108,7 +108,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [14, 17],
+                    'ps1_g': [16.5, 18.5],
                 }
             )
         ),

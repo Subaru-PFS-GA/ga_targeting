@@ -7,7 +7,7 @@ DATA_DIR = '/datascope/subaru'
 config = dict(
     field = dict(
         key = "bootes",
-        name = "Bootes I",
+        name = "GA Bootes I dSph ENG",
         obs_time = datetime(2025, 1, 25, 10, 0, 0),
         exp_time = 6 * 30 * 60, # sec
     ),
@@ -22,7 +22,7 @@ config = dict(
             column_map = {'objid': 'targetid'},
             prefix = "sci",
             epoch = "J2000.0",
-            catid = 15001,
+            catid = 10088,
             extra_columns = {
                 'proposalid': dict(
                     pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
@@ -50,11 +50,12 @@ config = dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/sky_bootesi.feather",
             reader_args = dict(),
             column_map = {
-                'sky_id': 'targetid',
+                'obj_id': 'targetid',
                 'ra': 'RA',
                 'dec': 'Dec',
             },
             prefix = "sky",
+            catid = 1007,
         ),
         "fluxstd": dict(
             path = f"{DATA_DIR}/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
@@ -65,6 +66,7 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "cal",
+            catid = 3006,
             extra_columns = {
                 'proposalid': dict(
                     pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",

@@ -815,12 +815,14 @@ class NetflowScript(Script):
             else:
                 pass
             
-    def __create_designs(self, netflow, assignments_all):
+    def __create_designs(self, netflow : Netflow, assignments_all):
         designs = []
 
         for visit in netflow.visits:
-            d = Design.create_pfsDesign_visit(visit, assignments_all, arms=self.__config.field.arms)
-            d.designName = f'ga_{self.__config.field.name}'
+            design_name = f'{self.__config.field.name} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+            d = Design.create_pfsDesign_visit(visit, assignments_all,
+                                              design_name=design_name,
+                                              arms=self.__config.field.arms)
             designs.append(d)
 
             logger.info(f'Generated design {d.pfsDesignId:016x} for visit {visit.visit_idx} with name `{d.designName}`.')

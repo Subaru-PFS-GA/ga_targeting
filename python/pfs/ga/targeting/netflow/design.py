@@ -19,6 +19,7 @@ class Design():
             assignments = assignments.merge(catalog, on='targetid', how='left')
 
     def create_pfsDesign_visit(visit, assignments,
+                               design_name='',
                                arms='bmn'):
         """
         Generate a PfsDesign object for a given visit.
@@ -40,7 +41,7 @@ class Design():
         fiber_assignments.sort_index(inplace=True)
                 
         kwargs = dict(
-            designName = '',
+            designName = design_name,
             variant = 0,          # not used by makePfsDesign
             designId0 = 0,        # not used by makePfsDesign
 
