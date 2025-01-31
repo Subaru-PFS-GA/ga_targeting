@@ -8,15 +8,26 @@ def pd_append_column(df, name, data, dtype=None):
     Append a column to a DataFrame by allowing to specify the data type.
     """
 
-    if isinstance(data, str):
-        df[name] = pd.Series([data] * len(df), dtype=dtype)
-    elif not isinstance(data, Iterable):
+    if isinstance(data, str) or not isinstance(data, Iterable):
         df[name] = pd.Series([data] * len(df), dtype=dtype)
     elif isinstance(data, pd.Series):
         #df[name] = data.reset_index(drop=True)
         df[name] = data.astype(dtype)
     else:
         df[name] = pd.Series(data, dtype=dtype)
+
+def pd_update_column(df, loc, name, data, dtype=None):
+    """
+    Update a column in a DataFrame by allowing to specify the update locations
+    and the target data type.
+    """
+
+    if isinstance(data, str) or not isinstance(data, Iterable):
+        df.loc[loc, name] = pd.Series([data] * len(df), dtype=dtype)
+    elif isinstance(data, pd.Series):
+        df.loc[loc, name] = data.astype(dtype)
+    else:
+        df.loc[loc, name] = pd.Series(data, dtype=dtype)
 
 def pd_to_nullable(df: pd.DataFrame, columns=None, in_place=False) -> pd.DataFrame:
     """
@@ -53,3 +64,15 @@ def pd_null_to_nan(df: pd.DataFrame, columns=None, in_place=False) -> pd.DataFra
             df[c] = df[c].fillna(np.nan).astype('float64')
 
     return df
+
+def pd_fillna(df: pd.DataFrame, name, value):
+    if df.dtypes[name] == float or df.dtypes[name] == np.float64 or df.dtypes[name] == np.float32:
+        df.loc[df[name].isna(), name] = value
+    elif df.dtypes[name] == pd.Float64Dtype() or df.dtypes[name] == pd.Float32Dtype():
+        df[name] = df[name].fillna(value)
+    elif df.dtypes[name] == 'string':
+        df[name] = df[name].fillna('')
+    elif df.dtypes[name] == object:
+        pass
+    else:
+        pass

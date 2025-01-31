@@ -947,29 +947,35 @@ class Netflow():
             mask.append(sep < 0.75)
 
         return mask
+
+    def __discover_id_column(self, prefix, df):
+        # Try to discover the identity column in a data frame
         
-    def __append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
+        if 'targetid' in df:
+            return 'targetid'
+        elif 'objid' in df:
+            return 'objid'
+        elif 'skyid' in df:
+            return 'skyid'
+        elif prefix == 'sci':
+            return 'objid'
+        elif prefix == 'cal':  
+            return 'objid'
+        elif prefix == 'sky':
+            return 'skyid'
+        else:
+            return None
+            
         
+    def __append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):        
         if isinstance(catalog, Catalog):
             # id_column
             df = catalog.get_data(mask=mask, filter=filter, selection=selection)
         elif isinstance(catalog, pd.DataFrame):
-            df = catalog
+            df = catalog[mask if mask is not None else ()]
         
-        # Try to discover the identity column
-        if 'targetid' in df:
-            id_column = 'targetid'
-        elif 'objid' in df:
-            id_column = 'objid'
-        elif 'skyid' in df:
-            id_column = 'skyid'
-        elif prefix == 'sci':
-            id_column = 'objid'
-        elif prefix == 'cal':  
-            id_column = 'objid'
-        elif prefix == 'sky':
-            id_column = 'skyid'
-        else:
+        id_column = self.__discover_id_column(prefix, df)
+        if id_column is None:
             raise NetflowException(f"Cannot determine identity column for catalog with prefix `{prefix}`.")   
         
         # Make sure that we convert to the right data type everywhere
@@ -983,6 +989,15 @@ class Netflow():
         targets = pd.DataFrame(data)
 
         # Add proper motion and parallax, if available
+        if 'epoch' in df:
+            if df['epoch'].dtype == 'string' or df['epoch'].dtype == str:
+                # Convert 'J20XX.X' notation to float
+                pd_append_column(targets, 'epoch', df['epoch'].apply(lambda x: float(x[1:])), np.float64)
+            else:
+                pd_append_column(targets, 'epoch', df['epoch'], np.float64)
+        else:
+            pd_append_column(targets, 'epoch', np.nan, np.float64)
+
         if 'pm' in df:
             pd_append_column(targets, 'pm', df['pm'], np.float64)
         else:
@@ -1021,7 +1036,9 @@ class Netflow():
             else:
                 pd_append_column(targets, 'priority', df['priority'], np.int32)
 
-            targets['class'] = targets[['prefix', 'priority']].apply(lambda r: f"{r['prefix']}_P{r['priority']}", axis=1).astype('string')
+            targets['class'] = targets[['prefix', 'priority']].apply(
+                lambda r: f"{r['prefix']}_P{r['priority']}",
+                axis=1).astype('string')
         else:
             pd_append_column(targets, 'class', prefix, 'string')
 
@@ -1033,7 +1050,7 @@ class Netflow():
         if self.__targets is None:
             self.__targets = targets
         else:
-            self.__targets = pd.concat([self.__targets, targets])
+            self.__targets = pd.concat([self.__targets, targets], ignore_index=True)
 
         logger.info(f'Added {len(targets)} targets with prefix `{prefix}` to the target list.')
             
@@ -1051,6 +1068,84 @@ class Netflow():
         """Add flux standard positions"""
 
         self.__append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
+
+    def update_targets(self, catalog, prefix, idx1, idx2, mask=None, filter=None, selection=None):
+        """
+        Update existing targets in the target list
+        
+        Parameters
+        ==========
+        catalog: Catalog or pd.DataFrame
+            The catalog containing the updated target information.
+        idx1: int
+            The index of the targets in the input catalog.
+        idx2:
+            The index of the targets in the internal target list.
+        exp_time: float
+            The exposure time for science targets.
+        priority: int
+            The priority for science targets.
+        """
+
+        if self.__targets is None or \
+           idx1 is None or idx2 is None:
+
+            return
+
+        if isinstance(catalog, Catalog):
+            # id_column
+            df = catalog.get_data(mask=mask, filter=filter, selection=selection)
+        elif isinstance(catalog, pd.DataFrame):
+            df = catalog[mask if mask is not None else ()]
+
+        targets = self.__targets
+
+        # targetid and the coordinates are not updated
+
+        # epoch, pm and its components can only be updated together
+        # the primary columns are pm or pmra and pmdec to consider here
+
+        update_mask = np.array(targets.loc[idx2, 'pm'].isna() &
+                               (targets.loc[idx2, 'pmra'].isna() |
+                                targets.loc[idx2, 'pmdec'].isna()))
+
+        if 'epoch' in df:
+            if df['epoch'].dtype == 'string' or df['epoch'].dtype == str:
+                # Convert 'J20XX.X' notation to float
+                pd_update_column(targets, idx2[update_mask], 'epoch',
+                                 df['epoch'][idx1[update_mask]].apply(
+                                     lambda x: float(x[1:])),
+                                 np.float64)
+            else:
+                pd_update_column(targets, idx2[update_mask], 'epoch',
+                                 df['epoch'][idx1[update_mask]],
+                                 np.float64)
+
+        if 'pm' in df:
+            pd_update_column(targets, idx2[update_mask], 'pm', df['pm'][idx1[update_mask]], np.float64)
+        
+        if 'pmra' in df and 'pmdec' in df:
+            pd_update_column(targets, idx2[update_mask], 'pmra', df['pmra'][idx1[update_mask]], np.float64)
+            pd_update_column(targets, idx2[update_mask], 'pmdec', df['pmdec'][idx1[update_mask]], np.float64)
+
+        if 'parallax' in df:
+            pd_update_column(targets, idx2[update_mask], 'parallax', df['parallax'][idx1[update_mask]], np.float64)
+
+        if prefix == 'sci':
+            update_mask = np.array(targets.loc[idx2, 'exp_time'].isna())
+            pd_update_column(targets, idx2[update_mask], 'exp_time', df['exp_time'][idx1[update_mask]], np.float64)
+
+            update_mask = np.array(targets.loc[idx2, 'priority'].isna())
+            pd_update_column(targets, idx2[update_mask], 'priority', df['priority'][idx1[update_mask]], np.int32)
+            targets.loc[idx2[update_mask], 'class'] = \
+                targets.loc[idx2[update_mask], ['prefix', 'priority']].apply(
+                    lambda r: f"{r['prefix']}_P{r['priority']}",
+                    axis=1).astype('string')
+        else:
+            # Calibration targets don't override exp_time or priority
+            pass
+
+        logger.info(f'Updated {idx2.size} targets with prefix `{prefix}` in the target list.')
 
     def build(self, resume=False, save=True):
         """Construct the ILP problem"""

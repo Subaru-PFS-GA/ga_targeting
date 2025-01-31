@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, tzinfo
 import pandas as pd
 from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
+from astropy.coordinates import SkyCoord, match_coordinates_sky
 
 from pfs.datamodel import TargetType, FiberStatus
 
@@ -43,7 +44,7 @@ class NetflowScript(Script):
             will be calculated from the magnitude. AB magnitudes and fluxes in nJy are
             assumed everywhere. The magnitude and flux names, as well as the filter
             names can be listed two different ways, see below.
-        * epoch: epoch of the coordinates, default is J2000.0. It has no effect if
+        * epoch: epoch of the coordinates, default is J2016.0. It has no effect if
             the proper motion components are not provided. Note that this is not the
             equinox of the coordinate system.
         * catid: int32, catalog id, default is -1 for calibration targets and sky targets.
@@ -90,6 +91,7 @@ class NetflowScript(Script):
         self.__exp_time = None
         self.__obs_time = None
         self.__time_limit = None
+        self.__xmatch_rad = 2           # arcseconds
         self.__nan_values = True
         self.__skip_notebooks = False
         
@@ -114,6 +116,8 @@ class NetflowScript(Script):
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
         self.add_arg('--time-limit', type=int, help='Time limit for the optimization in seconds.')
+        
+        self.add_arg('--xmatch-rad', type=float, help='Cross-match radius in arcseconds.')
 
         self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
         self.add_arg('--no-nan-values', action='store_false', dest='nan_values', help='Do not use NaN values in the output files.')
@@ -151,6 +155,7 @@ class NetflowScript(Script):
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
+        self.__xmatch_rad = self.get_arg('xmatch_rad', args, self.__xmatch_rad)
         self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
@@ -218,11 +223,15 @@ class NetflowScript(Script):
         # load the preprocessed target lists from the output directory.
         target_lists = self.load_source_target_lists()
 
-        # Look for duplicates, etc.
+        # Look for required columns, duplicates, etc.
         self.__validate_source_target_lists(target_lists)
 
         # Append the source target lists to the netflow object
         self.__append_source_target_lists(netflow, target_lists)
+
+        # Make sure cobra location/instrument group constraints are satisfiable
+        self.__validate_fluxstd_targets(target_lists)
+        self.__validate_sky_targets(target_lists)
             
         # TODO: plot the sky with PFI footprints
             
@@ -465,7 +474,7 @@ class NetflowScript(Script):
                     set_extra_column_pattern(c, config.dtype, None, config.pattern)
 
         # If constants are defined for these columns in the config, assign them
-        set_extra_column_constant('epoch', 'string', 'J2000.0', self.__config.targets[key].epoch)
+        set_extra_column_constant('epoch', 'string', 'J2016.0', self.__config.targets[key].epoch)
         set_extra_column_constant('catid', pd.Int32Dtype(), -1, self.__config.targets[key].catid)
         set_extra_column_constant('priority', pd.Int32Dtype(), None, self.__config.targets[key].priority)
         set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self.__config.targets[key].exp_time)
@@ -536,6 +545,9 @@ class NetflowScript(Script):
         }
 
         for key, target_list in target_lists.items():
+            if self.__config.targets[key].prefix not in ['sci', 'cal', 'sky']:
+                raise Exception(f'Invalid target list prefix `{self.__config.targets[key].prefix}` for target list `{key}`.')
+
             for col in required_columns[self.__config.targets[key].prefix]:
                 if col not in target_list.columns:
                     raise Exception(f'Missing required column "{col}" in target list `{key}`.')
@@ -549,21 +561,57 @@ class NetflowScript(Script):
         pass
 
     def __append_source_target_lists(self, netflow, target_lists):
+        # Add flux standards first because those are the less numerous. This way
+        # we always cross-match the science targets with the flux standards and
+        # can throw away stars that are already in the flux standard list.
+        # Sky positions are added at the end to avoid cross-matching
+
+        for prefix in ['cal', 'sci']:
+            for k, target_list in target_lists.items():
+                if self.__config.targets[k].prefix == prefix:
+                    # Cross-match the target list with the target lists already added to netflow
+                    idx1, idx2, _, mask = self.__cross_match_source_target_list(netflow, target_list)
+                    
+                    if mask is not None:
+                        # Update the target list where there is a match
+                        netflow.update_targets(target_list, prefix, idx1, idx2)
+
+                        # Add targets which didn't have a match
+                        netflow.append_fluxstd_targets(target_list, mask=~mask)
+                    else:
+                        # Add all targets as this is the first target list being processed
+                        netflow.append_fluxstd_targets(target_list)
+                                
         for k, target_list in target_lists.items():
-            if self.__config.targets[k].prefix == 'sci':
-                netflow.append_science_targets(target_list)
-            elif self.__config.targets[k].prefix == 'cal':
-                netflow.append_fluxstd_targets(target_list)
-                        
-                # Make sure cobra location/instrument group constraints are satisfiable
-                self.__validate_fluxstd_targets(target_lists)
-            elif self.__config.targets[k].prefix == 'sky':
+            if self.__config.targets[k].prefix == 'sky':
+                # No cross-matching necessary here
                 netflow.append_sky_targets(target_list)
 
-                # Make sure cobra location/instrument group constraints are satisfiable
-                self.__validate_sky_targets(target_lists)
-            else:
-                raise NotImplementedError()
+    def __cross_match_source_target_list(self, netflow, target_list):
+        # Cross-match the target list with the target lists already added to netflow
+        # to remove duplicates.
+
+        if netflow.targets is None:
+            return None, None, None, None
+        else:
+            # Coordinates of the target list
+            ra, dec = target_list.get_coords()
+            target_coords = SkyCoord(ra=ra * u.degree, dec=dec * u.degree)
+
+            # Coordinates of the targets already added to netflow
+            # TODO: this is an ever increasing list so maybe cache the coordinates or even the kd-tree
+            #       but the complexity of the update is probably not worth it
+            ra = np.array(netflow.targets['RA'])
+            dec = np.array(netflow.targets['Dec'])
+            netflow_coords = SkyCoord(ra=ra * u.degree, dec=dec * u.degree)
+
+            # Find the closest neighbor of each new target to the targets already added
+            # idx: target list index into the netflow targets
+            # sep2d: angular separation in degrees to the closest neighbor
+            idx, sep2d, dist3d = match_coordinates_sky(target_coords, netflow_coords, nthneighbor=1)
+            mask = (sep2d <= self.__xmatch_rad * u.arcsecond)
+
+            return np.where(mask)[0], idx[mask], sep2d[mask].arcsec, mask
     
     def __get_preprocessed_target_list_path(self, key):
         return os.path.join(self.__outdir, f'{self.__config.field.key}_targets_{key}.feather')
@@ -803,17 +851,7 @@ class NetflowScript(Script):
             else:
                 value = 0.0
 
-            if df.dtypes[c] == float or df.dtypes[c] == np.float64 or df.dtypes[c] == np.float32:
-                df.loc[df[c].isna(), c] = value
-            elif df.dtypes[c] == Float64Dtype() or df.dtypes[c] == Float32Dtype():
-                df[c] = df[c].fillna(value)
-                df.loc[df[c].isna(), c] = value
-            elif df.dtypes[c] == 'string':
-                df[c] = df[c].fillna('')
-            elif df.dtypes[c] == object:
-                pass
-            else:
-                pass
+            pd_fillna(df, c, value)
             
     def __create_designs(self, netflow : Netflow, assignments_all):
         designs = []
