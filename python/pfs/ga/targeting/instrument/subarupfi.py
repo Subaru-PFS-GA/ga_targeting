@@ -423,7 +423,8 @@ class SubaruPFI(Instrument, FiberAllocator):
         
     def fp_pos_to_cobra_angles(self, fp_pos, cobraidx):
         """
-        Convert focal plane positions to cobra angles.
+        Convert focal plane positions to local cobra angles, which are measured from
+        the cobra hard stops.
 
         For each focal plane positions, two sets of theta and phi angles are calculated
 
@@ -545,7 +546,8 @@ class SubaruPFI(Instrument, FiberAllocator):
     
     def cobra_angles_to_fp_pos(self, theta, phi, cobraidx):
         """
-        Convert cobra angles to focal plane position.
+        Convert local cobra angles to focal plane position. The angles are measured
+        from the cobra hard stops.
         """
 
         batch_shape, bad_cobra, centers, L1, L2 = self.__get_reshaped_cobra_config(theta.ndim, cobraidx)
@@ -658,9 +660,10 @@ class SubaruPFI(Instrument, FiberAllocator):
         return moves
     
     def set_cobra_state_to_home(self,
-                                cobra_state,
-                                theta_enabled=True, theta_ccw=True,
-                                phi_enabled=True):
+                                cobra_state, /,
+                                theta_enabled=True,
+                                phi_enabled=True,
+                                theta_ccw=True,):
                                 
         """
         Move the cobras to the home position.
@@ -679,7 +682,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         # position. This state is stored within the cobraInfo variable of cobra coach
         # but we simplified it here for the sake of simulation.
 
-        # Calculate the starting angles
+        # Calculate the starting angles. These are local angles measured from the CCW hard stops.
         if theta_enabled:
             if theta_ccw:
                 cobra_state.theta = np.zeros_like(cobra_state.cobraidx, dtype=float)
@@ -1164,8 +1167,9 @@ class SubaruPFI(Instrument, FiberAllocator):
         # No idea if is has any side effect
 
         # TODO: find where the cobra positions are updated because we might not even need this function at all
+        # raise NotImplementedError()
 
-        raise NotImplementedError()
+        pass
 
     def __interpolate_moves(self,
                             cobra_state,
