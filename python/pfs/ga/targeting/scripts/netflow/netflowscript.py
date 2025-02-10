@@ -260,12 +260,6 @@ class NetflowScript(Script):
         assignments_all = self.__join_assignments(assignments, assigned_targets_all)
         self.__save_assignments_all(assignments_all)
 
-        # What's left is to write out the design files and the assigned targets
-        # in the web uploader format. For this, substitute all NA and NaN values with
-        # zeros
-        if not self.__nan_values:
-            self.__substitute_nans(assignments_all)
-
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
 
@@ -280,6 +274,12 @@ class NetflowScript(Script):
         # netflow.verify()
 
         self.__save_designs(designs)
+
+        # What's left is to write out the assigned targets
+        # in the web uploader format. For this, substitute all NA and NaN values with
+        # zeros
+        if not self.__nan_values:
+            self.__substitute_nans(assignments_all)
 
         # Save the assigned targets in the official web uploader format
         for (visit, design) in zip(netflow.visits, designs):
