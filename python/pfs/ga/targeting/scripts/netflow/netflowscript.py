@@ -228,18 +228,14 @@ class NetflowScript(Script):
 
         # Append the source target lists to the netflow object
         self.__append_source_target_lists(netflow, target_lists)
+        self.__validate_targets(netflow)
 
-        # Make sure cobra location/instrument group constraints are satisfiable
-        self.__validate_fluxstd_targets(target_lists)
-        self.__validate_sky_targets(target_lists)
-            
-        # TODO: plot the sky with PFI footprints
-            
+        # Run the netflow optimization                
         self.__run_netflow(netflow)
 
         # We do not implement resume logic beyond this point because it's not worth it time-wise.
 
-        # TODO: verify collisions and unassign cobras with lower priority targets
+        # Verify collisions and unassign cobras with lower priority targets
         self.__unassign_colliding_cobras(netflow)
         
         # Extract the assignments from the netflow solution
@@ -552,13 +548,14 @@ class NetflowScript(Script):
                 if col not in target_list.columns:
                     raise Exception(f'Missing required column "{col}" in target list `{key}`.')
 
-    def __validate_fluxstd_targets(self, target_lists):
-        # TODO: make sure cobra group constraints are satisfiable
-        pass
-
-    def __validate_sky_targets(self, target_lists):
-        # TODO: make sure cobra group constraints are satisfiable
-        pass
+    def __validate_targets(self, netflow: Netflow):
+        # TODO: Make sure cobra location/instrument group constraints are satisfiable
+        
+        # TODO: Move these under netflow and run on the cached target list
+        
+        netflow.validate_science_targets()
+        netflow.validate_fluxstd_targets()
+        netflow.validate_sky_targets()
 
     def __append_source_target_lists(self, netflow, target_lists):
         # Add flux standards first because those are the less numerous. This way
@@ -570,17 +567,25 @@ class NetflowScript(Script):
             for k, target_list in target_lists.items():
                 if self.__config.targets[k].prefix == prefix:
                     # Cross-match the target list with the target lists already added to netflow
+                    # idx1 is the index into the current target list
+                    # idx2 is the index of the matches in the netflow target cache
                     idx1, idx2, _, mask = self.__cross_match_source_target_list(netflow, target_list)
+
+                    # Make room for target_idx in the target list for joining in the magnitudes later
+                    pd_append_column(target_list.data, '__target_idx', pd.NA, pd.Int64Dtype())
                     
                     if mask is not None:
                         # Update the target list where there is a match
                         netflow.update_targets(target_list, prefix, idx1, idx2)
+                        target_list.data.loc[mask, '__target_idx'] = idx2
 
                         # Add targets which didn't have a match
-                        netflow.append_fluxstd_targets(target_list, mask=~mask)
+                        idx = netflow.append_targets(target_list, prefix=prefix, mask=~mask)
+                        target_list.data.loc[~mask, '__target_idx'] = idx
                     else:
                         # Add all targets as this is the first target list being processed
-                        netflow.append_fluxstd_targets(target_list)
+                        idx = netflow.append_targets(target_list, prefix=prefix)
+                        target_list.data['__target_idx'] = idx
                                 
         for k, target_list in target_lists.items():
             if self.__config.targets[k].prefix == 'sky':

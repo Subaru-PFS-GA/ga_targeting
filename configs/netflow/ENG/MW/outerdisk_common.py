@@ -131,6 +131,8 @@ config = dict(
         ignore_cobra_group_minimum = False,
         ignore_cobra_group_maximum = False,
         ignore_reserved_fibers = False,
-        ignore_proper_motion = True,
+        ignore_proper_motion = False,
+        ignore_missing_priority = True,
+        ignore_missing_exp_time = True,
     ),
 )

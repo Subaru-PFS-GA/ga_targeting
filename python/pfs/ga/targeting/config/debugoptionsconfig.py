@@ -16,5 +16,7 @@ class DebugOptionsConfig(Config):
         self.ignore_cobra_group_maximum = False
         self.ignore_reserved_fibers = False
         self.ignore_proper_motion = False
+        self.ignore_missing_priority = True
+        self.ignore_missing_exp_time = True
 
         super().__init__()

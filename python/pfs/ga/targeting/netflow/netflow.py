@@ -965,11 +965,9 @@ class Netflow():
             return 'skyid'
         else:
             return None
-            
         
-    def __append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):        
+    def append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):        
         if isinstance(catalog, Catalog):
-            # id_column
             df = catalog.get_data(mask=mask, filter=filter, selection=selection)
         elif isinstance(catalog, pd.DataFrame):
             df = catalog[mask if mask is not None else ()]
@@ -1032,46 +1030,56 @@ class Netflow():
                 pd_append_column(targets, 'exp_time', df['exp_time'], np.float64)
 
             if priority is not None:
-                pd_append_column(targets, 'priority', priority, np.int32)
+                pd_append_column(targets, 'priority', priority, pd.Int32Dtype())
             else:
-                pd_append_column(targets, 'priority', df['priority'], np.int32)
+                pd_append_column(targets, 'priority', df['priority'], pd.Int32Dtype())
 
-            targets['class'] = targets[['prefix', 'priority']].apply(
-                lambda r: f"{r['prefix']}_P{r['priority']}",
-                axis=1).astype('string')
+            pd_append_column(targets, 'class', pd.NA, 'string')
+            priority_mask = ~targets['priority'].isna()
+            targets.loc[priority_mask, 'class'] = \
+                targets.loc[priority_mask, ['prefix', 'priority']].apply(
+                    lambda r: f"{r['prefix']}_P{r['priority']}",
+                    axis=1).astype('string')
         else:
-            pd_append_column(targets, 'class', prefix, 'string')
-
             # Calibration targets have no prescribed exposure time and priority
             pd_append_column(targets, 'exp_time', np.nan, np.float64)
-            pd_append_column(targets, 'priority', -1, np.int32)
+            pd_append_column(targets, 'priority', pd.NA, pd.Int32Dtype())
+            pd_append_column(targets, 'class', prefix, 'string')
 
         # Append to the existing list
         if self.__targets is None:
             self.__targets = targets
+            idx = np.array(self.__targets.index)
         else:
+            n = len(self.__targets)
             self.__targets = pd.concat([self.__targets, targets], ignore_index=True)
+            idx = np.array(self.__targets.index[n:])
 
         logger.info(f'Added {len(targets)} targets with prefix `{prefix}` to the target list.')
+        
+        return idx
             
     def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None, selection=None):
         """Add science targets"""
 
-        self.__append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
+        self.append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
 
     def append_sky_targets(self, sky, mask=None, filter=None, selection=None):
         """Add sky positions"""
 
-        self.__append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
+        self.append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
 
     def append_fluxstd_targets(self, fluxstd, mask=None, filter=None, selection=None):
         """Add flux standard positions"""
 
-        self.__append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
+        self.append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
 
     def update_targets(self, catalog, prefix, idx1, idx2, mask=None, filter=None, selection=None):
         """
-        Update existing targets in the target list
+        Update existing targets in the target list.
+
+        This is called on targets which have already been added to the target list but appear in
+        another input source list after cross-matching.
         
         Parameters
         ==========
@@ -1132,13 +1140,24 @@ class Netflow():
             pd_update_column(targets, idx2[update_mask], 'parallax', df['parallax'][idx1[update_mask]], np.float64)
 
         if prefix == 'sci':
-            update_mask = np.array(targets.loc[idx2, 'exp_time'].isna())
+            # Only update exp_time if it is still NA or the new exp_time is larger than
+            # the existing one
+            update_mask = np.array(targets.loc[idx2, 'exp_time'].reset_index(drop=True).isna() |
+                                   ((df.loc[idx1, 'exp_time'].reset_index(drop=True)) >
+                                    (targets.loc[idx2, 'exp_time'].reset_index(drop=True))).fillna(False))
             pd_update_column(targets, idx2[update_mask], 'exp_time', df['exp_time'][idx1[update_mask]], np.float64)
 
-            update_mask = np.array(targets.loc[idx2, 'priority'].isna())
+            # Only update priority if it is still NA or the new priority is smaller than
+            # the existing one
+            update_mask = np.array(~targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
+                                   ((df.loc[idx1, 'priority'].reset_index(drop=True)) <
+                                    (targets.loc[idx2, 'priority'].reset_index(drop=True))).fillna(False))
             pd_update_column(targets, idx2[update_mask], 'priority', df['priority'][idx1[update_mask]], np.int32)
-            targets.loc[idx2[update_mask], 'class'] = \
-                targets.loc[idx2[update_mask], ['prefix', 'priority']].apply(
+
+            # Update the target class labels if the priority is updated
+            priority_mask = np.array(~targets.loc[idx2[update_mask], 'priority'].isna())
+            targets.loc[idx2[update_mask][priority_mask], 'class'] = \
+                targets.loc[idx2[update_mask][priority_mask], ['prefix', 'priority']].apply(
                     lambda r: f"{r['prefix']}_P{r['priority']}",
                     axis=1).astype('string')
         else:
@@ -1146,6 +1165,33 @@ class Netflow():
             pass
 
         logger.info(f'Updated {idx2.size} targets with prefix `{prefix}` in the target list.')
+
+    def validate_science_targets(self):
+        # Make sure all science targets have a priority class and exposure time
+        for column, ignore in zip(['priority', 'exp_time'],
+                                  [self.__debug_options.ignore_missing_priority,
+                                   self.__debug_options.ignore_missing_exp_time]):
+            
+            mask = (self.__targets['prefix'] == 'sci') & (self.__targets[column].isna())
+            if mask.any():
+                msg = f"Missing {column} for {mask.sum()} science targets."
+                if not ignore:
+                    raise NetflowException(msg)
+                else:
+                    logger.warning(msg)
+
+    def validate_fluxstd_targets(self):
+        pass
+
+    def validate_sky_targets(self):
+        pass
+
+    def __validate_cobra_group_limits(self):
+        """
+        Make sure cobra location/instrument group constraints are satisfiable
+        """
+
+        pass
 
     def build(self, resume=False, save=True):
         """Construct the ILP problem"""
@@ -1745,7 +1791,10 @@ class Netflow():
         # force_already_observed = self.__get_netflow_option(self.__netflow_options.force_already_observed, False)
 
         # Select only science targets and create the variables in batch mode
-        mask = self.__target_cache.prefix == 'sci'
+        # Ignore any science target with unknow priority class
+        mask = ((self.__target_cache.prefix == 'sci') &
+                np.isin(self.__target_cache.target_class, list(self.__netflow_options.target_classes.keys())))
+        
         tidx = np.where(mask)[0]
         target_class = self.__target_cache.target_class[mask]
         target_penalty = self.__target_cache.penalty[mask]
@@ -1771,6 +1820,7 @@ class Netflow():
         Create the sink variable which is responsible for draining the flow from the target nodes
         which get less visits than required
         """
+
         max_visits = len(self.__visits)
         T_sink =  self.__add_variable_array('T_sink', tidx, 0, max_visits)
 
@@ -1798,7 +1848,8 @@ class Netflow():
 
         # Create science targets T_Tv edges in batch
         # > T_Tv_{visit_idx}[target_idx]
-        sci_mask = self.__target_cache.prefix[tidx] == 'sci'
+        sci_mask = ((self.__target_cache.prefix[tidx] == 'sci') &
+                    np.isin(self.__target_cache.target_class[tidx], list(self.__netflow_options.target_classes.keys())))
         self.__create_T_Tv(visit, tidx[sci_mask])
 
         # Create calibration targets CTCv_Tv edges
