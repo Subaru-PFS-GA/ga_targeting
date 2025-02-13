@@ -615,9 +615,11 @@ class Netflow():
         black_dot_penalty = self.__netflow_options.black_dot_penalty
         
         if black_dot_penalty is not None:
+            center, radius = self.__get_closest_black_dots()
             black_dots = SimpleNamespace(
                 # Closest black dots for each cobra
-                black_dot_list = self.__get_closest_black_dots(),
+                black_dot_center = center,
+                black_dot_radius = radius,
                 black_dot_penalty = black_dot_penalty
             )
         else:
@@ -663,13 +665,43 @@ class Netflow():
             of the cobra and its neighbors.
         """
 
-        res = []
+        # NOTE: the black dot radius multiplier instrument option `black_dot_radius_margin` is passed
+        #       to the `Bench` object which already multiplies the radii by it so we do not need
+        #       to multiple here again
+
+        center = []
+        radius = []
         for cidx in range(len(self.__bench.cobras.centers)):
             nb = self.__bench.getCobraNeighbors(cidx)
-            res.append(self.__bench.blackDots.centers[[cidx] + list(nb)])
+            center.append(self.__bench.blackDots.centers[[cidx] + list(nb)])
+            radius.append(self.__bench.blackDots.radius[[cidx] + list(nb)])
 
-        return res
-    
+        return center, radius
+
+    def __get_closest_black_dot_distance(self, cidx, fp_pos):
+        """
+        Calculate the distance of a target from the closest black dot. Only the
+        black dot closest to the cobra and its neighbors are considered, as in
+        `__get_closest_black_dots`
+        """
+
+        fp_pos = np.atleast_1d(fp_pos)
+
+        # Distance from each nearby black dot
+        dist = np.abs(self.__black_dots.black_dot_center[cidx] - fp_pos[:, None])
+        
+        # Take minimum distance from each target
+        return np.min(dist, axis=-1)
+
+    def __get_cobra_center_distance(self, cidx, fp_pos):
+        """
+        Calculate the distance of the target from the center of the cobra, in focal plane
+        coordinates.
+        """
+
+        fp_pos = np.atleast_1d(fp_pos)
+        return np.abs(self.__bench.cobras.centers[cidx] - fp_pos)
+        
     def __build_fp_pos_kdtree(self, fp_pos):
         # Build a KD-tree on the target focal plane coordinates
 
@@ -707,22 +739,38 @@ class Netflow():
         cobras_targets = defaultdict(list)
 
         for cidx in range(self.__bench.cobras.nCobras):
-            # TODO: handle broken cobra
+            # Skip broken cobra
+            if self.__bench.cobras.hasProblem[cidx]:
+                continue
 
             # Calculate the cobra angles and elbow positions
             fpidx = np.array(idx[cidx], dtype=int)
             if fpidx.size > 0:
+                # Filter out targets too close to any of the black dots
+                if self.__black_dots is not None:
+                    black_dot_center = self.__black_dots.black_dot_center[cidx]
+                    black_dot_radius = self.__black_dots.black_dot_radius[cidx]
+                    black_dot_dist = np.sqrt(np.abs(fp_pos[fpidx] - black_dot_center[..., None]))
+
+                    # Target must be far from all black nearby black dots
+                    black_dot_mask = np.all(black_dot_dist > black_dot_radius[..., None], axis=0)
+                else:
+                    black_dot_mask = None
+
+                # Find the angles and elbow positions for the given focal plane coordinates
                 theta, phi, d, eb_pos, flags = self.__instrument.fp_pos_to_cobra_angles(fp_pos[fpidx], np.atleast_1d(cidx))
 
-                # TODO: Filter out targets too close to black dots
-
-                # Filter out invalid solutions and collect elbow positions
+                # There can be up to two solutions for the cobra angles, given a single
+                # focal plane position. Filter out invalid solutions and collect elbow positions
                 elbows = defaultdict(tuple)
                 angles = defaultdict(tuple)
                 for i in range(2):
                     mask = (flags[..., i] & CobraAngleFlags.SOLUTION_OK) != 0
                     mask &= (flags[..., i] & (CobraAngleFlags.TOO_CLOSE_TO_CENTER | CobraAngleFlags.TOO_FAR_FROM_CENTER)) == 0
                     mask &= (flags[..., i] & (CobraAngleFlags.THETA_OUT_OF_RANGE | CobraAngleFlags.PHI_OUT_OF_RANGE)) == 0
+
+                    if black_dot_mask is not None:
+                        mask &= black_dot_mask
 
                     # Map focal plane index to the target cache index
                     tidx = fpidx_to_tidx_map[fpidx[mask]]
@@ -1917,20 +1965,19 @@ class Netflow():
         if visit.visit_cost is not None:
             cost += visit.visit_cost
 
+        # Focal plane positions for the current visit
+        fp_pos = self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]]
+
         # Cost of moving the cobra away from the center
         cobra_move_cost = self.__netflow_options.cobra_move_cost
         if cobra_move_cost is not None:
-            dist = np.abs(self.__bench.cobras.centers[cidx] - 
-                          self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]])
+            dist = self.__get_cobra_center_distance(cidx, fp_pos)
             cost += cobra_move_cost(dist)
         
         # Cost of closest black dots for each cobra
         if self.__black_dots is not None:
-            # Distance of all targets within the patrol radius to the nearby black dots
-            dist = np.abs(self.__black_dots.black_dot_list[cidx] - 
-                          self.__target_fp_pos[visit.pointing_idx][tidx_to_fpidx_map[tidx]][:, None])
-            # Take minimum distance from each target
-            cost += self.__black_dots.black_dot_penalty(np.min(dist, axis=-1))
+            dist = self.__get_closest_black_dot_distance(cidx, fp_pos)
+            cost += self.__black_dots.black_dot_penalty(dist)
 
         # Create LP variables
         name = self.__make_name('Tv_Cv', visit.visit_idx, cidx)
@@ -2472,7 +2519,11 @@ class Netflow():
             target_class = self.__target_cache.target_class[tidx[mask]]
             cost = np.full_like(tidx, -1)
             for i, ix in enumerate(zip(*np.where(mask))):
-                cost[ix] = self.__netflow_options.target_classes[target_class[i]].non_observation_cost
+                if target_class[i] in self.__netflow_options.target_classes:
+                    cost[ix] = self.__netflow_options.target_classes[target_class[i]].non_observation_cost
+                else:
+                    # This is a target with missing priority
+                    cost[ix] = 0
             
             # Unassign the target with the lower cost, except when one of the cobras is broken
             # because in that case the good cobra should be unassigned as it would collide with
@@ -2515,9 +2566,10 @@ class Netflow():
         return fiber_status
 
     def get_fiber_assignments(self,  
-                               include_target_columns=False,
-                               include_unassigned_fibers=False,
-                               include_engineering_fibers=False):
+                              include_target_columns=False,
+                              include_unassigned_fibers=False,
+                              include_engineering_fibers=False):
+        
         """
         Return a data frame of the target assignments including positions, visitid, fiberid
         and other information.
@@ -2592,7 +2644,9 @@ class Netflow():
                 pd_append_column(unassigned, 'fp_y', self.__bench.cobras.home0[cidx].imag, np.float64)
                 pd_append_column(unassigned, 'target_type', 'na', 'string')
                 pd_append_column(unassigned, 'fiber_status', fiber_status[cidx], np.int32)
-
+                pd_append_column(unassigned, 'center_dist', np.nan, np.float64)
+                pd_append_column(unassigned, 'black_dot_dist', np.nan, np.float64)
+                
                 if assignments is None:
                     assignments = unassigned
                 else:
@@ -2613,6 +2667,8 @@ class Netflow():
                 pd_append_column(engineering, 'fp_y', np.nan, np.float64)
                 pd_append_column(engineering, 'target_type', 'eng', 'string')
                 pd_append_column(engineering, 'fiber_status', FiberStatus.GOOD, np.int32)
+                pd_append_column(engineering, 'center_dist', np.nan, np.float64)
+                pd_append_column(engineering, 'black_dot_dist', np.nan, np.float64)
 
                 if assignments is None:
                     assignments = engineering
@@ -2623,6 +2679,14 @@ class Netflow():
             tidx = np.array([ k for k in self.__target_assignments[vidx] ], dtype=int)      # target index
             cidx = np.array([ self.__target_assignments[vidx][ti] for ti in tidx ])         # cobra index, 0-based
             fpidx = self.__cache_to_fp_pos_map[visit.pointing_idx][tidx]
+            fp_pos = self.__target_fp_pos[visit.pointing_idx][fpidx]
+
+            # Calculate the distance from the cobra center and the closes black dots for each target
+            center_dist = np.full_like(cidx, np.nan, dtype=np.float64)
+            black_dot_dist = np.full_like(cidx, np.nan, dtype=np.float64)
+            for i, ci in enumerate(cidx):
+                center_dist[i] = self.__get_cobra_center_distance(ci, fp_pos[i])
+                black_dot_dist[i] = self.__get_closest_black_dot_distance(ci, fp_pos[i])
 
             targets = pd.DataFrame()
             pd_append_column(targets, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
@@ -2634,10 +2698,12 @@ class Netflow():
             pd_append_column(targets, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'fiberholeid', fm.fiberHoleId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'spectrographid', fm.spectrographId[sci_fiberidx][cidx], np.int32)
-            pd_append_column(targets, 'fp_x', self.__target_fp_pos[visit.pointing_idx][fpidx].real, np.float64)
-            pd_append_column(targets, 'fp_y', self.__target_fp_pos[visit.pointing_idx][fpidx].imag, np.float64)
+            pd_append_column(targets, 'fp_x', fp_pos.real, np.float64)
+            pd_append_column(targets, 'fp_y', fp_pos.imag, np.float64)
             pd_append_column(targets, 'target_type', self.__target_cache.prefix[tidx], 'string')
             pd_append_column(targets, 'fiber_status', fiber_status[cidx], np.int32)
+            pd_append_column(targets, 'center_dist', center_dist, np.float64)
+            pd_append_column(targets, 'black_dot_dist', black_dot_dist, np.float64)
 
             if assignments is None:
                 assignments = targets
