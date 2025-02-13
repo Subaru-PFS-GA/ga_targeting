@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pfs.ga.targeting.config import NetflowConfig
+from pfs.ga.targeting.config.netflow import NetflowConfig
 from pfs.ga.targeting.scripts.netflow.netflowscript import NetflowScript
 from pfs.ga.targeting.projection import WcsProjection, Pointing
 from pfs.ga.targeting.diagram import CMD, CCD, FOV, FP, ColorAxis, MagnitudeAxis

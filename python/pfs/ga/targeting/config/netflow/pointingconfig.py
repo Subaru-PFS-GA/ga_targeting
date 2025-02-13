@@ -1,8 +1,7 @@
 from datetime import datetime
 
-from ..core import Pointing
-
-from .config import Config
+from ...core import Pointing
+from ..config import Config
 
 class PointingConfig(Config):
     def __init__(self,

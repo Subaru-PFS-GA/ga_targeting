@@ -1,5 +1,5 @@
 from typing import Dict
-from .config import Config, Lambda
+from ..config import Config, Lambda
 
 from .extracolumnconfig import ExtraColumnConfig
 from .photometryconfig import PhotometryConfig

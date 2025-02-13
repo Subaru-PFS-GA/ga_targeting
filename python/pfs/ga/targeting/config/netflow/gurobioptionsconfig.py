@@ -1,4 +1,4 @@
-from .config import Config
+from ..config import Config
 
 class GurobiOptionsConfig(Config):
     def __init__(self):

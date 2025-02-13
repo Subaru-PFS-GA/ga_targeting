@@ -63,7 +63,7 @@ class SubaruPFI(Instrument, FiberAllocator):
                 [854, 800, 1540, 1594]]
 
     def __init__(self, projection=None, instrument_options=None, orig=None):
-        from ..config.instrumentoptionsconfig import InstrumentOptionsConfig
+        from ..config.instrument.instrumentoptionsconfig import InstrumentOptionsConfig
         
         Instrument.__init__(self, orig=orig)
         FiberAllocator.__init__(self, orig=orig)

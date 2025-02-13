@@ -9,7 +9,7 @@ from astropy.coordinates import SkyCoord, match_coordinates_sky
 from pfs.datamodel import TargetType, FiberStatus
 
 import pfs.ga.targeting
-from ...config import NetflowConfig
+from ...config.netflow import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_FIELDS
 from ...instrument import SubaruPFI

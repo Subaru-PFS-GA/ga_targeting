@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from test_base import TestBase
 
 import pfs.ga.targeting
-from pfs.ga.targeting.config import NetflowConfig
+from pfs.ga.targeting.config.netflow import NetflowConfig
 
 class NetflowConfigTest(TestBase):
     def test_init(self):

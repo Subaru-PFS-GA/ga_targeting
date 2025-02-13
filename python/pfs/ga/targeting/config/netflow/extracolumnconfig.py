@@ -1,4 +1,4 @@
-from .config import Config, Lambda
+from ..config import Config, Lambda
 
 class ExtraColumnConfig(Config):
     def __init__(self,

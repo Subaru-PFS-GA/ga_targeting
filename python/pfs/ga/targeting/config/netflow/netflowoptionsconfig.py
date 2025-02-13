@@ -4,8 +4,8 @@ import numpy as np
 import pfs.utils
 from pfs.utils.fibers import fiberHoleFromFiberId
 
-from ..instrument import SubaruHSC, SubaruPFI
-from .config import Config, Lambda
+from ...instrument import SubaruHSC, SubaruPFI
+from ..config import Config, Lambda
 from .targetclassconfig import TargetClassConfig
 from .timebudgetconfig import TimeBudgetConfig
 from .cobragroupconfig import CobraGroupConfig
@@ -80,7 +80,7 @@ class NetflowOptionsConfig(Config):
         # TODO: figure out how to make this callable
         #       from object-specific config files
 
-        from .instrumentoptionsconfig import InstrumentOptionsConfig
+        from ..instrument.instrumentoptionsconfig import InstrumentOptionsConfig
 
         instrument_options = InstrumentOptionsConfig.default()
         pfi = SubaruPFI(instrument_options=instrument_options)

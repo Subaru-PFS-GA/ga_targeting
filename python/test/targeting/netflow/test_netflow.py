@@ -17,7 +17,7 @@ from pfs.ga.targeting.instrument import SubaruPFI
 from pfs.ga.targeting.projection import Pointing
 from pfs.ga.targeting.netflow import Netflow
 from pfs.ga.targeting.data import Observation
-from pfs.ga.targeting.config import NetflowConfig
+from pfs.ga.targeting.config.netflow import NetflowConfig
 
 class NetflowTest(TestBase):
     def test_check_pointing_visibility(self):

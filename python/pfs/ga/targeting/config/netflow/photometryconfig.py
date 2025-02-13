@@ -1,5 +1,6 @@
 from typing import Dict
-from .config import Config
+
+from ..config import Config
 
 class PhotometryConfig(Config):
     def __init__(self):

@@ -9,7 +9,7 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
-from ...config import NetflowConfig, FieldConfig, PointingConfig
+from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from .dsphgalaxy import DSphGalaxy
 
 class Bootes(DSphGalaxy):

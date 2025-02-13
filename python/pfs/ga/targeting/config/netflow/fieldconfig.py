@@ -1,7 +1,7 @@
 from typing import List, Dict
 from datetime import datetime
 
-from .config import Config
+from ..config import Config
 from .pointingconfig import PointingConfig
 
 class FieldConfig(Config):

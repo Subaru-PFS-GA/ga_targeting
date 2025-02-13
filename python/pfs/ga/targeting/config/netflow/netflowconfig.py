@@ -1,11 +1,11 @@
 from typing import List, Dict
 
-from .config import Config
+from ..config import Config
 from .fieldconfig import FieldConfig
 from .pointingconfig import PointingConfig
 from .targetlistconfig import TargetListConfig
 from .netflowoptionsconfig import NetflowOptionsConfig
-from .instrumentoptionsconfig import InstrumentOptionsConfig
+from ..instrument.instrumentoptionsconfig import InstrumentOptionsConfig
 from .gurobioptionsconfig import GurobiOptionsConfig
 from .debugoptionsconfig import DebugOptionsConfig
 

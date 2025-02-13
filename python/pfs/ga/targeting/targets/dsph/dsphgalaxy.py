@@ -7,8 +7,7 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
-from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
-from ...photometry import Photometry, Magnitude, Color
+from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ..galaxy import Galaxy
 
 class DSphGalaxy(Galaxy):
