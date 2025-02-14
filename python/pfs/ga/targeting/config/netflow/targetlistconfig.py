@@ -41,6 +41,13 @@ class TargetListConfig(Config):
         # Dataset prefix, 'sci', 'cal' or 'sky'
         self.prefix = None
 
+        # Catalog coordinate frame, defaults to ICRS
+        self.frame = None
+
+        # Catalog coordinate system equinox, default to None when using ICRS
+        # otherwise must be specified
+        self.equinox = None
+
         # Overrides the epoch column of the datasets. Sets epoch of coordinates, use for
         # high proper motion stars. This is not the equinox of the coordinates.
         self.epoch = None

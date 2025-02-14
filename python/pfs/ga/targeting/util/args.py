@@ -84,7 +84,24 @@ def normalize_angle(angle, unit=None, allow_none=True):
     
     return angle
 
-def normalize_pos(*pos, unit=u.degree, frame='icrs', equinox='J2000', allow_none=True):
+def normalize_epoch(epoch, allow_none=True):
+    if allow_none and epoch is None:
+        return None
+    elif epoch is None:
+        raise TypeError('Argument `epoch` cannot be None.')
+    elif isinstance(epoch, str):
+        if epoch.upper().startswith('J'):
+            epoch = float(epoch[1:])
+        else:
+            epoch = float(epoch)
+    elif isinstance(epoch, Number):
+        pass
+    else:
+        raise NotImplementedError()
+
+    return epoch
+
+def normalize_pos(*pos, unit=u.degree, frame='icrs', equinox=None, allow_none=True):
     # Bring a pair of coordinates into a normalized format
 
     pos = __unwrap_iterable(pos)
@@ -189,7 +206,7 @@ def normalize_exp_time(exp_time, allow_none=True):
     exp_time, _ = __normalize_scalar_quantity('exp_time', exp_time, None, u.s, allow_none=allow_none)
     return exp_time
 
-def normalize_skycoord(*pos, pm=None, pm_err=None, RV=None, RV_err=None, obs_time=None, frame='icrs', equinox='J2000', scale='utc'):
+def normalize_skycoord(*pos, pm=None, pm_err=None, RV=None, RV_err=None, obs_time=None, frame='icrs', equinox=None, scale='utc'):
     # TODO: Add support for arrays
 
     pos = normalize_pos(*pos, frame=frame, equinox=equinox)

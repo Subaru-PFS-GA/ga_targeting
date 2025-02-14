@@ -27,6 +27,16 @@ class UtilArgsTest(TestBase):
         self.assertIsInstance(normalize_angle(Angle(20, u.degree)), Angle)
         self.assertIsInstance(normalize_angle(20), Angle)
 
+    def test_normalize_epoch(self):
+        self.assertIsNone(normalize_epoch(None))
+        self.assertIsNone(normalize_epoch(None, allow_none=True))
+        self.assertRaises(TypeError, normalize_angle, None, allow_none=False)
+
+        self.assertEqual(normalize_epoch('J2000'), 2000.0)
+        self.assertEqual(normalize_epoch('j2015.15'), 2015.15)
+        self.assertEqual(normalize_epoch(2015.0), 2015.0)
+        self.assertEqual(normalize_epoch(2015), 2015.0)
+
     def test_normalize_pos(self):
         self.assertIsNone(normalize_pos(None))
         self.assertIsNone(normalize_pos(None, allow_none=True))

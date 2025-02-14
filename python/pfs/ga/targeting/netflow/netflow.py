@@ -622,26 +622,23 @@ class Netflow():
                 black_dot_radius = radius,
                 black_dot_penalty = black_dot_penalty
             )
+
+            logger.info('Successfully loaded black dot configuration.')
         else:
             black_dots = None
+
+            logger.warning('Black dot penalty is not set. Not loading black dot configuration.')
 
         return black_dots
     
     #endregion
     #region PFI functions
 
-    def __calculate_fp_pos(self, pointing, ra, dec, pmra=None, pmdec=None, parallax=None, rv=None):
+    def __calculate_fp_pos(self, pointing,
+                           ra, dec,
+                           pmra=None, pmdec=None, parallax=None, rv=None, epoch=None,
+                           ignore_proper_motion=False):
 
-        epoch = self.__get_netflow_option(self.__netflow_options.epoch, 2016.0)
-        ignore_proper_motion = self.__debug_options.ignore_proper_motion
-
-        # The proper motion of the targets used for sky_pfi transformation.
-        # The unit is mas/yr, the shape is (2, N)
-        if ignore_proper_motion:
-            pmra = pmdec = None
-
-        # The parallax of the coordinates used for sky_pfi transformation.
-        # The unit is mas, the shape is (1, N)
         if ignore_proper_motion:
             parallax = None
             pmra = pmdec = None
@@ -1014,7 +1011,7 @@ class Netflow():
         else:
             return None
         
-    def append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):        
+    def append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
         if isinstance(catalog, Catalog):
             df = catalog.get_data(mask=mask, filter=filter, selection=selection)
         elif isinstance(catalog, pd.DataFrame):
@@ -1060,6 +1057,11 @@ class Netflow():
             pd_append_column(targets, 'parallax', df['parallax'], np.float64)
         else:
             pd_append_column(targets, 'parallax', np.nan, np.float64)
+
+        if 'rv' in df:
+            pd_append_column(targets, 'rv', df['rv'], np.float64)
+        else:
+            pd_append_column(targets, 'rv', np.nan, np.float64)
         
         # This is a per-object penalty for observing calibration targets
         if penalty is not None:
@@ -1419,6 +1421,7 @@ class Netflow():
                 pmra = np.array(self.__targets['pmra'][mask_any].astype(np.float64)),
                 pmdec = np.array(self.__targets['pmdec'][mask_any].astype(np.float64)),
                 parallax = np.array(self.__targets['parallax'][mask_any].astype(np.float64)),
+                epoch = np.array(self.__targets['epoch'][mask_any].astype(np.float64)),
                 target_class = np.array(self.__targets['class'][mask_any].astype(str)),
                 prefix = np.array(self.__targets['prefix'][mask_any].astype(str)),
                 req_visits = np.array(self.__targets['req_visits'][mask_any].astype(np.int32)),
@@ -1468,6 +1471,12 @@ class Netflow():
         those that are within the field of view of the PFI.
         """
 
+        epoch = self.__get_netflow_option(self.__netflow_options.epoch, None)
+
+        ignore_proper_motion = self.__debug_options.ignore_proper_motion
+        if ignore_proper_motion:
+            logger.warning('Proper motion is ignored when calculating focal plane coordinates!')
+
         self.__target_fp_pos = []
         self.__fp_pos_to_cache_map = []
         self.__cache_to_fp_pos_map = []
@@ -1489,7 +1498,9 @@ class Netflow():
                                              self.__target_cache.dec[mask],
                                              pmra=self.__target_cache.pmra[mask],
                                              pmdec=self.__target_cache.pmdec[mask],
-                                             parallax=self.__target_cache.parallax[mask])
+                                             parallax=self.__target_cache.parallax[mask],
+                                             epoch=epoch,
+                                             ignore_proper_motion=ignore_proper_motion)
             
             self.__target_fp_pos.append(fp_pos)
 

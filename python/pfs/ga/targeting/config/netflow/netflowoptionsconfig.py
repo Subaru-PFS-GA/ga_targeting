@@ -51,7 +51,8 @@ class NetflowOptionsConfig(Config):
         # Allow more visits than minimally required
         self.allow_more_visits = True
 
-        self.epoch = 2016 # all catalogs must match
+        # Convert all source catalogs to this epoch when proper motions are provided
+        self.epoch = None       
 
         # Generate full gurobi variable names instead of numbered ones (slow to build problem)
         # It is necessary only, when the netflow solution will be loaded from a file to

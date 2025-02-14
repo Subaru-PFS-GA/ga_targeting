@@ -16,6 +16,7 @@ from ...instrument import SubaruPFI
 from ...io import ObservationSerializer
 from ...netflow import Netflow, Design
 from ...core import Pointing
+from ...util.args import *
 from ...util.astro import *
 from ...util.pandas import *
 from ...util.notebookrunner import NotebookRunner
@@ -225,6 +226,9 @@ class NetflowScript(Script):
 
         # Look for required columns, duplicates, etc.
         self.__validate_source_target_lists(target_lists)
+
+        # Transform the coordinates to a common epoch and ICRS
+        self.__transform_source_target_lists(target_lists)
 
         # Append the source target lists to the netflow object
         self.__append_source_target_lists(netflow, target_lists)
@@ -514,7 +518,7 @@ class NetflowScript(Script):
 
         should = []
         if target_list_config.prefix in ['sci', 'cal']:
-            should.extend(['pmra', 'pmdec', 'parallax', 'epoch'])
+            should.extend(['pmra', 'pmdec', 'parallax', 'rv', 'epoch'])
             
         for col in should:
             if col not in target_list.data.columns:
@@ -538,10 +542,11 @@ class NetflowScript(Script):
             'sci': [ 'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode' ],
             'cal': [ 'epoch', ],
             'sky': [ 'epoch', ],
+            'ag': [ 'epoch', 'parallax', 'pmra', 'pmdec' ]
         }
 
         for key, target_list in target_lists.items():
-            if self.__config.targets[key].prefix not in ['sci', 'cal', 'sky']:
+            if self.__config.targets[key].prefix not in ['sci', 'cal', 'sky', 'ag']:
                 raise Exception(f'Invalid target list prefix `{self.__config.targets[key].prefix}` for target list `{key}`.')
 
             for col in required_columns[self.__config.targets[key].prefix]:
@@ -556,6 +561,26 @@ class NetflowScript(Script):
         netflow.validate_science_targets()
         netflow.validate_fluxstd_targets()
         netflow.validate_sky_targets()
+
+    def __transform_source_target_lists(self, target_lists):
+        # Transform coordinates and apply proper motion, when necessary, to convert each catalog
+        # to ICRS and the same epoch
+
+        for key, target_list in target_lists.items():    
+            self.__transform_target_coords(target_list)
+
+    def __transform_target_coords(self, target_list):
+        # Transform coordinates and apply proper motion, when necessary, to convert each catalog
+        # to ICRS and the same epoch.
+        # Note, that `apply_space_motion` requires `radial_velocity` to be set when working in ICRS
+
+        # TODO: move this to the Catalog object from here?
+
+        target_epoch = self.__config.netflow_options.epoch
+        target_epoch = normalize_epoch(target_epoch)
+        
+        logger.info(f'Converting target list `{target_list.name}` to ICRS and epoch J{target_epoch:0.2f}.')
+        target_list.transform_coords(target_frame='icrs', target_epoch=target_epoch)
 
     def __append_source_target_lists(self, netflow, target_lists):
         # Add flux standards first because those are the less numerous. This way

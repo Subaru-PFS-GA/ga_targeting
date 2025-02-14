@@ -361,7 +361,26 @@ class SubaruPFI(Instrument, FiberAllocator):
                         epoch=2000.0, pmra=None, pmdec=None, parallax=None, rv=None):
         
         """
-        Convert celestial coordinate to focal plane position.
+        Convert celestial coordinate to focal plane positions.
+
+        Parameters
+        ----------
+        ra : array of float
+            Right Ascension of the targets in degrees
+        dec : array of float
+            Declination of the targets in degrees
+        pointing : Pointing
+            Boresight of the telescope and observation time
+        epoch : float
+            Epoch of the input coordinates in decimal year
+        pmra : array of float
+            Proper motion in the RA direction in mas / yr
+        pmdec : array of float
+            Proper motion in the Dec direction in mas / yr
+        parallax : array of float
+            Parallax in mas
+        rv : array of float
+            Radial velocity in km / s
         """
         
         cent = np.array([[ pointing.ra ], [ pointing.dec ]])

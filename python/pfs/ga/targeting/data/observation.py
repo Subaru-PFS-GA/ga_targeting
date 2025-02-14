@@ -10,8 +10,8 @@ from ..photometry import Photometry, Color, Magnitude
 from .catalog import Catalog
 
 class Observation(Catalog):
-    def __init__(self, data: pd.DataFrame = None, name=None, frame='icrs', equinox='J2000', orig=None):
-        super().__init__(name=name, frame=frame, equinox=equinox, orig=orig)
+    def __init__(self, data: pd.DataFrame = None, name=None, frame='icrs', equinox=None, epoch=None, orig=None):
+        super().__init__(name=name, frame=frame, equinox=equinox, epoch=epoch, orig=orig)
 
         if not isinstance(orig, Observation):
             self.__data: pd.DataFrame = data
@@ -88,6 +88,21 @@ class Observation(Catalog):
 
         data = self.get_data(mask=mask, filter=filter, selection=selection)
         return type(self)(data=data, orig=self)
+
+    def apply_magnitude_limits(self, limits):
+        for filter, values in limits.items():
+            # Split the filter name into magnitude_type, photometric_system, filter_name
+            parts = filter.split('_')
+            if len(parts) > 1:
+                [p, m] = parts[-2:]
+                magnitude_type = parts[:-2]
+                mag, mag_err = self.get_magnitude(self.photometry[p].magnitudes[m], magnitude_type=magnitude_type)
+
+                if mag is not None:
+                    mask = (mag >= values[0]) & (mag <= values[1])
+                    return self.filter(mask=mask)
+            else:
+                raise ValueError(f"Invalid filter: {filter}")
 
     def __get_observed(self):
         return True
@@ -200,7 +215,9 @@ class Observation(Catalog):
         dered = dered if dered is not None else True
         mask = mask if mask is not None else slice(None)
 
-        if magnitude_type is not None and not isinstance(magnitude_type, Iterable):
+        if isinstance(magnitude_type, str):
+            magnitude_type = [ magnitude_type ]
+        elif magnitude_type is not None and not isinstance(magnitude_type, Iterable):
             magnitude_type = [ magnitude_type ]
         elif magnitude_type is None \
              or isinstance(magnitude_type, Iterable) and len(magnitude_type) == 0:

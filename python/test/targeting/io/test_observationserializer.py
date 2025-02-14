@@ -2,7 +2,7 @@ import os
 
 from test_base import TestBase
 import pfs.ga.targeting
-from pfs.ga.targeting.config import TargetListConfig
+from pfs.ga.targeting.config.netflow import TargetListConfig
 from pfs.ga.targeting.instrument.subaruhsc import SubaruHSC
 from pfs.ga.targeting.io import ObservationSerializer
 
@@ -27,34 +27,41 @@ class ObservationSerializerTest(TestBase):
             prefix = "sci",
             epoch = "J2000.0",
             catid = 15001,
-            proposalid_pattern = "Test",
-            filters = {
-                "hsc_g": dict(
-                    mag = 'sdss_g',
-                    mag_err = 'err_sdss_g',
-                    # flux = "g_hsc_flux",
-                    # flux_err = "g_hsc_flux_err",
-                    # psf_mag = "g_hsc",
-                    # psf_mag_err = "g_hsc_err",
-                    # psf_flux = "g_hsc_flux",
-                    # psf_flux_err = "g_hsc_flux_err",
-                    # fiber_mag = "g_hsc",
-                    # fiber_mag_err = "g_hsc_err",
-                    # fiber_flux = "g_hsc_flux",
-                    # fiber_flux_err = "g_hsc_flux_err",
-                    # total_mag = "g_hsc",
-                    # total_mag_err = "g_hsc_err",
-                    # total_flux = "g_hsc_flux",
-                    # total_flux_err = "g_hsc_flux_err",
-                ),
-                "hsc_i": dict(
-                    mag = 'sdss_r',
-                    mag_err = 'err_sdss_r',
-                ),
+            extra_columns = {
+                'proposalid': dict(
+                    pattern = "Test",
+                    dtype = 'string'
+                )
             },
-            limits = {
-                'hsc_g': [17, 19],
-            }
+            photometry = dict(
+                filters = {
+                    "hsc_g": dict(
+                        mag = 'sdss_g',
+                        mag_err = 'err_sdss_g',
+                        # flux = "g_hsc_flux",
+                        # flux_err = "g_hsc_flux_err",
+                        # psf_mag = "g_hsc",
+                        # psf_mag_err = "g_hsc_err",
+                        # psf_flux = "g_hsc_flux",
+                        # psf_flux_err = "g_hsc_flux_err",
+                        # fiber_mag = "g_hsc",
+                        # fiber_mag_err = "g_hsc_err",
+                        # fiber_flux = "g_hsc_flux",
+                        # fiber_flux_err = "g_hsc_flux_err",
+                        # total_mag = "g_hsc",
+                        # total_mag_err = "g_hsc_err",
+                        # total_flux = "g_hsc_flux",
+                        # total_flux_err = "g_hsc_flux_err",
+                    ),
+                    "hsc_i": dict(
+                        mag = 'sdss_r',
+                        mag_err = 'err_sdss_r',
+                    ),
+                },
+                limits = {
+                    'hsc_g': [17, 19],
+                }
+            )
         )
 
         target_list_config = TargetListConfig.from_dict(config)
@@ -91,26 +98,28 @@ class ObservationSerializerTest(TestBase):
                 'pmdec_error': 'err_pmdec',
             },
             prefix = "cal",
-            bands = {
-                b: dict(
-                    filter = f'filter_{b}',                   # Column storing filter names
-                    # psf_mag = f'psf_mag_{b}',
-                    # psf_mag_err = f'psf_mag_error_{b}',
-                    psf_flux = f'psf_flux_{b}',
-                    psf_flux_err = f'psf_flux_error_{b}',
-                    # fiber_mag = None,
-                    # fiber_mag_err = None,
-                    # fiber_flux = None,
-                    # fiber_flux_err = None,
-                    # total_mag = None,
-                    # total_mag_err = None,
-                    # total_flux = None,
-                    # total_flux_err = None,
-                ) for b in 'gr'
-            },
-            limits = {
-                'ps1_g': [17, 19],
-            }
+            photometry = dict(
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',                   # Column storing filter names
+                        # psf_mag = f'psf_mag_{b}',
+                        # psf_mag_err = f'psf_mag_error_{b}',
+                        psf_flux = f'psf_flux_{b}',
+                        psf_flux_err = f'psf_flux_error_{b}',
+                        # fiber_mag = None,
+                        # fiber_mag_err = None,
+                        # fiber_flux = None,
+                        # fiber_flux_err = None,
+                        # total_mag = None,
+                        # total_mag_err = None,
+                        # total_flux = None,
+                        # total_flux_err = None,
+                    ) for b in 'gr'
+                },
+                limits = {
+                    'ps1_g': [17, 19],
+                }
+            )
         )
         
         target_list_config = TargetListConfig.from_dict(config)
