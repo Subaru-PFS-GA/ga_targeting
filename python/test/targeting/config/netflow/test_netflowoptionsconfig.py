@@ -6,8 +6,8 @@ from test_base import TestBase
 
 import pfs.ga.targeting
 from pfs.ga.targeting.instrument import SubaruHSC, SubaruPFI
-from pfs.ga.targeting.config.instrumentoptionsconfig import InstrumentOptionsConfig
-from pfs.ga.targeting.config.netflowoptionsconfig import NetflowOptionsConfig
+from pfs.ga.targeting.config.instrument import InstrumentOptionsConfig
+from pfs.ga.targeting.config.netflow.netflowoptionsconfig import NetflowOptionsConfig
 
 class NetflowOptionsConfigTest(TestBase):
     def test_create_cobra_instrument_labels(self):
