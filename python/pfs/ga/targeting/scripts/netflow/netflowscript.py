@@ -243,9 +243,12 @@ class NetflowScript(Script):
         self.__unassign_colliding_cobras(netflow)
         
         # Extract the assignments from the netflow solution
+        # The column target_idx is a unique index into the netflow target cache
         assignments = self.__extract_assignments(netflow)
         self.__save_assignments(assignments)
 
+        # Generate a summary of the target assignments
+        # The index of the data frame is a unique index into the netflow target cache
         summary = netflow.get_target_assignment_summary()
         self.__save_summary(summary)
 
@@ -261,6 +264,8 @@ class NetflowScript(Script):
 
         # TODO: this is the point to postfix obcode with the visit id
 
+        # Join the assignments with the merged target list to append the fluxes and
+        # filter names, ob_code, etc.
         assignments_all = self.__join_assignments(assignments, assigned_targets_all)
         self.__save_assignments_all(assignments_all)
 
@@ -591,6 +596,10 @@ class NetflowScript(Script):
         for prefix in ['cal', 'sci']:
             for k, target_list in target_lists.items():
                 if self.__config.targets[k].prefix == prefix:
+                    # Remember the key of the target list so that it will appear in the
+                    # final assigned targets's list
+                    pd_append_column(target_list.data, '__key', k, pd.StringDtype())
+
                     # Cross-match the target list with the target lists already added to netflow
                     # idx1 is the index into the current target list
                     # idx2 is the index of the matches in the netflow target cache
@@ -614,8 +623,16 @@ class NetflowScript(Script):
                                 
         for k, target_list in target_lists.items():
             if self.__config.targets[k].prefix == 'sky':
+                # Remember the key of the target list so that it will appear in the
+                # final assigned targets's list
+                pd_append_column(target_list.data, '__key', k, pd.StringDtype())
+
+                # Make room for target_idx in the target list for joining in the magnitudes later
+                pd_append_column(target_list.data, '__target_idx', pd.NA, pd.Int64Dtype())
+
                 # No cross-matching necessary here
-                netflow.append_sky_targets(target_list)
+                idx = netflow.append_sky_targets(target_list)
+                target_list.data['__target_idx'] = idx
 
     def __cross_match_source_target_list(self, netflow, target_list):
         # Cross-match the target list with the target lists already added to netflow
@@ -765,104 +782,181 @@ class NetflowScript(Script):
         be included in the design files.
         """
 
-        # Sky fibers and engeering fibers have no targetid, so make a unique list of
-        # actual targetids
-        unique_targetid = pd.DataFrame({ 'targetid': assignments['targetid'].unique() })
-        unique_targetid.set_index('targetid', inplace=True)
+        # Indexes of all assigned targets
+        # Make it unique in case a target is assigned multiple times
+        assigned_target_idx = pd.DataFrame({'__target_idx': assignments[assignments['target_idx'] != -1]['target_idx'].unique()})
 
         assigned_target_lists = {}
-        for k, target_list in target_lists.items():
-            assigned = target_list.data.set_index('targetid').join(unique_targetid, how='inner')
+        for k, config in self.__config.targets.items():
+            # Only include targets that can be assigned to fibers, ie. no guide stars
+            if config.prefix in ['sci', 'cal', 'sky']:
+                target_list = target_lists[k]
 
-            # Filter names are either defined in the config or can be extracted from the columns
-            # If the config entry is a dictionary, we assume that the keys are the filter names.
-            # If it is a list, we assume that the filter names are stored as values in a column.
+                # Filter down the target list to only include targets that were assigned
+                assigned = target_list.data.set_index('__target_idx').join(assigned_target_idx.set_index('__target_idx'), how='inner')
+                assigned.reset_index(inplace=True)
 
-            photometry = self.__config.targets[k].photometry
+                # Filter names are either defined in the config or can be extracted from the columns
+                # If the config entry is a dictionary, we assume that the keys are the filter names.
+                # If it is a list, we assume that the filter names are stored as values in a column.
 
-            if photometry is not None and photometry.filters is not None:
-                # Convert the flux columns into a single column of list objects
-                # Refer to canonical column names in __calculate_target_list_flux_filters
+                photometry = self.__config.targets[k].photometry
 
-                def flux_to_list(row, prefix, postfix):    
-                    return [ row[f'{b}_{prefix}flux{postfix}'] for b in photometry.filters.keys() ]
-                
-                def filter_to_list(row):
-                    return list(photometry.filters.keys())
-                
-                for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                    assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, prefix, ''), axis=1)
-                    assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, prefix, '_err'), axis=1)
+                if photometry is not None and photometry.filters is not None:
+                    # Convert the flux columns into a single column of list objects
+                    # Refer to canonical column names in __calculate_target_list_flux_filters
+
+                    def flux_to_list(row, prefix, postfix):    
+                        return [ row[f'{b}_{prefix}flux{postfix}'] for b in photometry.filters.keys() ]
                     
-                assigned['filter'] = assigned.apply(filter_to_list, axis=1)
-            elif photometry is not None and photometry.bands is not None:
-                # Convert the flux columns into a single column of list objects
-                # Refer to canonical column names in __calculate_target_list_flux_bands
+                    def filter_to_list(row):
+                        return list(photometry.filters.keys())
+                    
+                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
+                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, prefix, ''), axis=1)
+                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, prefix, '_err'), axis=1)
+                        
+                    assigned['filter'] = assigned.apply(filter_to_list, axis=1)
+                elif photometry is not None and photometry.bands is not None:
+                    # Convert the flux columns into a single column of list objects
+                    # Refer to canonical column names in __calculate_target_list_flux_bands
 
-                def flux_to_list(row, prefix='psf_flux_'):
-                    fluxes = []
-                    for b in photometry.bands.keys():
-                        if row[f'filter_{b}'] is not None:
-                            fluxes.append(row[f'{prefix}{b}'])
-                    return fluxes
-                
-                def filter_to_list(row):
-                    filters = []
-                    for b in photometry.bands.keys():
-                        if row[f'filter_{b}'] is not None:
-                            filters.append(row[f'filter_{b}'])
-                    return filters
-                
-                for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                    assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_'), axis=1)
-                    assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_err_'), axis=1)
+                    def flux_to_list(row, prefix='psf_flux_'):
+                        fluxes = []
+                        for b in photometry.bands.keys():
+                            if row[f'filter_{b}'] is not None:
+                                fluxes.append(row[f'{prefix}{b}'])
+                        return fluxes
+                    
+                    def filter_to_list(row):
+                        filters = []
+                        for b in photometry.bands.keys():
+                            if row[f'filter_{b}'] is not None:
+                                filters.append(row[f'filter_{b}'])
+                        return filters
+                    
+                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
+                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_'), axis=1)
+                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_err_'), axis=1)
 
-                assigned['filter'] = assigned.apply(filter_to_list, axis=1)
-            else:
-                # No fluxes or magnitudes available (sky), just generate some empty lists
-                for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                    assigned[f'{prefix}flux'] = assigned.apply(lambda row: [], axis=1)
-                    assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: [], axis=1)
+                    assigned['filter'] = assigned.apply(filter_to_list, axis=1)
+                else:
+                    # No fluxes or magnitudes available (sky), just generate some empty lists
+                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
+                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: [], axis=1)
+                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: [], axis=1)
 
-                assigned['filter'] = assigned.apply(lambda row: [], axis=1)
+                    assigned['filter'] = assigned.apply(lambda row: [], axis=1)
 
-            assigned_target_lists[k] = assigned
+                assigned_target_lists[k] = assigned
 
         return assigned_target_lists
     
     def __merge_assigned_target_lists(self, assigned_target_lists):
+        """
+        Compile the list of the targets that will make it into the final design files.
+        Some targets might be repeated in more than one target lists. These were taken care
+        of in __append_source_target_lists by cross-matching each target list with the
+        targets already added to the netflow target cache. Now we need to process the target
+        lists in the same order and if a target is already in the assigned_targets_all list,
+        we need to update the fluxes, magnitudes, etc. Otherwise, we append the target to the
+        assigned_targets_all list.
+        """
+
         # Take only a subset of columns, these will be used to generate the design file
         # NOTE: targetid is the index of each target list
-        columns = [ 'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode',
+        columns = [ '__target_idx', '__key',
+                    'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode',
                     'filter', 'psf_flux', 'psf_flux_err',
                     'fiber_flux', 'fiber_flux_err',
                     'total_flux', 'total_flux_err' ]
         
         assigned_targets_all = None
-        for key, assigned_target_list in assigned_target_lists.items():
-            if assigned_targets_all is None:
-                assigned_targets_all = assigned_target_list[columns]
-            else:
-                assigned_targets_all = pd.concat([ assigned_targets_all, assigned_target_list[columns] ])
+        for prefix in ['cal', 'sci']:
+            for k, assigned_targets in assigned_target_lists.items():
+                if self.__config.targets[k].prefix == prefix:
+
+                    if assigned_targets_all is None:
+                        assigned_targets_all = assigned_targets[columns]
+                    else:
+                        # Some targets may be in multiple catalogs, so we need to join on __target_idx
+                        # and update if there's a match or append if there's no match
+
+                        # Find records in assigned_target_list that have matching __target_idx in assigned_targets_all
+                        mask = assigned_targets['__target_idx'].isin(assigned_targets_all['__target_idx'])
+                        
+                        # Update the records in assigned_targets_all
+                        # TODO: now it's done one-by-one but it could be sped up a little bit by using a join
+                        at = assigned_targets.set_index('__target_idx')
+                        at_all = assigned_targets_all.set_index('__target_idx')
+                        for i in np.where(mask)[0]:
+                            target_idx = assigned_targets.loc[i, '__target_idx']
+                            filter_all = at_all.loc[target_idx, 'filter']
+
+                            # Loop over all filters in the target list and append the fluxes to the all targets'
+                            # list if the filter doesn't exist yet
+                            for f in at.loc[target_idx, 'filter']:
+                                if f not in filter_all:
+                                    filter_all.append(f)
+
+                                    for flux_type in ['psf', 'fiber', 'total']:
+                                        flux_all = at_all.loc[target_idx, f'{flux_type}_flux']
+                                        flux_err_all = at_all.loc[target_idx, f'{flux_type}_flux_err']
+                                        
+                                        [flux], [flux_err] = at.loc[target_idx, [f'{flux_type}_flux', f'{flux_type}_flux_err']]
+
+                                        flux_all.append(flux)
+                                        flux_err_all.append(flux_err)
+
+                            pass
+
+                        assigned_targets_all = at_all.reset_index()
+
+                        # Append the rest of the rows
+                        assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[~mask][columns] ], ignore_index=True)
+
+        # Sky positions are never cross-matched, so simply append them to the assigned targets list
+        for k, assigned_targets in assigned_target_lists.items():
+            if self.__config.targets[k].prefix == 'sky':
+                assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[columns] ], ignore_index=True)
+
+        # TODO: merge fluxes etc here in case we have duplicate target_idx because
+        #       it means that a target appers in multiple catalogs
+
+        # TODO: merge filter and magnitude lists
+        #       need and example, maybe Outer Disk Field
+        
+        # Find duplicate target_idx
+        duplicates = assigned_targets_all[assigned_targets_all.duplicated('__target_idx', keep=False)]
+        if duplicates.shape[0] > 0:
+            raise NotImplementedError()
 
         return assigned_targets_all
     
     def __join_assignments(self, assignments, assigned_targets_all):
-        # `assignments` is a list of fibers for every visit
-        # `assigned_targets_all` is a list of targets that were assigned to any of the fibers
+        """
+        Joins in additional target information to the assignments list, such as
+        fluxes, filter names, etc. that's not already in the assignments list.
 
+        Parameters
+        ----------
+
+        assignments : DataFrame
+            A list of fibers for each visit
+        assigned_targets_all : DataFrame
+            A merged list of targets that were assigned to any of the fibers
+        """
+        
         # Only include columns that are not already in `assignments`
         columns = assigned_targets_all.columns.difference(assignments.columns)
 
         # Join the assignments with the assigned targets to get the final object lists
         assignments_all = pd.merge(
-            pd_to_nullable(assignments.set_index('targetid')), 
-            pd_to_nullable(assigned_targets_all[columns]),
+            pd_to_nullable(assignments.set_index('target_idx')), 
+            pd_to_nullable(assigned_targets_all[columns].set_index('__target_idx')),
             how='left', left_index=True, right_index=True)
         
-        assignments_all.reset_index(inplace=True, names='targetid')
-
-        # TODO: substitute NaN values
+        assignments_all.reset_index(inplace=True, names='__target_idx')
 
         return assignments_all
     
@@ -903,7 +997,7 @@ class NetflowScript(Script):
             if not np.all(np.bincount(design.fiberId) <= 1):
                 logger.error(f'Duplicate fiber assignments in design {design.pfsDesignId:016x}.')
 
-            if not np.all(design.dec[design.targetType == TargetType.UNASSIGNED] == 0.0):
+            if not np.all(np.isnan(design.dec[design.targetType == TargetType.UNASSIGNED])):
                 logger.error(f'Unassigned targets with coordinates found in design {design.pfsDesignId:016x}.')
 
             # Further verifications - probably better done in the notebook or in a separate script

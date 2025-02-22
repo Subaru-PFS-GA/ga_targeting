@@ -203,14 +203,14 @@ class Netflow():
         self.__problem_type = GurobiProblem
         self.__problem = None                       # ILP problem, already wrapped
 
-        self.__name_counter = None
+        self.__name_counter = None                  # Variable name counter
 
-        self.__variables = None
-        self.__constraints = None
+        self.__variables = None                     # LP variables, see __init_variables
+        self.__constraints = None                   # LP constraints, see __init_constraints
 
         self.__forbidden_targets = None             # List of forbidden individual target, identified by target_idx
         self.__forbidden_pairs = None               # List of forbidden target pairs, identified by target_idx
-        self.__black_dots = None
+        self.__black_dots = None                    # Nearest black dots around each cobra
 
         self.__visit_exp_time = None                # Exposure time of a single visit in integer seconds
         self.__targets = None                       # DataFrame of targets
@@ -1112,17 +1112,17 @@ class Netflow():
     def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None, selection=None):
         """Add science targets"""
 
-        self.append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
+        return self.append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
 
     def append_sky_targets(self, sky, mask=None, filter=None, selection=None):
         """Add sky positions"""
 
-        self.append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
+        return self.append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
 
     def append_fluxstd_targets(self, fluxstd, mask=None, filter=None, selection=None):
         """Add flux standard positions"""
 
-        self.append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
+        return self.append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
 
     def update_targets(self, catalog, prefix, idx1, idx2, mask=None, filter=None, selection=None):
         """
@@ -2646,6 +2646,7 @@ class Netflow():
                 pd_append_column(unassigned, 'targetid', -1, np.int64)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
+                pd_append_column(unassigned, 'target_idx', -1, np.int32)
                 pd_append_column(unassigned, 'cobraid', cobraid[cidx], np.int32)
                 pd_append_column(unassigned, 'sciencefiberid', fm.scienceFiberId[sci_fiberidx][cidx], np.int32)
                 pd_append_column(unassigned, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
@@ -2669,6 +2670,7 @@ class Netflow():
                 pd_append_column(engineering, 'targetid', -1, np.int64)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(engineering, 'visit_idx', vidx, np.int32)
+                pd_append_column(engineering, 'target_idx', -1, np.int32)
                 pd_append_column(engineering, 'cobraid', -1, np.int32)
                 pd_append_column(engineering, 'sciencefiberid', fm.scienceFiberId[eng_fiberidx], np.int32)
                 pd_append_column(engineering, 'fieldid', fm.fieldId[eng_fiberidx], np.int32)
@@ -2704,6 +2706,7 @@ class Netflow():
             pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
             pd_append_column(targets, 'visit_idx', vidx, np.int32)
+            pd_append_column(targets, 'target_idx', tidx, np.int32)
             pd_append_column(targets, 'cobraid', cobraid[cidx], np.int32)
             pd_append_column(targets, 'sciencefiberid', fm.scienceFiberId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
@@ -2777,7 +2780,9 @@ class Netflow():
         all_assignments, all_fiberids = self.get_fiber_assignments_masks()
         num_assignments = np.sum(np.stack(all_assignments, axis=-1), axis=-1)
 
+        # TODO: add a target_idx column
         targets = self.__targets.copy()
+        targets['target_idx'] = self.__target_to_cache_map
         targets['num_visits'] = num_assignments
         targets.reset_index(names='targetid', inplace=True)
 
