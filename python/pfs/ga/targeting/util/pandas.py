@@ -9,7 +9,7 @@ def pd_append_column(df, name, data, dtype=None):
     """
 
     if isinstance(data, str) or not isinstance(data, Iterable):
-        df[name] = pd.Series([data] * len(df), dtype=dtype)
+        df[name] = pd.Series([data] * len(df), index=df.index, dtype=dtype)
     elif isinstance(data, pd.Series):
         #df[name] = data.reset_index(drop=True)
         df[name] = data.astype(dtype)
@@ -23,11 +23,12 @@ def pd_update_column(df, loc, name, data, dtype=None):
     """
 
     if isinstance(data, str) or not isinstance(data, Iterable):
-        df.loc[loc, name] = pd.Series([data] * len(df), dtype=dtype)
+        df.loc[loc, name] = pd.Series([data] * len(df), index=df.index, dtype=dtype)
     elif isinstance(data, pd.Series):
-        df.loc[loc, name] = data.astype(dtype)
+        # Ignore the index of data by converting to an array using .values
+        df.loc[loc, name] = data.astype(dtype).values
     else:
-        df.loc[loc, name] = pd.Series(data, dtype=dtype)
+        df.loc[loc, name] = pd.Series(data, index=df.index, dtype=dtype)
 
 def pd_to_nullable(df: pd.DataFrame, columns=None, in_place=False) -> pd.DataFrame:
     """

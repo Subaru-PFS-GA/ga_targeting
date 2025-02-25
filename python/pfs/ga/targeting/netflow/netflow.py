@@ -1024,12 +1024,14 @@ class Netflow():
         # Make sure that we convert to the right data type everywhere
         
         # Create the formatted dataset from the input catalog
-        data = {
+        targets = pd.DataFrame({
+            'key': df['__key'].astype(str).reset_index(drop=True),
             'targetid': df[id_column].astype(np.int64).reset_index(drop=True),
             'RA': df['RA'].astype(np.float64).reset_index(drop=True),
             'Dec': df['Dec'].astype(np.float64).reset_index(drop=True)
-        }
-        targets = pd.DataFrame(data)
+        })
+
+        pd_append_column(targets, 'prefix', prefix, 'string')
 
         # Add proper motion and parallax, if available
         if 'epoch' in df:
@@ -1071,8 +1073,6 @@ class Netflow():
         else:
             pd_append_column(targets, 'penalty', 0, np.int32)
 
-        pd_append_column(targets, 'prefix', prefix, 'string')
-
         if prefix == 'sci':
             if exp_time is not None:
                 pd_append_column(targets, 'exp_time', exp_time, np.float64)
@@ -1094,6 +1094,8 @@ class Netflow():
             # Calibration targets have no prescribed exposure time and priority
             pd_append_column(targets, 'exp_time', np.nan, np.float64)
             pd_append_column(targets, 'priority', pd.NA, pd.Int32Dtype())
+
+            # Calibration targets have the same target class as the prefix
             pd_append_column(targets, 'class', prefix, 'string')
 
         # Append to the existing list
@@ -1199,17 +1201,30 @@ class Netflow():
 
             # Only update priority if it is still NA or the new priority is smaller than
             # the existing one
-            update_mask = np.array(~targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
+            update_mask = np.array(targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
                                    ((df.loc[idx1, 'priority'].reset_index(drop=True)) <
                                     (targets.loc[idx2, 'priority'].reset_index(drop=True))).fillna(False))
             pd_update_column(targets, idx2[update_mask], 'priority', df['priority'][idx1[update_mask]], np.int32)
 
-            # Update the target class labels if the priority is updated
-            priority_mask = np.array(~targets.loc[idx2[update_mask], 'priority'].isna())
+            # Update the target class labels if the priority is updated.
+            # When we have a priority, it must be a science target.
+            # If some science targets are also flux standards, we allocate fibers to them
+            # as flux standards. Care must be taken to process these as science targets by the GA pipeline.
+
+            # TODO: implement option to re-allocate flux standards as science targets but
+            #       it requires changes in how the number of targets are counted for the
+            #       purposes of target class minimum and maximum, as well as cobra group minima and maxima
+
+            priority_mask = np.array(~targets.loc[idx2[update_mask], 'priority'].isna() &
+                                     (targets.loc[idx2[update_mask], 'prefix'] == 'sci'))
             targets.loc[idx2[update_mask][priority_mask], 'class'] = \
                 targets.loc[idx2[update_mask][priority_mask], ['prefix', 'priority']].apply(
-                    lambda r: f"{r['prefix']}_P{r['priority']}",
+                    # lambda r: f"{r['prefix']}_P{r['priority']}",
+                    lambda r: f"sci_P{r['priority']}",
                     axis=1).astype('string')
+
+            # TODO: Update the number of done visits
+            pass
         else:
             # Calibration targets don't override exp_time or priority
             pass
@@ -1253,6 +1268,7 @@ class Netflow():
 
         self.__calculate_exp_time()
         self.__calculate_target_visits()
+        self.__validate_target_visits()
 
         # Create a cache of target properties to optimize data access
         cache_loaded = False
@@ -1373,18 +1389,33 @@ class Netflow():
         Assumes the same exposure time for each visit.
         """
 
-        sci = (self.__targets['prefix'] == 'sci')
+        # TODO: The number of done visits should come from the science target lists
+
+        sci_mask = (self.__targets['prefix'] == 'sci')
 
         # Reset the number of done visits for non science targets
         if 'done_visits' in self.__targets.columns:
-            self.__targets['done_visits'][~sci]
+            raise NotImplementedError()
+            self.__targets['done_visits'][~sci_mask]
         else:
             self.__targets['done_visits'] = 0
 
         # Calculate the number of required visits from the exposure time
-        # The default is 0 for the non-science targets
-        self.__targets['req_visits'] = 0
-        self.__targets.loc[sci, 'req_visits'] = np.int32(np.ceil(self.__targets['exp_time'][sci] / self.__visit_exp_time))
+        # The default is 0 for the non-science targets. Some targets are both flux
+        # standards and science targets, so we calculate the number of required visits
+        # based on the presence of exp_time
+
+        pd_append_column(self.__targets, 'req_visits', 0, np.int32)
+
+        exp_time_mask = self.__targets['exp_time'].notna()
+        pd_update_column(self.__targets, exp_time_mask, 'req_visits', np.ceil(self.__targets['exp_time'][exp_time_mask] / self.__visit_exp_time), dtype=np.int32)
+
+    def __validate_target_visits(self):
+        """
+        Make sure that there are not targets that would require more visits then availables
+        """
+
+        # TODO: take done_visits into account
 
         max_req_visits = self.__targets['req_visits'].max()
         for p in self.__pointings:
@@ -1393,10 +1424,6 @@ class Netflow():
 
     def __cache_targets(self):
         """Extract the contents of the Pandas DataFrame for faster indexed access."""
-
-        # Sort targets by targetid, if not already
-        if 'targetid' in self.__targets.columns:
-            self.__targets = self.__targets.set_index('targetid').sort_index()
 
         # Determine the target mask that filters out targets
         # that are outside the field of view
@@ -1414,7 +1441,9 @@ class Netflow():
         self.__cache_to_target_map = np.where(mask_any)[0]
 
         self.__target_cache = SimpleNamespace(
-                id = np.array(self.__targets.index[mask_any].astype(np.int64)),
+                key = np.array(self.__targets['key'][mask_any].astype(str)),
+                target_idx = np.array(self.__targets.index[mask_any].astype(np.int64)),
+                id = np.array(self.__targets['targetid'][mask_any].astype(np.int64)),
                 ra = np.array(self.__targets['RA'][mask_any].astype(np.float64)),
                 dec = np.array(self.__targets['Dec'][mask_any].astype(np.float64)),
                 pm = np.array(self.__targets['pm'][mask_any].astype(np.float64)),
@@ -2220,7 +2249,6 @@ class Netflow():
 
     def __create_calibration_target_class_constraints(self):
         
-        
         ignore_calib_target_class_minimum = self.__debug_options.ignore_calib_target_class_minimum
         ignore_calib_target_class_maximum = self.__debug_options.ignore_calib_target_class_maximum
         
@@ -2643,7 +2671,8 @@ class Netflow():
             if include_unassigned_fibers:
                 unassigned = pd.DataFrame()
                 pd_append_column(unassigned, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
-                pd_append_column(unassigned, 'targetid', -1, np.int64)
+                # pd_append_column(unassigned, 'key', None, 'string')
+                # pd_append_column(unassigned, 'targetid', -1, np.int64)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
                 pd_append_column(unassigned, 'target_idx', -1, np.int32)
@@ -2667,7 +2696,8 @@ class Netflow():
             if include_engineering_fibers:
                 engineering = pd.DataFrame()
                 pd_append_column(engineering, 'fiberid', fm.fiberId[eng_fiberidx], np.int32)
-                pd_append_column(engineering, 'targetid', -1, np.int64)
+                # pd_append_column(engineering, 'key', None, 'string')
+                # pd_append_column(engineering, 'targetid', -1, np.int64)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(engineering, 'visit_idx', vidx, np.int32)
                 pd_append_column(engineering, 'target_idx', -1, np.int32)
@@ -2703,10 +2733,11 @@ class Netflow():
 
             targets = pd.DataFrame()
             pd_append_column(targets, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
-            pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
+            # pd_append_column(targets, 'key', self.__target_cache.key[tidx], 'string')
+            # pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
             pd_append_column(targets, 'visit_idx', vidx, np.int32)
-            pd_append_column(targets, 'target_idx', tidx, np.int32)
+            pd_append_column(targets, 'target_idx', self.__target_cache.target_idx[tidx], np.int32)
             pd_append_column(targets, 'cobraid', cobraid[cidx], np.int32)
             pd_append_column(targets, 'sciencefiberid', fm.scienceFiberId[sci_fiberidx][cidx], np.int32)
             pd_append_column(targets, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
@@ -2739,13 +2770,8 @@ class Netflow():
         # Include all columns from the target list data frame, if requested
         # Convert integer columns to nullable to avoid float conversion in join
         if include_target_columns:
-
-            # Sort targets by targetid, if not already
-            if 'targetid' in self.__targets.columns:
-                self.__targets = self.__targets.set_index('targetid').sort_index()
                 
-            assignments = assignments.join(pd_to_nullable(self.__targets), on='targetid', how='left')
-            assignments = assignments.reset_index(drop=True)
+            assignments = assignments.join(pd_to_nullable(self.__targets), on='target_idx', how='left')
 
         # Make sure float columns contain NaN instead of None
         pd_null_to_nan(assignments, in_place=True)
@@ -2780,11 +2806,8 @@ class Netflow():
         all_assignments, all_fiberids = self.get_fiber_assignments_masks()
         num_assignments = np.sum(np.stack(all_assignments, axis=-1), axis=-1)
 
-        # TODO: add a target_idx column
         targets = self.__targets.copy()
-        targets['target_idx'] = self.__target_to_cache_map
         targets['num_visits'] = num_assignments
-        targets.reset_index(names='targetid', inplace=True)
 
         return targets
 
