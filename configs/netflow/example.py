@@ -105,7 +105,7 @@ config = dict(
             prefix = "sci",
 
             # Override the epoch of the coordinates in the target list.
-            epoch = "J2000.0",
+            epoch = "J2016.0",
 
             # Override the catalog ID of the target list
             catid = 15001,
@@ -467,7 +467,7 @@ config = dict(
 
         # The epoch of coordinates for targets with measured proper motions. All catalogs must
         # match this epoch.
-        epoch = 2016,
+        epoch = 2016.0,
 
         # Generate full gurobi variable names instead of numbered ones (slow to build problem)
         # It is necessary only, when the netflow solution will be loaded from a file to

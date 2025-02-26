@@ -17,7 +17,7 @@ config = dict(
         # instdata_path = None,
         # blackdots_path = None,
         # fiberids_path = None,
-        black_dot_radius_margin = 1.65,
+        # black_dot_radius_margin = 1.0,
         # spectrograph_modules = [1, 2, 3, 4],
     ),
     netflow_options = dict(
@@ -80,7 +80,7 @@ config = dict(
             'cal_location': dict(
                 # groups = np.random.randint(4, size=2394),
                 target_classes = [ 'cal' ],
-                min_targets = 8,
+                min_targets = 10,
                 max_targets = 60,
                 non_observation_cost = 1000,
             ),
@@ -131,8 +131,6 @@ config = dict(
         ignore_cobra_group_minimum = False,
         ignore_cobra_group_maximum = False,
         ignore_reserved_fibers = False,
-        ignore_proper_motion = False,
-        ignore_missing_priority = True,
-        ignore_missing_exp_time = True,
+        ignore_proper_motion = True,
     ),
 )

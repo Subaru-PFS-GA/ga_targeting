@@ -12,7 +12,7 @@ config = dict(
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
             prefix = "sci",
-            epoch = "J2000.0",
+            epoch = "J2016.0",
             catid = 15001,
             extra_columns = {
                 'proposalid': dict(
