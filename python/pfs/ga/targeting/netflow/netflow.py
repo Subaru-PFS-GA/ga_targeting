@@ -1025,11 +1025,13 @@ class Netflow():
         
         # Create the formatted dataset from the input catalog
         targets = pd.DataFrame({
-            'key': df['__key'].astype(str).reset_index(drop=True),
-            'targetid': df[id_column].astype(np.int64).reset_index(drop=True),
-            'RA': df['RA'].astype(np.float64).reset_index(drop=True),
-            'Dec': df['Dec'].astype(np.float64).reset_index(drop=True)
+            'key': df['__key'].astype(str),
+            'targetid': df[id_column].astype(np.int64),
+            'RA': df['RA'].astype(np.float64),
+            'Dec': df['Dec'].astype(np.float64)
         })
+
+        targets.reset_index(drop=True, inplace=True)
 
         pd_append_column(targets, 'prefix', prefix, 'string')
 
@@ -1074,11 +1076,13 @@ class Netflow():
             pd_append_column(targets, 'penalty', 0, np.int32)
 
         if prefix == 'sci':
+            # Override exposure time, if specified
             if exp_time is not None:
                 pd_append_column(targets, 'exp_time', exp_time, np.float64)
             else:
                 pd_append_column(targets, 'exp_time', df['exp_time'], np.float64)
 
+            # Override priority, if specified
             if priority is not None:
                 pd_append_column(targets, 'priority', priority, pd.Int32Dtype())
             else:
@@ -1097,6 +1101,16 @@ class Netflow():
 
             # Calibration targets have the same target class as the prefix
             pd_append_column(targets, 'class', prefix, 'string')
+
+        # Validate the new targets
+        if np.any(targets['priority'].isna() & (targets['prefix'] == 'sci')):
+            raise NetflowException('Science targets must have a priority.')
+
+        if np.any(targets['exp_time'].isna() & (targets['prefix'] == 'sci')):
+            raise NetflowException('Science targets must have an exposure time.')
+
+        if np.any((targets['exp_time'] <= 0) & (targets['prefix'] == 'sci')):
+            raise NetflowException('Science targets must have an exposure time.')
 
         # Append to the existing list
         if self.__targets is None:
@@ -2669,8 +2683,7 @@ class Netflow():
             cidx = np.where(self.__cobra_assignments[vidx] == -1)[0]
 
             if include_unassigned_fibers:
-                unassigned = pd.DataFrame()
-                pd_append_column(unassigned, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
+                unassigned = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
                 # pd_append_column(unassigned, 'key', None, 'string')
                 # pd_append_column(unassigned, 'targetid', -1, np.int64)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
@@ -2694,8 +2707,7 @@ class Netflow():
                     assignments = pd.concat([ assignments, unassigned ])
 
             if include_engineering_fibers:
-                engineering = pd.DataFrame()
-                pd_append_column(engineering, 'fiberid', fm.fiberId[eng_fiberidx], np.int32)
+                engineering = pd.DataFrame({ 'fiberid': fm.fiberId[eng_fiberidx] })
                 # pd_append_column(engineering, 'key', None, 'string')
                 # pd_append_column(engineering, 'targetid', -1, np.int64)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
@@ -2731,8 +2743,7 @@ class Netflow():
                 center_dist[i] = self.__get_cobra_center_distance(ci, fp_pos[i])
                 black_dot_dist[i] = self.__get_closest_black_dot_distance(ci, fp_pos[i])
 
-            targets = pd.DataFrame()
-            pd_append_column(targets, 'fiberid', fm.fiberId[sci_fiberidx][cidx], np.int32)
+            targets = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
             # pd_append_column(targets, 'key', self.__target_cache.key[tidx], 'string')
             # pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)

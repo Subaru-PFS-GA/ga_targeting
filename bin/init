@@ -94,8 +94,12 @@ pushd . > /dev/null
 
 # Register command-line scripts
 
-# Search and show information about PFS data products
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"
 }
 export -f ga-netflow
+
+function ga-upload() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.upload.uploadscript" "$@"
+}
+export -f ga-upload

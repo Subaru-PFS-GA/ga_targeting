@@ -15,16 +15,15 @@ from ...targets.m31 import M31_FIELDS
 from ...instrument import SubaruPFI
 from ...io import ObservationSerializer
 from ...netflow import Netflow, Design
-from ...core import Pointing
 from ...util.args import *
 from ...util.astro import *
 from ...util.pandas import *
 from ...util.notebookrunner import NotebookRunner
-from ..script import Script
+from ..targetingscript import TargetingScript
 
 from ...setup_logger import logger
 
-class NetflowScript(Script):
+class NetflowScript(TargetingScript):
     """
     Command-line script to execute netflow optimazion and generate
     the target list and design files.
@@ -88,21 +87,11 @@ class NetflowScript(Script):
 
         self.__outdir = None
         self.__resume = False
-        self.__nvisits = None
         self.__exp_time = None
         self.__obs_time = None
         self.__time_limit = None
         self.__xmatch_rad = 2           # arcseconds
-        self.__nan_values = True
         self.__skip_notebooks = False
-        
-        self.__field = None
-        self.__config = None
-
-    def __get_config(self):
-        return self.__config
-    
-    config = property(__get_config)
 
     def _add_args(self):
         super()._add_args()
@@ -120,9 +109,6 @@ class NetflowScript(Script):
         
         self.add_arg('--xmatch-rad', type=float, help='Cross-match radius in arcseconds.')
 
-        self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
-        self.add_arg('--no-nan-values', action='store_false', dest='nan_values', help='Do not use NaN values in the output files.')
-
         self.add_arg('--skip-notebooks', action='store_true', help='Skip execution of evaluation notebooks.')
 
     def _init_from_args_pre_logging(self, args):
@@ -135,44 +121,43 @@ class NetflowScript(Script):
         super()._init_from_args(args)
 
         if self.is_arg('dsph', args):
-            self.__field = DSPH_FIELDS[self.get_arg('dsph', args)]
+            self._field = DSPH_FIELDS[self.get_arg('dsph', args)]
 
         if self.is_arg('m31', args):
-            self.__field = M31_FIELDS[self.get_arg('m31', args)]
+            self._field = M31_FIELDS[self.get_arg('m31', args)]
 
         # If a field is specified, load its default configuration      
-        if self.__field is not None:
-            self.__config = self.__field.get_netflow_config()
+        if self._field is not None:
+            self._config = self._field.get_netflow_config()
         else:
-            self.__config = NetflowConfig.default()
+            self._config = NetflowConfig.default()
 
         # Load the configuration template files and merge with the default config
         config_files = self.get_arg('config', args)
-        self.__config.load(config_files, ignore_collisions=True)
+        self._config.load(config_files, ignore_collisions=True)
         logger.info(f'Loaded {len(config_files)} config files from {config_files}.')
-        logger.info(f'Found {len(self.__config.targets)} target lists in the configuration.')
+        logger.info(f'Found {len(self._config.targets)} target lists in the configuration.')
 
-        self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
+        self._nvisits = self.get_arg('nvisits', args, self._nvisits)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
         self.__xmatch_rad = self.get_arg('xmatch_rad', args, self.__xmatch_rad)
-        self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
-        if self.__nvisits is not None:
-            self.__config.field.nvisits = self.__nvisits
+        if self._nvisits is not None:
+            self._config.field.nvisits = self._nvisits
 
         if self.__exp_time is not None:
-            self.__config.field.exp_time = self.__exp_time
+            self._config.field.exp_time = self.__exp_time
 
         if self.__obs_time is not None:
             self.__obs_time = datetime.fromisoformat(self.__obs_time)
-            self.__config.field.obs_time = self.__obs_time
+            self._config.field.obs_time = self.__obs_time
 
         if self.__time_limit is not None:
-            self.__config.gurobi_options.timelimit = self.__time_limit
+            self._config.gurobi_options.timelimit = self.__time_limit
 
     def prepare(self):
         super().prepare()
@@ -198,27 +183,27 @@ class NetflowScript(Script):
 
         # Save the active configuration to the output directory
         path = self.__get_output_config_path()
-        self.__config.save(path)
+        self._config.save(path)
 
         logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 
     def run(self):
 
         # Load instrument calibration data
-        instrument = self.__create_instrument()
+        instrument = self._create_instrument()
 
         # Generate the list of pointings
-        pointings = self.__generate_pointings()
+        pointings = self._generate_pointings()
 
         # Create the netflow object
         netflow = Netflow(
-            f'{self.__config.field.name}',
+            f'{self._config.field.name}',
             instrument,
             pointings,
             workdir = self.__outdir,
-            netflow_options = self.__config.netflow_options,
-            solver_options = self.__config.gurobi_options,
-            debug_options = self.__config.debug_options)
+            netflow_options = self._config.netflow_options,
+            solver_options = self._config.gurobi_options,
+            debug_options = self._config.debug_options)
 
         # Load the original target list files or, if resuming the processing,
         # load the preprocessed target lists from the output directory.
@@ -240,7 +225,9 @@ class NetflowScript(Script):
         # We do not implement resume logic beyond this point because it's not worth it time-wise.
 
         # Verify collisions and unassign cobras with lower priority targets
-        self.__unassign_colliding_cobras(netflow)
+        # TODO: this would check trajectory collisions but this test is not required
+        #       when the cobras can move radially
+        # self.__unassign_colliding_cobras(netflow)
         
         # Extract the assignments from the netflow solution
         # The column target_idx is a unique index into the netflow target cache
@@ -267,7 +254,7 @@ class NetflowScript(Script):
         # Join the assignments with the merged target list to append the fluxes and
         # filter names, ob_code, etc.
         assignments_all = self.__join_assignments(assignments, assigned_targets_all)
-        self.__save_assignments_all(assignments_all)
+        self._save_assignments_all(assignments_all)
 
         # Generate the designs and save them to the output directory
         designs = self.__create_designs(netflow, assignments_all)
@@ -284,30 +271,15 @@ class NetflowScript(Script):
 
         self.__save_designs(designs)
 
-        # What's left is to write out the assigned targets
-        # in the web uploader format. For this, substitute all NA and NaN values with
-        # zeros
-        if not self.__nan_values:
-            self.__substitute_nans(assignments_all)
-
-        # Save the assigned targets in the official web uploader format
-        for (visit, design) in zip(netflow.visits, designs):
-            assignments_web = self.__merge_assignments_web(assignments, target_lists, visit.visit_idx)
-            self.__save_assignments_web(assignments_web, visit.visit_idx, design.pfsDesignId, format='feather')
-            self.__save_assignments_web(assignments_web, visit.visit_idx, design.pfsDesignId, format='csv')
-
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
             for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
                 self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb'))
-
-    def __create_instrument(self):
-        return SubaruPFI(instrument_options=self.__config.instrument_options)
     
     def load_source_target_lists(self):
         target_lists = {}
-        for k, target_list_config in self.__config.targets.items():
+        for k, target_list_config in self._config.targets.items():
             # Check if the preprocessed target lists are available
 
             if self.__outdir is not None:
@@ -376,7 +348,7 @@ class NetflowScript(Script):
         # a list, we assume that the filter names are stored in a filter column. This latter is
         # typical for flux standard lists.
 
-        photometry = self.__config.targets[key].photometry
+        photometry = self._config.targets[key].photometry
 
         if photometry is not None and photometry.filters is not None:
             return self.__calculate_target_list_flux_filters(key, target_list)
@@ -391,14 +363,14 @@ class NetflowScript(Script):
         Calculate the missing flux values from other columns that are available
         """
 
-        target_list.calculate_flux_filters(self.__config.targets[key].photometry.filters)
+        target_list.calculate_flux_filters(self._config.targets[key].photometry.filters)
 
     def __calculate_target_list_flux_bands(self, key, target_list):
         """
         Calculate the missing flux values from other columns that are available
         """
 
-        target_list.calculate_flux_bands(self.__config.targets[key].photometry.bands)
+        target_list.calculate_flux_bands(self._config.targets[key].photometry.bands)
 
     def __append_target_list_extra_columns(self, key, target_list):
         """
@@ -410,12 +382,12 @@ class NetflowScript(Script):
 
         # Substitute these fields into column patterns
         field_info = dict(
-            name=self.__config.field.key,               # Field short name, e.g. 'umi'
+            name=self._config.field.key,               # Field short name, e.g. 'umi'
             key=key,                                    # Target list key, e.g. 'dsph' or 'fluxstd'
-            obs_time=self.__config.field.obs_time,
-            resolution=self.__config.field.resolution,
-            prefix=self.__config.targets[key].prefix,
-            catid=self.__config.targets[key].catid,
+            obs_time=self._config.field.obs_time,
+            resolution=self._config.field.resolution,
+            prefix=self._config.targets[key].prefix,
+            catid=self._config.targets[key].catid,
         )
 
         def set_extra_column_constant(name, dtype, default_value, config_value):
@@ -459,30 +431,30 @@ class NetflowScript(Script):
                 logger.debug(f'Updated dtype of column `{name}` in target list `{key}`.')
 
         # Verify extra columns config, only one type of pattern is allowed
-        if self.__config.targets[key].extra_columns is not None:
-            for c, config in self.__config.targets[key].extra_columns.items():
+        if self._config.targets[key].extra_columns is not None:
+            for c, config in self._config.targets[key].extra_columns.items():
                 patterns = [config.constant, config.lambda_func, config.pattern]
                 if np.sum([p is not None for p in patterns]) > 1:
                     raise Exception(f'Only one type of pattern is allowed for extra column `{c}`.')
                 
             # The order of column generation is: constants, lambda, pattern
-            for c, config in self.__config.targets[key].extra_columns.items():
+            for c, config in self._config.targets[key].extra_columns.items():
                 if config.constant is not None:
                     set_extra_column_constant(c, config.dtype, None, config.constant)
             
-            for c, config in self.__config.targets[key].extra_columns.items():
+            for c, config in self._config.targets[key].extra_columns.items():
                 if config.lambda_func is not None:
                     set_extra_column_lambda(c, config.dtype, None, config.lambda_func, config.lambda_args)
 
-            for c, config in self.__config.targets[key].extra_columns.items():
+            for c, config in self._config.targets[key].extra_columns.items():
                 if config.pattern is not None:
                     set_extra_column_pattern(c, config.dtype, None, config.pattern)
 
         # If constants are defined for these columns in the config, assign them
-        set_extra_column_constant('epoch', 'string', 'J2016.0', self.__config.targets[key].epoch)
-        set_extra_column_constant('catid', pd.Int32Dtype(), -1, self.__config.targets[key].catid)
-        set_extra_column_constant('priority', pd.Int32Dtype(), None, self.__config.targets[key].priority)
-        set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self.__config.targets[key].exp_time)
+        set_extra_column_constant('epoch', 'string', 'J2016.0', self._config.targets[key].epoch)
+        set_extra_column_constant('catid', pd.Int32Dtype(), -1, self._config.targets[key].catid)
+        set_extra_column_constant('priority', pd.Int32Dtype(), None, self._config.targets[key].priority)
+        set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self._config.targets[key].exp_time)
 
         # Create required columns with default values
         if 'targetid' not in target_list.columns:
@@ -538,6 +510,15 @@ class NetflowScript(Script):
         # TODO: verify that all columns are present that are in the filter list
         #       epoch, catid, proposalid, etc.
 
+        # Verify that science targets have a priority and exposure time set
+        if target_list_config.prefix == 'sci':
+            if np.any(target_list.data['priority'].isna()):
+                raise Exception(f'Missing priority in science target list `{key}`.')
+            if np.any(target_list.data['exp_time'].isna()):
+                raise Exception(f'Missing exposure time in science target list `{key}`.')
+            if np.any(target_list.data['exp_time'] <= 0):
+                raise Exception(f'Invalid exposure time in science target list `{key}`.')
+
         logger.info(f'Successfully validated target list `{key}`.')
 
     def __validate_source_target_lists(self, target_lists):
@@ -551,10 +532,10 @@ class NetflowScript(Script):
         }
 
         for key, target_list in target_lists.items():
-            if self.__config.targets[key].prefix not in ['sci', 'cal', 'sky', 'ag']:
-                raise Exception(f'Invalid target list prefix `{self.__config.targets[key].prefix}` for target list `{key}`.')
+            if self._config.targets[key].prefix not in ['sci', 'cal', 'sky', 'ag']:
+                raise Exception(f'Invalid target list prefix `{self._config.targets[key].prefix}` for target list `{key}`.')
 
-            for col in required_columns[self.__config.targets[key].prefix]:
+            for col in required_columns[self._config.targets[key].prefix]:
                 if col not in target_list.columns:
                     raise Exception(f'Missing required column "{col}" in target list `{key}`.')
 
@@ -581,7 +562,7 @@ class NetflowScript(Script):
 
         # TODO: move this to the Catalog object from here?
 
-        target_epoch = self.__config.netflow_options.epoch
+        target_epoch = self._config.netflow_options.epoch
         target_epoch = normalize_epoch(target_epoch)
         
         logger.info(f'Converting target list `{target_list.name}` to ICRS and epoch J{target_epoch:0.2f}.')
@@ -595,7 +576,7 @@ class NetflowScript(Script):
 
         for prefix in ['cal', 'sci']:
             for k, target_list in target_lists.items():
-                if self.__config.targets[k].prefix == prefix:
+                if self._config.targets[k].prefix == prefix:
                     # Remember the key of the target list so that it will appear in the
                     # final assigned targets's list
                     pd_append_column(target_list.data, '__key', k, pd.StringDtype())
@@ -622,7 +603,7 @@ class NetflowScript(Script):
                         target_list.data['__target_idx'] = idx
                                 
         for k, target_list in target_lists.items():
-            if self.__config.targets[k].prefix == 'sky':
+            if self._config.targets[k].prefix == 'sky':
                 # Remember the key of the target list so that it will appear in the
                 # final assigned targets's list
                 pd_append_column(target_list.data, '__key', k, pd.StringDtype())
@@ -661,7 +642,7 @@ class NetflowScript(Script):
             return np.where(mask)[0], idx[mask], sep2d[mask].arcsec, mask
     
     def __get_preprocessed_target_list_path(self, key):
-        return os.path.join(self.__outdir, f'{self.__config.field.key}_targets_{key}.feather')
+        return os.path.join(self.__outdir, f'{self._config.field.key}_targets_{key}.feather')
 
     def __save_preprocessed_target_list(self, key, target_list, path):
         logger.info(f'Saving preprocessed target list `{key}` to `{path}`.')
@@ -674,36 +655,6 @@ class NetflowScript(Script):
         target_list = s.read(path)
         target_list.name = key
         return target_list
-
-    def __generate_pointings(self):
-
-        # The list of pointings can be defined in the config file, which then
-        # override the pointings defined for the field in the library source code.
-
-        if self.__config.pointings is not None:
-            pp = [ p.get_pointing() for p in self.__config.pointings ]
-        elif self.__field is not None:
-            # Load from the class
-            pp = self.__field.get_pointings(SubaruPFI)
-        else:
-            raise NotImplementedError()
-        
-        # The number of visits can be overridden from the command-line argument
-        nvisits = self.__config.field.nvisits
-        exp_time = self.__config.field.exp_time
-        obs_time = self.__config.field.obs_time
-        
-        # Create new pointing objects with obs_time, exp_time etc.
-        pointings = []
-        for p in pp:   
-            pointings.append(Pointing(
-                p.ra, p.dec,
-                posang = p.posang,
-                obs_time = obs_time,
-                exp_time = exp_time,
-                nvisits = nvisits))
-            
-        return pointings
     
     def __run_netflow(self, netflow):
         logger.info('Building netflow model.')
@@ -740,7 +691,7 @@ class NetflowScript(Script):
         return assignments
     
     def __get_assignments_path(self):
-        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments.feather')
+        return os.path.join(self.__outdir, f'{self._config.field.key}_assignments.feather')
     
     def __save_assignments(self, assignments):
         path = self.__get_assignments_path()
@@ -753,28 +704,15 @@ class NetflowScript(Script):
         return pd.read_feather(path)
     
     def __get_summary_path(self):
-        return os.path.join(self.__outdir, f'{self.__config.field.key}_summary.feather')
+        return os.path.join(self.__outdir, f'{self._config.field.key}_summary.feather')
     
     def __save_summary(self, summary):
         path = self.__get_summary_path()
         logger.info(f'Saving target assignment summary to `{path}`.')
         summary.to_feather(path)
     
-    def __get_assignments_all_path(self):
-        return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_all.feather')
-    
-    def __save_assignments_all(self, assignments_all):
-        # This dataframe contains columns with dtype `object`` that contain the list of
-        # magnitudes, fluxes, filter names, etc.
-        
-        path = self.__get_assignments_all_path()
-        logger.info(f'Saving assignments joined with the input catalogs to `{path}`.')
-        assignments_all.to_feather(path)
-
-    def __load_assignments_all(self):
-        path = self.__get_assignments_all_path()
-        logger.info(f'Loading assignments joined with the input catalogs from `{path}`.')
-        return pd.read_feather(path)
+    def _get_assignments_all_path(self):
+        return os.path.join(self.__outdir, f'{self._config.field.key}_assignments_all.feather')
 
     def __append_flux_filter_lists(self, assignments, target_lists):
         """
@@ -787,7 +725,7 @@ class NetflowScript(Script):
         assigned_target_idx = pd.DataFrame({'__target_idx': assignments[assignments['target_idx'] != -1]['target_idx'].unique()})
 
         assigned_target_lists = {}
-        for k, config in self.__config.targets.items():
+        for k, config in self._config.targets.items():
             # Only include targets that can be assigned to fibers, ie. no guide stars
             if config.prefix in ['sci', 'cal', 'sky']:
                 target_list = target_lists[k]
@@ -800,7 +738,7 @@ class NetflowScript(Script):
                 # If the config entry is a dictionary, we assume that the keys are the filter names.
                 # If it is a list, we assume that the filter names are stored as values in a column.
 
-                photometry = self.__config.targets[k].photometry
+                photometry = self._config.targets[k].photometry
 
                 if photometry is not None and photometry.filters is not None:
                     # Convert the flux columns into a single column of list objects
@@ -874,7 +812,7 @@ class NetflowScript(Script):
         assigned_targets_all = None
         for prefix in ['cal', 'sci']:
             for k, assigned_targets in assigned_target_lists.items():
-                if self.__config.targets[k].prefix == prefix:
+                if self._config.targets[k].prefix == prefix:
 
                     if assigned_targets_all is None:
                         assigned_targets_all = assigned_targets[columns]
@@ -917,7 +855,7 @@ class NetflowScript(Script):
 
         # Sky positions are never cross-matched, so simply append them to the assigned targets list
         for k, assigned_targets in assigned_target_lists.items():
-            if self.__config.targets[k].prefix == 'sky':
+            if self._config.targets[k].prefix == 'sky':
                 assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[columns] ], ignore_index=True)
 
         # TODO: merge fluxes etc here in case we have duplicate target_idx because
@@ -981,10 +919,10 @@ class NetflowScript(Script):
         designs = []
 
         for visit in netflow.visits:
-            design_name = f'{self.__config.field.name} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+            design_name = f'{self._config.field.name} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
             d = Design.create_pfsDesign_visit(visit, assignments_all,
                                               design_name=design_name,
-                                              arms=self.__config.field.arms)
+                                              arms=self._config.field.arms)
             designs.append(d)
 
             logger.info(f'Generated design {d.pfsDesignId:016x} for visit {visit.visit_idx} with name `{d.designName}`.')
@@ -1017,120 +955,6 @@ class NetflowScript(Script):
             d.write(dirName=self.__outdir)
             logger.info(f'Saved design {d.pfsDesignId:016x} to `{d.filename}`.')
 
-    def __merge_assignments_web(self, assignments, target_lists, visit_idx):
-        """
-        Generate an assignment list that is compatible with the web uploader. This is for compatibility
-        with the rest of the targeting algorithms.
-        """
-
-        assignment_columns = ['targetid', 'RA', 'Dec', 'pm', 'pmra', 'pmdec', 'parallax', 'exp_time', 'priority']
-        target_list_columns = ['targetid', 'obcode']
-
-        assignments_web = None
-        all_flux_columns = set()
-
-        for k, target_list in target_lists.items():
-            
-            # Collect all available flux columns from the target list
-            column_map = {}         # column renames
-            extra_columns = {}      # flux columns calculated from magnitudes and other extra columns
-            
-            if target_list.photometry is not None:
-                for p, photometry in target_list.photometry.items():
-                    for m, magnitude in photometry.magnitudes.items():
-                        mag, mag_err, flux, flux_err, ext, magnitude_type = \
-                            target_list.get_magnitude_column_names(magnitude)
-                        
-                        # Select the flux column and its error and format column names
-                        # into the web uploader format. If the flux is not available,
-                        # calculate it from the magnitude. The flux unit is nJy.
-                        if flux is not None:
-                            name = f'{m}_{p}'
-                            extra_columns[name] = target_list.data[flux]
-                            all_flux_columns.add(name)
-                            if flux_err is not None:
-                                name = f'{m}_{p}_error'
-                                extra_columns[name] = target_list.data[flux_err]
-                                all_flux_columns.add(name)
-                        elif mag is not None:
-                            mag = target_list.data[mag] if mag is not None and mag in target_list.data else None
-                            mag_err = target_list.data[mag_err] if mag_err is not None and mag_err in target_list.data else None
-
-                            flux, flux_err = ABmag_to_nJy(mag, mag_err)
-                            if flux is not None:
-                                name = f'{m}_{p}'
-                                extra_columns[name] = flux
-                                all_flux_columns.add(name)
-                                if flux_err is not None:
-                                    name = f'{m}_{p}_error'
-                                    extra_columns[name] = flux_err
-                                    all_flux_columns.add(name)
-
-            mask = assignments['visit_idx'] == visit_idx
-            a = pd_to_nullable(assignments[assignment_columns][mask])
-            a = a.set_index('targetid')
-
-            b = target_list.data[target_list_columns].assign(**extra_columns)
-            b = pd_to_nullable(b).rename(columns=column_map).set_index('targetid')
-
-            aw = pd.merge(a, b, how='inner', left_index=True, right_index=True)
-            aw.reset_index(inplace=True, names='targetid')
-            aw.rename(inplace=True,
-                      columns={
-                          'targetid': 'obj_id',
-                          'obcode': 'ob_code',
-                          'RA': 'ra',
-                          'Dec': 'dec',
-                          'exp_time': 'exptime',
-                    })
-            
-            # TODO: make these command-line arguments
-            aw['resolution'] = 'm'
-            aw['reference_arm'] = 'r'
-
-            # Substitute <N/A> values
-            for c in ['pm', 'pmra', 'pmdec']:
-                aw[c] = aw[c].fillna(0.0).astype('float64')
-            for c in ['parallax']:
-                aw[c] = aw[c].fillna(1e-7).astype('float64')
-            
-            # Add columns: tract, patch ??
-
-            if assignments_web is None:
-                assignments_web = aw
-            else:
-                assignments_web = pd.concat([assignments_web, aw])
-
-        # Substitute remaining <N/A> values with NaN
-        pd_null_to_nan(assignments_web, columns=all_flux_columns, in_place=True)
-
-        # Reorder columns
-        columns = ['obj_id', 'ob_code', 'ra', 'dec', 'pm', 'pmra', 'pmdec', 'parallax', 'exptime', 'priority', 'resolution', 'reference_arm']
-        for c in assignments_web.columns:
-            if c not in columns:
-                columns.append(c)
-        assignments_web = assignments_web.reindex(columns, axis=1)
-
-        return assignments_web
-    
-    def __get_assignments_web_path(self, visit_idx, pfsDesignId, format='feather'):
-        # return os.path.join(self.__outdir, f'{self.__config.field.key}_assignments_web_{visit_idx:03d}.{format}')
-        fn = f'assignments-0x{pfsDesignId:016x}.{format}'
-        return os.path.join(self.__outdir, fn)
-    
-    def __save_assignments_web(self, assignments_web, visit_idx, pfsDesignId, format='feather'):
-        # This dataframe contains columns with dtype `object`` that contain the list of
-        # magnitudes, fluxes, filter names, etc.
-        
-        path = self.__get_assignments_web_path(visit_idx, pfsDesignId, format=format)
-        logger.info(f'Saving assignments for web upload to `{path}`.')
-        if format == 'csv':
-            assignments_web.to_csv(path, index=False)
-        elif format == 'feather':
-            assignments_web.to_feather(path)
-        else:
-            raise NotImplementedError()
-        
     def __execute_notebook(self, notebook_path):
         fn = os.path.basename(notebook_path)
         logger.info(f'Executing notebook `{fn}`.')

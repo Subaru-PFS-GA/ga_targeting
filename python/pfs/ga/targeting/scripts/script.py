@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import git
 from datetime import datetime, timezone
 from argparse import ArgumentParser
 import commentjson as json
@@ -567,3 +568,17 @@ class Script():
         
         raise NotImplementedError()
     
+
+    def get_last_git_commit(self, module):
+        dir = os.path.dirname(os.path.abspath(module.__file__))
+        repo = git.Repo(dir, search_parent_directories=True)
+
+        current_hash = repo.head.object.hexsha
+        recent_tag = repo.git.describe(tags=True, abbrev=0)
+
+        try:
+            current_branch = repo.active_branch.name
+        except TypeError:
+            current_branch = None
+
+        return current_hash, current_branch, recent_tag
