@@ -12,9 +12,9 @@ def pd_append_column(df, name, data, dtype=None):
         df[name] = pd.Series([data] * len(df), index=df.index, dtype=dtype)
     elif isinstance(data, pd.Series):
         #df[name] = data.reset_index(drop=True)
-        df[name] = data.astype(dtype)
+        df[name] = data.astype(dtype).values
     else:
-        df[name] = pd.Series(data, dtype=dtype)
+        df[name] = pd.Series(data, index=df.index, dtype=dtype)
 
 def pd_update_column(df, loc, name, data, dtype=None):
     """
