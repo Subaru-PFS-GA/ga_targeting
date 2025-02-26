@@ -9,8 +9,8 @@ from test_base import TestBase
 from ics.cobraCharmer.cobraCoach import engineer
 from ics.cobraCharmer.pfiDesign import PFIDesign
 
-from pfs.ga.targeting.config import NetflowConfig
-from pfs.ga.targeting.config.instrumentoptionsconfig import InstrumentOptionsConfig
+from pfs.ga.targeting.config.netflow import NetflowConfig
+from pfs.ga.targeting.config.instrument import InstrumentOptionsConfig
 from pfs.ga.targeting.projection import Pointing
 from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC, CobraAngleFlags
 from pfs.ga.targeting.diagram import FOV
@@ -184,6 +184,7 @@ class SubaruPFITest(TestBase):
         pass
 
     def test_simulate_trajectories(self):
+        # This is my version
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
         pfi = SubaruPFI(instrument_options=instrument_options)
@@ -237,6 +238,10 @@ class SubaruPFITest(TestBase):
         engineer.setCobraCoach(cc)
         engineer.setConstantOntimeMode(maxSteps=maxSteps)
 
+        # TODO: coordinates must be local!
+        #       compare with CollisionSimulator2
+        # raise NotImplementedError()
+
         # Calculate the cobra trajectories
         trajectories, _ = engineer.createTrajectory(
             np.where(goodCobras[s])[0], thetaAngles, phiAngles,
@@ -255,5 +260,68 @@ class SubaruPFITest(TestBase):
         xp = np.broadcast_to(np.arange(113), (120, 80, 113))
         fp = np.zeros((120, 80, 113))
 
-        SubaruPFI._SubaruPFI__batch_interp(None, x, xp, fp)
+        yp = SubaruPFI._SubaruPFI__batch_interp(None, x, xp, fp)
+        self.assertEqual(yp.shape, (120, 80, 100))
+
+    def test_home_position(self):
+        # Verify how the home position is calculated from the angles
+
+        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
+        pfi = SubaruPFI(instrument_options=instrument_options)
+
+        # pfi.bench.cobras.home0
+        # pfi.bench.cobras.home1
+        # pfi.bench.cobras.L1
+        # pfi.bench.cobras.L2
+        # pfi.bench.cobras.tht0
+        # pfi.bench.cobras.tht1
+        # pfi.bench.cobras.phiIn
+        # pfi.bench.cobras.phiOut
+        # pfi.bench.cobras.phiHome
+
+        # phi.calib_model.centers
+        # phi.calib_model.L1
+        # phi.calib_model.L2
+        # phi.calib_model.phiIn
+        # phi.calib_model.phiOut
+        # phi.calib_model.tht0
+        # phi.calib_model.tht1
+
+        npt.assert_equal(pfi.bench.cobras.centers, pfi.calib_model.centers)
+        npt.assert_equal(pfi.bench.cobras.L1, pfi.calib_model.L1)
+        npt.assert_equal(pfi.bench.cobras.L2, pfi.calib_model.L2)
+        npt.assert_equal(pfi.bench.cobras.tht0, pfi.calib_model.tht0)
+        npt.assert_equal(pfi.bench.cobras.tht1, pfi.calib_model.tht1)
+        npt.assert_equal(pfi.bench.cobras.phiIn, pfi.calib_model.phiIn)
+        npt.assert_equal(pfi.bench.cobras.phiOut, pfi.calib_model.phiOut)
+        
+        # CobraOps version
+        # The home position angles are given in global angles in cobraOps
+        phi_home = np.maximum(-np.pi, pfi.bench.cobras.phiIn) + 0.00001
+        home0_cobraops = pfi.bench.cobras.centers + \
+                         pfi.bench.cobras.L1 * np.exp(1j * pfi.bench.cobras.tht0) + \
+                         pfi.bench.cobras.L2 * np.exp(1j * (pfi.bench.cobras.tht0 + phi_home))
+        home1_cobraops = pfi.bench.cobras.centers + \
+                         pfi.bench.cobras.L1 * np.exp(1j * pfi.bench.cobras.tht1) + \
+                         pfi.bench.cobras.L2 * np.exp(1j * (pfi.bench.cobras.tht1 + phi_home))
+
+        npt.assert_almost_equal(home0_cobraops, pfi.bench.cobras.home0)
+        npt.assert_almost_equal(home1_cobraops[~pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[~pfi.bench.cobras.hasProblem])
+        npt.assert_almost_equal(home0_cobraops[pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[pfi.bench.cobras.hasProblem])
+
+        # CobraCoach version (trajectory mode, this is what the simulator uses)
+        # There are two modes for theta, CW and CWW
+        # These are implemented in CobraCoach.moveToHome
+        theta_home_CWW = np.zeros_like(pfi.calib_model.centers)
+        theta_home_CW = (pfi.calib_model.tht1 - pfi.calib_model.tht0 + np.pi) % (2 * np.pi) + np.pi
+        phi_home = np.zeros_like(pfi.calib_model.centers)
+        home_CWW = pfi.calib_model.centers + \
+                   pfi.calib_model.L1 * np.exp(1j * theta_home_CWW) + \
+                   pfi.calib_model.L2 * np.exp(1j * (phi_home + pfi.calib_model.tht0))
+        home_CW = pfi.calib_model.centers + \
+                  pfi.calib_model.L1 * np.exp(1j * theta_home_CW) + \
+                  pfi.calib_model.L2 * np.exp(1j * (phi_home + pfi.calib_model.tht0)) 
+
+        #
+
         pass
