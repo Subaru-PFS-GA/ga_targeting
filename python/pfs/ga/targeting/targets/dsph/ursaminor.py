@@ -11,7 +11,7 @@ from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from .dsphgalaxy import DSphGalaxy
 
-class draco(DSphGalaxy):
+class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
         name = 'Ursa Minor'
@@ -25,7 +25,7 @@ class draco(DSphGalaxy):
 
         ra0 = [ 229.2, 226.0, 225.2, 228.5, 228.2, 226.3, 226.0, 228.0 ] * u.deg
         dec0 = [ 67.90, 67.80, 66.55, 66.60, 67.5, 67.5, 66.9, 66.955 ] * u.deg
-        pa = [ 0, 0, 0, 0] * u.deg
+        pa = [ 0, 0, 0, 0, 0, 0, 0, 0] * u.deg
 
         pointings = {
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa) ]
