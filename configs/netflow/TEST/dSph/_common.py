@@ -39,42 +39,6 @@ config = dict(
                 max_targets = 240,
                 non_observation_cost = 0,
             ),
-            'sci_P0': dict(
-                prefix = 'sci',
-                min_targets = 5,
-                max_targets = None,
-                non_observation_cost = 10000,
-            ),
-            'sci_P1': dict(
-                prefix = 'sci',
-                min_targets = None,
-                max_targets = None,
-                non_observation_cost = 1000,
-            ),
-            'sci_P2': dict(
-                prefix = 'sci',
-                min_targets = None,
-                max_targets = None,
-                non_observation_cost = 500,
-            ),
-            'sci_P3': dict(
-                prefix = 'sci',
-                min_targets = None,
-                max_targets = None,
-                non_observation_cost = 100,
-            ),
-            'sci_P4': dict(
-                prefix = 'sci',
-                min_targets = None,
-                max_targets = None,
-                non_observation_cost = 50,
-            ),
-            'sci_P5': dict(
-                prefix = 'sci',
-                min_targets = None,
-                max_targets = None,
-                non_observation_cost = 10,
-            ),
         },
         cobra_groups = {
             'cal_location': dict(
@@ -103,7 +67,7 @@ config = dict(
         fiber_non_allocation_cost = 1e5,
         num_reserved_fibers = 0,
         allow_more_visits = True,
-        epoch = 2016,
+        epoch = 2016.0,
         use_named_variables = True,
     ),
     gurobi_options = dict(
