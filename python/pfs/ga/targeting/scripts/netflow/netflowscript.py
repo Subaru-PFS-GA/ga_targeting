@@ -637,9 +637,32 @@ class NetflowScript(TargetingScript):
             # idx: target list index into the netflow targets
             # sep2d: angular separation in degrees to the closest neighbor
             idx, sep2d, dist3d = match_coordinates_sky(target_coords, netflow_coords, nthneighbor=1)
-            mask = (sep2d <= self.__xmatch_rad * u.arcsecond)
 
-            return np.where(mask)[0], idx[mask], sep2d[mask].arcsec, mask
+            # When there are multiple matches, only keep the closest neighbors. This is
+            # achieved the easiest using pandas.duplicated
+            match = pd.DataFrame({'idx': idx, 'sep2d': sep2d.arcsec})
+
+            # Filter out targets that are too far away from the closest neighbor
+            mask = (match['sep2d'] <= self.__xmatch_rad * u.arcsecond)
+
+            # Sort the good matches by idx and then separation
+            match = match[mask].sort_values(by=['idx', 'sep2d'])
+
+            # Remove the duplicated that aren't the closest match
+            match = match[~match.duplicated(subset='idx', keep='first')]
+
+            # Sort the matches by the index column
+            match.sort_index(inplace=True)
+
+            idx1 = match.index.values
+            idx2 = match['idx'].values
+            sep = match['sep2d'].values
+            
+            # Generate a mask that selects the targets that have matches
+            mask = np.full(target_list.data.shape[0], False)
+            mask[idx1] = True
+
+            return idx1, idx2, sep, mask
     
     def __get_preprocessed_target_list_path(self, key):
         return os.path.join(self.__outdir, f'{self._config.field.key}_targets_{key}.feather')
@@ -721,7 +744,7 @@ class NetflowScript(TargetingScript):
         """
 
         # Indexes of all assigned targets
-        # Make it unique in case a target is assigned multiple times
+        # Make it unique in case a target is assigned multiple times (multiple visits)
         assigned_target_idx = pd.DataFrame({'__target_idx': assignments[assignments['target_idx'] != -1]['target_idx'].unique()})
 
         assigned_target_lists = {}
@@ -829,24 +852,34 @@ class NetflowScript(TargetingScript):
                         at_all = assigned_targets_all.set_index('__target_idx')
                         for i in np.where(mask)[0]:
                             target_idx = assigned_targets.loc[i, '__target_idx']
+
+                            # Get the reference to the list storing the filters in assigned_targets_all
                             filter_all = at_all.loc[target_idx, 'filter']
+
+                            # Get the reference to lists store in assigned_targets_all
+                            flux_all = {}
+                            flux_err_all = {}
+                            for flux_type in ['psf', 'fiber', 'total']:
+                                if f'{flux_type}_flux' in at_all.columns:
+                                    flux_all[flux_type] = at_all.loc[target_idx, f'{flux_type}_flux']
+                                    flux_err_all[flux_type] = at_all.loc[target_idx, f'{flux_type}_flux_err']
 
                             # Loop over all filters in the target list and append the fluxes to the all targets'
                             # list if the filter doesn't exist yet
-                            for f in at.loc[target_idx, 'filter']:
+                            flux = {}
+                            flux_err = {}
+                            for flux_type in ['psf', 'fiber', 'total']:
+                                if f'{flux_type}_flux' in at.columns:
+                                    flux[flux_type] = at.loc[target_idx, f'{flux_type}_flux']
+                                    flux_err[flux_type] = at.loc[target_idx, f'{flux_type}_flux_err']
+
+                            for j, f in enumerate(at.loc[target_idx, 'filter']):
                                 if f not in filter_all:
                                     filter_all.append(f)
-
-                                    for flux_type in ['psf', 'fiber', 'total']:
-                                        flux_all = at_all.loc[target_idx, f'{flux_type}_flux']
-                                        flux_err_all = at_all.loc[target_idx, f'{flux_type}_flux_err']
-                                        
-                                        [flux], [flux_err] = at.loc[target_idx, [f'{flux_type}_flux', f'{flux_type}_flux_err']]
-
-                                        flux_all.append(flux)
-                                        flux_err_all.append(flux_err)
-
-                            pass
+                                    for flux_type in flux:
+                                        # Append the fluxe and error
+                                        flux_all[flux_type].append(flux[flux_type][j])
+                                        flux_err_all[flux_type].append(flux_err[flux_type][j])
 
                         assigned_targets_all = at_all.reset_index()
 
@@ -857,12 +890,6 @@ class NetflowScript(TargetingScript):
         for k, assigned_targets in assigned_target_lists.items():
             if self._config.targets[k].prefix == 'sky':
                 assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[columns] ], ignore_index=True)
-
-        # TODO: merge fluxes etc here in case we have duplicate target_idx because
-        #       it means that a target appers in multiple catalogs
-
-        # TODO: merge filter and magnitude lists
-        #       need and example, maybe Outer Disk Field
         
         # Find duplicate target_idx
         duplicates = assigned_targets_all[assigned_targets_all.duplicated('__target_idx', keep=False)]
