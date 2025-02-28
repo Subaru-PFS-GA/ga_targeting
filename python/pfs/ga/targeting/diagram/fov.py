@@ -27,6 +27,7 @@ class FOV(SpatialDiagram):
     
     def apply(self, ax: plt.Axes):
         super().apply(ax)
+        ax.set_aspect('equal', adjustable='datalim')
         ax.xaxis.set_inverted(True)
 
     def plot_radial_profile(self, ax: plt.Axes, profile, R=1, **kwargs):
