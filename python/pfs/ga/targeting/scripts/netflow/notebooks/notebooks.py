@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.gridspec import GridSpec
 
 from pfs.ga.targeting.config.netflow import NetflowConfig
 from pfs.ga.targeting.scripts.netflow.netflowscript import NetflowScript
@@ -77,11 +79,10 @@ def plot_target_list_coordinates(ax, fov, target_list, **kwargs):
 
     n = len(target_list.data)
     N = 100000
-    NN = 1000000
     if n <= N:
         alpha = 1.0
     else:
-        alpha = np.exp(-(n - N) / N)
+        alpha = max(0.01, np.exp(-(n - N) / N))
 
     l = fov.plot_catalog(ax, target_list, size=1, scalex=False, scaley=False, alpha=alpha, **kwargs)
 
@@ -109,9 +110,6 @@ def plot_target_list_cmd(ax, target_list, photometry, m1, m2, **kwargs):
     return l
 
 def plot_target_list(target_list, pfi, center, pointings=None):
-    cmap = plt.get_cmap('tab10')
-    f, axs = plt.subplots(1, 2, figsize=(8, 4), dpi=240)
-
     # Color by priority, if available
     if 'priority' in target_list.data:
         color = target_list.data['priority']
@@ -120,11 +118,23 @@ def plot_target_list(target_list, pfi, center, pointings=None):
 
     wcs, wfc, fov = create_fov(center)
 
+    cmap = plt.get_cmap('tab10')
+    f = plt.figure(figsize=(8, 4), dpi=240)
+    gs = GridSpec(1, 2, figure=f)
+    axs = [None, None]
+
+    # Add an axis based on gridspec
+    axs[0] = f.add_subplot(gs[0], projection=wcs.wcs)
+    axs[1] = f.add_subplot(gs[1])
+
     l = plot_target_list_coordinates(axs[0], fov, target_list,
                                      c=color, cmap=cmap)
     
     if pointings is not None:
         plot_pointings(axs[0], pfi, wcs, wfc, fov, pointings, c='red')
+
+    axs[0].set_xlim(1.5, -1.5)
+    axs[0].set_ylim(-1.5, 1.5)
 
     # Plot a color-magnitude diagram using the first two filters of the first photometric
     # system available in the target list that has at least two filters defined in the data set
@@ -138,6 +148,7 @@ def plot_target_list(target_list, pfi, center, pointings=None):
 
     f.colorbar(l, ax=axs[1], orientation='vertical', label='Priority')
     f.suptitle(target_list.name)
+    f.show()
 
 def plot_magnitude_dist(target_lists, phot, mags):
     # Plot the magnitude distribution for each target list for each magnitude
