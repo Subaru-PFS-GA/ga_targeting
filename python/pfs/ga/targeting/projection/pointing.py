@@ -25,6 +25,9 @@ class Pointing():
             self.__exp_time = normalize_exp_time(exp_time) if exp_time is not None else orig.__exp_time
             self.__nvisits = nvisits if nvisits is not None else orig.__nvisits
 
+    def __repr__(self):
+        return f'Pointing({self.ra:0.4f}, {self.dec:0.4f}, posang={self.posang:0.4f}'
+
     def __get_pos(self):
         return self.__pos
     
