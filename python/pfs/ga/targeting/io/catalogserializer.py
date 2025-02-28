@@ -156,9 +156,11 @@ class CatalogSerializer():
         # See whether postfix or prefix is longer, because that will be the name of
         # the photometric systems
 
-        # Find the length of the longest key in prefixes
-        pre_ml = max(map(lambda x: len(x), prefixes.keys()))
-        post_ml = max(map(lambda x: len(x), postfixes.keys()))
+        # Find the length of the shortest key in prefixes/postfixes
+        # It's likely that the shortest is a filter name and the longest is the
+        # name of the photometric system
+        pre_ml = min(map(lambda x: len(x), prefixes.keys()))
+        post_ml = min(map(lambda x: len(x), postfixes.keys()))
 
         if pre_ml > post_ml:
             photometry_names = prefixes
