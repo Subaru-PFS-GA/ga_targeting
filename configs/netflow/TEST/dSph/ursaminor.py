@@ -14,9 +14,9 @@ extra_columns = {
 }
 
 config = dict(
-    pointings = [
-        dict(ra=229.2, dec=67.90, posang=0),
-    ],
+    # pointings = [
+    #     dict(ra=229.2, dec=67.90, posang=0),
+    # ],
     targets = {
         "hsc": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
@@ -56,64 +56,89 @@ config = dict(
             catid = 1007,
             extra_columns = extra_columns,
         ),
+
+        # DOBOS
+        # "fluxstd": dict(
+        #     path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/PS1_UMI_fluxstd_2_dobos.feather",
+        #     reader_args = dict(),
+        #     column_map = {
+        #         'obj_id': 'targetid',
+        #         # 'ra': 'RA',
+        #         # 'dec': 'Dec',
+        #         'parallax_error': 'err_parallax',
+        #         'pmra_error': 'err_pmra',
+        #         'pmdec_error': 'err_pmdec',
+        #         'radial_velocity': 'rv',
+        #         'radial_velocity_error': 'err_rv',
+        #     },
+        #     # mask = 'lambda df: df["prob_f_star"] > 0.5',
+        #     # mask = 'lambda df: df["prob_f_star"] > 0.1',
+        #     prefix = "cal",
+        #     frame = 'icrs',
+        #     epoch = 2016.0,
+        #     catid = 3006,
+        #     extra_columns = extra_columns,
+        #     photometry = dict(
+        #         filters = {
+        #             'g_ps1': dict(
+        #                 mag = 'gPSFMag',
+        #                 mag_err = 'gPSFMagErr'
+        #             ),
+        #             'r_ps1': dict(
+        #                 mag = 'rPSFMag',
+        #                 mag_err = 'rPSFMagErr'
+        #             ),
+        #             'i_ps1': dict(
+        #                 mag = 'iPSFMag',
+        #                 mag_err = 'iPSFMagErr'
+        #             ),
+        #             'z_ps1': dict(
+        #                 mag = 'zPSFMag',
+        #                 mag_err = 'zPSFMagErr'
+        #             ),
+        #             'y_ps1': dict(
+        #                 mag = 'yPSFMag',
+        #                 mag_err = 'yPSFMagErr'
+        #             )
+        #         }
+        #     )
+        # ),
+
+        # MIHO NEW
         "fluxstd": dict(
-            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/fluxstd_ursaminor.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/PS1_UMI_fluxstd_2_dobos.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/fluxstd_ursaminor_miho_20250228.feather",
             reader_args = dict(),
             column_map = {
-                'obj_id': 'targetid',
-                # 'ra': 'RA',
-                # 'dec': 'Dec',
+                'fluxstd_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
                 'parallax_error': 'err_parallax',
                 'pmra_error': 'err_pmra',
                 'pmdec_error': 'err_pmdec',
-                'radial_velocity': 'rv',
-                'radial_velocity_error': 'err_rv',
             },
-            # mask = 'lambda df: df["prob_f_star"] > 0.5',
-            # mask = 'lambda df: df["prob_f_star"] > 0.1',
+            mask = 'lambda df: df["prob_f_star"] > 0.5',
             prefix = "cal",
             frame = 'icrs',
             epoch = 2016.0,
             catid = 3006,
             extra_columns = extra_columns,
             photometry = dict(
-                filters = {
-                    'g_ps1': dict(
-                        mag = 'gPSFMag',
-                        mag_err = 'gPSFMagErr'
-                    ),
-                    'r_ps1': dict(
-                        mag = 'rPSFMag',
-                        mag_err = 'rPSFMagErr'
-                    ),
-                    'i_ps1': dict(
-                        mag = 'iPSFMag',
-                        mag_err = 'iPSFMagErr'
-                    ),
-                    'z_ps1': dict(
-                        mag = 'zPSFMag',
-                        mag_err = 'zPSFMagErr'
-                    ),
-                    'y_ps1': dict(
-                        mag = 'yPSFMag',
-                        mag_err = 'yPSFMagErr'
-                    )
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',                     # Column storing filter names
+                        # psf_mag = f'psf_mag_{b}',                 # All None in data file
+                        # psf_mag_err = f'psf_mag_error_{b}',       # All None in data file
+                        psf_flux = f'psf_flux_{b}',
+                        psf_flux_err = f'psf_flux_error_{b}',
+                    ) for b in 'grizy'
+                },
+                limits = {
+                    'ps1_g': [13, 18],
+                    'ps1_g-ps1_r': [0.25, 0.4],
                 }
-                # bands = {
-                #     b: dict(
-                #         filter = f'filter_{b}',                     # Column storing filter names
-                #         # psf_mag = f'psf_mag_{b}',                 # All None in data file
-                #         # psf_mag_err = f'psf_mag_error_{b}',       # All None in data file
-                #         psf_flux = f'psf_flux_{b}',
-                #         psf_flux_err = f'psf_flux_error_{b}',
-                #     ) for b in 'gri'
-                # },
-                # limits = {
-                #     'ps1_g': [13, 18],
-                # }
             )
         ),
+
         "guide": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/guide_ursaminor.feather",
             reader_args = dict(),
