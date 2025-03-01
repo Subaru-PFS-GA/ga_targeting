@@ -90,19 +90,46 @@ class Observation(Catalog):
         return type(self)(data=data, orig=self)
 
     def apply_magnitude_limits(self, limits):
-        for filter, values in limits.items():
+
+        def get_magnitude(key):
             # Split the filter name into magnitude_type, photometric_system, filter_name
-            parts = filter.split('_')
+            parts = key.split('_')
             if len(parts) > 1:
                 [p, m] = parts[-2:]
                 magnitude_type = parts[:-2]
                 mag, mag_err = self.get_magnitude(self.photometry[p].magnitudes[m], magnitude_type=magnitude_type)
-
-                if mag is not None:
-                    mask = (mag >= values[0]) & (mag <= values[1])
-                    return self.filter(mask=mask)
+                return mag, mag_err
             else:
-                raise ValueError(f"Invalid filter: {filter}")
+                raise ValueError(f"Invalid filter: {key}")
+
+        def append_mask(mask, new_mask):
+            if mask is None:
+                return new_mask
+            else:
+                return mask & new_mask
+
+        mask = None
+        for key, values in limits.items():
+            # Split the key name at dashes to see if it is a color definition
+            parts = key.split('-')
+            if len(parts) == 1:
+                mag, _ = get_magnitude(parts[0])
+                if mag is not None:
+                    mask = append_mask(mask, (mag >= values[0]) & (mag <= values[1]))
+                else:
+                    raise ValueError(f"Invalid filter: {parts[0]}")
+            elif len(parts) == 2:
+                mag1, _ = get_magnitude(parts[0].strip())
+                mag2, _ = get_magnitude(parts[1].strip())
+                if mag1 is not None and mag2 is not None:
+                    mask = append_mask(mask, (mag1 - mag2 >= values[0]) & (mag1 - mag2 <= values[1]))
+                else:
+                    raise ValueError(f"Invalid filter: {parts[0]} or {parts[1]}")
+            else:
+                raise ValueError(f"Invalid filter or color definition: {key}")
+
+        if mask is not None:
+            return self.filter(mask=mask)
 
     def __get_observed(self):
         return True
