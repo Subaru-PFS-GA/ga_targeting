@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import git
+from git import GitCommandError
 from datetime import datetime, timezone
 from argparse import ArgumentParser
 import commentjson as json
@@ -574,7 +575,11 @@ class Script():
         repo = git.Repo(dir, search_parent_directories=True)
 
         current_hash = repo.head.object.hexsha
-        recent_tag = repo.git.describe(tags=True, abbrev=0)
+
+        try:
+            recent_tag = repo.git.describe(tags=True, abbrev=0)
+        except GitCommandError:
+            recent_tag = None
 
         try:
             current_branch = repo.active_branch.name

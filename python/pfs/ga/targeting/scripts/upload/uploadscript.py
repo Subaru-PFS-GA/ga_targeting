@@ -3,6 +3,7 @@ import shutil
 from glob import glob
 import commentjson as json
 import numpy as np
+import pandas as pd
 import pytz
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
@@ -12,6 +13,7 @@ import pfs.datamodel
 import pfs.utils
 import pfs.instdata
 import ics.cobraCharmer
+import pfs.ga.targeting
 from gurobipy import gurobi
 from pfs.datamodel import TargetType
 
@@ -34,8 +36,10 @@ class UploadScript(TargetingScript):
         self.__indir = None
         self.__outdir = None
         self.__nan_values = True
-        self.__obs_run = 'march2025'
+        self.__obs_run = '2025-03'
         self.__obs_wg = 'GA'
+        self.__nframes = 2                  # Number of frame repeats for CR removal
+        self.__priority = 0                 # Priority of pointing within obs run
         
         self.__input_args = None            # arguments loaded from the input directory
 
@@ -48,8 +52,10 @@ class UploadScript(TargetingScript):
         self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
         self.add_arg('--no-nan-values', action='store_false', dest='nan_values', help='Do not use NaN values in the output files.')
 
-        self.add_arg('--obs-run', type=str, default='march2025', help='Observation run name.')
-        self.add_arg('--obs-wg', type=str, default='GA', help='SSP working group abbreviation.')
+        self.add_arg('--obs-run', type=str, help='Observation run name.')
+        self.add_arg('--obs-wg', type=str, help='SSP working group abbreviation.')
+        self.add_arg('--nframes', type=int, help='Number of frame repeats for CR removal.')
+        self.add_arg('--priority', type=int, help='Priority of pointing within obs run.')
 
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
@@ -63,6 +69,8 @@ class UploadScript(TargetingScript):
         self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
         self.__obs_run = self.get_arg('obs_run', args, self.__obs_run)
         self.__obs_wg = self.get_arg('obs_wg', args, self.__obs_wg)
+        self.__nframes = self.get_arg('nframes', args, self.__nframes)
+        self.__priority = self.get_arg('priority', args, self.__priority)
 
         # Load the arguments file from the input directory and parse a few arguments
         fn = self.__find_last_dumpfile('*.args')
@@ -111,41 +119,50 @@ class UploadScript(TargetingScript):
 
     def run(self):
         # Load instrument calibration data
-        instrument = self._create_instrument()
+        # instrument = self._create_instrument()
 
         # Generate the list of pointings
         pointings = self._generate_pointings()
+        designs = self._load_design_list()
 
         # Load the final, merged assignments list
         assignments_all = self._load_assignments_all()
 
         # Save the list of pointings and netflow options
-        self.__write_ppcList(pointings)
+        self.__write_ppcList(pointings, designs)
 
         # Save the list of targets
         self.__write_assignments(pointings, assignments_all)
+
+        # Copy the pfsDesign files to the output directory
+        self.__copy_pfsDesign()
+
+    def _get_design_list_path(self):
+        return os.path.join(self.__indir, f'{self._config.field.key}_designs.feather')
 
     def _get_assignments_all_path(self):
         return os.path.join(self.__indir, f'{self._config.field.key}_assignments_all.feather')
 
     def __get_field_code(self, pidx, vidx):
         return f'SSP_{self.__obs_wg}_{self._config.field.key}_P{pidx:02d}_V{vidx:02d}'
+
+    def __get_ppcList_path(self):
+        return os.path.join(self.__outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
     
-    def __write_ppcList(self, pointings):
+    def __write_ppcList(self, pointings, designs):
         """
         Write the ppcList to a file in the output directory.
         """
         
         # Give a name to each visit
-        # TODO: bring out pattern as a parameter
         code = [ self.__get_field_code(pidx, vidx) for pidx in range(len(pointings)) for vidx in range(pointings[pidx].nvisits) ]
 
         # Pointing centers for each visit
         ra = np.array([ p.ra for p in pointings for v in range(p.nvisits) ], dtype=np.float64)
         dec = np.array([ p.dec for p in pointings for v in range(p.nvisits) ], dtype=np.float64)
         pa = np.array([ p.posang for p in pointings for v in range(p.nvisits) ], dtype=np.float32)
-        resolution = np.array([ self._config.field.resolution.upper() for p in pointings for v in range(p.nvisits) ])     # TODO: bring out as parameter
-        priority = np.array([ 1 for p in pointings for v in range(p.nvisits) ], dtype=np.int32)    # TODO: bring out as parameter
+        resolution = np.array([ self._config.field.resolution.upper() for p in pointings for v in range(p.nvisits) ])
+        priority = np.array([ self.__priority for p in pointings for v in range(p.nvisits) ], dtype=np.int32)
         
         # TODO: time zone should come from the config
         # TODO: obs_time could be different for each visit of each pointing
@@ -153,8 +170,9 @@ class UploadScript(TargetingScript):
         hawaii_tz = pytz.timezone('US/Hawaii')
         obstime = np.array([ Time(p.obs_time.to_datetime().astimezone(hawaii_tz)).iso for p in pointings for v in range(p.nvisits) ])
         
-        exptime = np.array([ int(p.exp_time.value) for p in pointings for v in range(p.nvisits) ], dtype=int)
-        nframes = np.array([ 2 for p in pointings for v in range(p.nvisits) ], dtype=int)    # TODO: bring out as parameter
+        exptime = np.array([ int(np.ceil(p.exp_time.value / p.nvisits)) for p in pointings for v in range(p.nvisits) ], dtype=int)
+        nframes = np.array([ self.__nframes for p in pointings for v in range(p.nvisits) ], dtype=int)
+        pfsDesignId = np.array(designs['pfsDesignId'].apply(lambda id: f'0x{id:016x}'), dtype=str)
         
         table = Table()
 
@@ -184,6 +202,9 @@ class UploadScript(TargetingScript):
         _, _, tag = self.get_last_git_commit(pfs.instdata)
         table.meta['pfs_instdata'] = tag
 
+        hash, _, _ = self.get_last_git_commit(pfs.ga.targeting)
+        table.meta['ga_targeting'] = hash
+
         # Add runtime options to the meta data
 
         table.meta['dot margin'] = self._config.instrument_options.black_dot_radius_margin
@@ -196,8 +217,7 @@ class UploadScript(TargetingScript):
             self._config.gurobi_options.heuristics,
             self._config.gurobi_options.mipfocus,
             self._config.gurobi_options.mipgap,
-            # PreSOS2Encoding, PreSOS1Encoding,
-            0, 0,
+            0, 0,   # PreSOS2Encoding, PreSOS1Encoding,
             self._config.gurobi_options.threads,
         ]
 
@@ -212,12 +232,16 @@ class UploadScript(TargetingScript):
         table['ppc_obstime'] = obstime
         table['ppc_exptime'] = exptime
         table['ppc_nframes'] = nframes
+        table['ppc_pfsDesignId'] = pfsDesignId
 
-        fn = os.path.join(self.__outdir, f'{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
+        fn = self.__get_ppcList_path()
         os.makedirs(os.path.dirname(fn), exist_ok=True)
         table.write(fn)
 
     def __get_flux_by_band(self, assignments_all):
+
+        # TODO: move these dictionaries to some kind of settings file or config section and make
+        #       them the default
         filter_map = {
             'g_ps1': 'g',
             'r_ps1': 'r',
@@ -227,6 +251,9 @@ class UploadScript(TargetingScript):
             'g_gaia': 'g',
             'bp_gaia': 'b',
             'rp_gaia': 'r',
+            'g_hsc': 'g',
+            'r_hsc': 'r',
+            'i_hsc': 'i',
         }
 
         bands = 'bgrizy'
@@ -237,13 +264,20 @@ class UploadScript(TargetingScript):
 
         for i, (_, ff, flux, flux_err) in enumerate(assignments_all[['filter', 'psf_flux', 'psf_flux_err']].to_records()):
             for j, f in enumerate(ff):
-                b = filter_map[f]
-                if filter[b][i] is None:
-                    filter[b][i] = f
-                    psf_flux[b][i] = flux[j]
-                    psf_flux_err[b][i] = flux_err[j]
+                if f in filter_map:
+                    b = filter_map[f]
+                    if b is not None and filter[b][i] is None:
+                        filter[b][i] = f
+                        psf_flux[b][i] = flux[j]
+                        psf_flux_err[b][i] = flux_err[j]
 
         return filter, psf_flux, psf_flux_err
+
+    def __get_targets_path(self, target_type, field_code):
+        return os.path.join(
+            self.__outdir,
+            f'runs/{self.__obs_run}/targets/{self.__obs_wg}/{str(target_type).lower()}',
+            f'{field_code}.ecsv')
 
     def __write_assignments(self, pointings, assignments_all):
 
@@ -320,21 +354,21 @@ class UploadScript(TargetingScript):
                     table['pfi_X'] = pfi_x
                     table['pfi_Y'] = pfi_y
 
-                    fn = os.path.join(
-                        self.__outdir,
-                        f'{self.__obs_run}/targets/{self.__obs_wg}/{str(target_type).lower()}',
-                        f'{field_code}.ecsv')
+                    fn = self.__get_targets_path(target_type, field_code)
                     os.makedirs(os.path.dirname(fn), exist_ok=True)
                     table.write(fn)
 
-        def __copy_pfsDesign(self):
-            dir = os.path.join(self.__outdir, f'{self.__obs_run}/design/{self.__obs_wg}')
-            os.makedirs(dir, exist_ok=True)
-            files = glob(os.path.join(self.__indir, 'pfsDesign*.fits'))
-            for fn in files:
-                logger.info(f'Copying {fn} to {dir}')
-                # Copy the file to the output directory
-                shutil.copy(fn, dir)
+    def __get_pfsDesign_path(self):
+        return os.path.join(self.__outdir, f'runs/{self.__obs_run}/pfs_designs/{self.__obs_wg}')
+
+    def __copy_pfsDesign(self):
+        dir = self.__get_pfsDesign_path()
+        os.makedirs(dir, exist_ok=True)
+        files = glob(os.path.join(self.__indir, 'pfsDesign*.fits'))
+        for fn in files:
+            logger.info(f'Copying {fn} to {dir}')
+            # Copy the file to the output directory
+            shutil.copy(fn, dir)
 
 if __name__ == '__main__':
     script = UploadScript()

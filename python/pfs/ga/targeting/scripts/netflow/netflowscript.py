@@ -6,7 +6,7 @@ from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
-from pfs.datamodel import TargetType, FiberStatus
+from pfs.datamodel import TargetType, FiberStatus, PfsDesign
 
 import pfs.ga.targeting
 from ...config.netflow import NetflowConfig
@@ -270,6 +270,7 @@ class NetflowScript(TargetingScript):
         # netflow.verify()
 
         self.__save_designs(designs)
+        self._save_design_list(netflow, designs)
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
@@ -622,6 +623,8 @@ class NetflowScript(TargetingScript):
         if netflow.targets is None:
             return None, None, None, None
         else:
+            logger.info(f'Cross-matching catalog {target_list.name} with {netflow.targets.shape[0]} already processed targets.')
+
             # Coordinates of the target list
             ra, dec = target_list.get_coords()
             target_coords = SkyCoord(ra=ra * u.degree, dec=dec * u.degree)
@@ -645,11 +648,16 @@ class NetflowScript(TargetingScript):
             # Filter out targets that are too far away from the closest neighbor
             mask = (match['sep2d'] <= self.__xmatch_rad * u.arcsecond)
 
+            logger.info(f'Cross-matching resulted in {mask.sum()} matches with separation less than {self.__xmatch_rad} arc sec.')
+
             # Sort the good matches by idx and then separation
             match = match[mask].sort_values(by=['idx', 'sep2d'])
 
             # Remove the duplicated that aren't the closest match
-            match = match[~match.duplicated(subset='idx', keep='first')]
+            duplicated = match.duplicated(subset='idx', keep='first')
+            match = match[~duplicated]
+
+            logger.info(f'Removed {duplicated.sum()} duplicated matches, only keeping closest neighbors.')
 
             # Sort the matches by the index column
             match.sort_index(inplace=True)
@@ -661,6 +669,8 @@ class NetflowScript(TargetingScript):
             # Generate a mask that selects the targets that have matches
             mask = np.full(target_list.data.shape[0], False)
             mask[idx1] = True
+
+            logger.info(f'Cross-matching resulted in {mask.sum()} unique matches with separation less than {self.__xmatch_rad} arc sec.')
 
             return idx1, idx2, sep, mask
     
@@ -954,6 +964,9 @@ class NetflowScript(TargetingScript):
 
             logger.info(f'Generated design {d.pfsDesignId:016x} for visit {visit.visit_idx} with name `{d.designName}`.')
 
+        unique_id = np.unique([ d.pfsDesignId for d in designs])
+        logger.info(f'Generated {len(designs)} designs from which {unique_id.size} are unique.')
+
         return designs
     
     def __verify_designs(self, designs):
@@ -980,7 +993,16 @@ class NetflowScript(TargetingScript):
     def __save_designs(self, designs):
         for d in designs:
             d.write(dirName=self.__outdir)
+
+            # Make sure that the file is created
+            fn = os.path.join(self.__outdir, PfsDesign.fileNameFormat % (d.pfsDesignId))
+            if not os.path.isfile(fn):
+                raise RuntimeError('Design file was not be written.')
+
             logger.info(f'Saved design {d.pfsDesignId:016x} to `{d.filename}`.')
+
+    def _get_design_list_path(self):
+        return os.path.join(self.__outdir, f'{self._config.field.key}_designs.feather')
 
     def __execute_notebook(self, notebook_path):
         fn = os.path.basename(notebook_path)

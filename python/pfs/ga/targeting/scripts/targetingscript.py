@@ -60,6 +60,31 @@ class TargetingScript(Script):
                 nvisits = nvisits))
             
         return pointings
+    
+    def _get_design_list_path(self):
+        raise NotImplementedError()
+
+    def _save_design_list(self, netflow, designs):
+        df = pd.DataFrame({
+            'pointing_idx': [ v.pointing_idx for v in netflow.visits ],
+            'visit_idx': [ v.visit_idx for v in netflow.visits ],
+            'ra': [ v.pointing.ra for v in netflow.visits ],
+            'dec': [ v.pointing.dec for v in netflow.visits ],
+            'posang': [ v.pointing.posang for v in netflow.visits ],
+            'pfsDesignId': [ d.pfsDesignId for d in designs]
+        })
+
+        fn = self._get_design_list_path()
+        df.to_feather(fn)
+
+        logger.info(f'Saved list of designs to `{fn}`.')
+
+    def _load_design_list(self):
+        fn = self._get_design_list_path()
+        return pd.read_feather(fn)
+
+    def _get_assignments_all_path(self):
+        raise NotImplementedError()
 
     def _save_assignments_all(self, assignments_all):
         # This dataframe contains columns with dtype `object`` that contain the list of
