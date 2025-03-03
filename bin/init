@@ -96,7 +96,12 @@ pushd . > /dev/null
 function ga-pmap() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.pmap.pmapscript" "$@"
 }
-export -f ga-upload
+export -f ga-pmap
+
+function ga-priority() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.priority.priorityscript" "$@"
+}
+export -f ga-priority
 
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"

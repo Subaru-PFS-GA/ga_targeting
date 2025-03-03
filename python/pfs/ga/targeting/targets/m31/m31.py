@@ -255,3 +255,5 @@ class M31(M31Galaxy):
 
         catalog.data['exp_time'] = np.nan
         catalog.data['exp_time'][mask][keep] = exp_time[keep]
+        
+        catalog.data.loc[(0 <= catalog.data['priority']) & catalog.data['exp_time'].isna(), 'exp_time'] = 1800

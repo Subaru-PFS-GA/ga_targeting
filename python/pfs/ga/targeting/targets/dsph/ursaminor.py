@@ -10,6 +10,7 @@ from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
+from ...config.priority import PriorityConfig
 from .dsphgalaxy import DSphGalaxy
 
 class UrsaMinor(DSphGalaxy):
@@ -81,6 +82,13 @@ class UrsaMinor(DSphGalaxy):
             keep_blue = True,
             extents = [[0.1, 2.0], [17.0, 23.5]],
             merge_list = [np.s_[:10], np.s_[10:]]
+        )
+
+        return config
+
+    def get_priority_config(self):
+        config = PriorityConfig(
+
         )
 
         return config

@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from scipy.special import logsumexp
 
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
@@ -10,7 +9,6 @@ from ..script import Script
 from ...io import Hdf5SimulationReader
 from ...instrument import SubaruHSC
 from ... import ProbabilityMap
-from ...selection import ProbabilityCut, ProbabilitySampling, MagnitudeSelection, ColorSelection, LinearSelection
 
 from ...setup_logger import logger
 
@@ -18,6 +16,8 @@ class PMapScript(Script):
     """
     Script to generate the probability map from a simulated CMD
     """
+
+    # TODO: merge repeated functions with PriorityScript
 
     def __init__(self):
         super().__init__()
