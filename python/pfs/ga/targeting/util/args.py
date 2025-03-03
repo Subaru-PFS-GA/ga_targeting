@@ -110,7 +110,10 @@ def normalize_pos(*pos, unit=u.degree, frame='icrs', equinox=None, allow_none=Tr
         pass
     elif pos is None:
         raise TypeError('Argument `pos` cannot be None.')
-    elif isinstance(pos, SkyCoord) and pos.frame.name == frame and (pos.equinox is None or pos.equinox == equinox):
+    elif isinstance(pos, SkyCoord) and \
+         pos.frame.name == frame and \
+         (frame == 'icrs' or (pos.equinox is None or pos.equinox == equinox)):
+        
         pass
     elif isinstance(pos, SkyCoord):
         # TODO: add frame conversion
