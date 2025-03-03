@@ -7,6 +7,7 @@ import pandas as pd
 import pytz
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
+import astropy.units as u
 
 import ics.cobraOps
 import pfs.datamodel
@@ -167,8 +168,8 @@ class UploadScript(TargetingScript):
         # TODO: time zone should come from the config
         # TODO: obs_time could be different for each visit of each pointing
         #       to approximate final focal plane positions better
-        hawaii_tz = pytz.timezone('US/Hawaii')
-        obstime = np.array([ Time(p.obs_time.to_datetime().astimezone(hawaii_tz)).iso for p in pointings for v in range(p.nvisits) ])
+        hawaii_tz = TimeDelta(-10 * u.hr)
+        obstime = np.array([ (p.obs_time + hawaii_tz).iso for p in pointings for v in range(p.nvisits) ])
         
         exptime = np.array([ int(np.ceil(p.exp_time.value / p.nvisits)) for p in pointings for v in range(p.nvisits) ], dtype=int)
         nframes = np.array([ self.__nframes for p in pointings for v in range(p.nvisits) ], dtype=int)
