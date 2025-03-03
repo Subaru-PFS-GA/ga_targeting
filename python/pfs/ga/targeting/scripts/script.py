@@ -9,6 +9,8 @@ import commentjson as json
 import yaml
 import numpy as np
 
+from ..util.notebookrunner import NotebookRunner
+
 from ..setup_logger import logger
 
 class Script():
@@ -587,3 +589,22 @@ class Script():
             current_branch = None
 
         return current_hash, current_branch, recent_tag
+
+    def _execute_notebook(self, notebook_path, parameters, outdir):
+        fn = os.path.basename(notebook_path)
+        logger.info(f'Executing notebook `{fn}`.')
+
+        nr = NotebookRunner()
+        nr.parameters = parameters
+        # nr.kernel = kernel
+        nr.open_ipynb(notebook_path)
+
+        # Suspend logging because nbconvert writes and insane
+        # amount of messages at debug level
+        self.suspend_logging()
+        nr.run()
+        self.resume_logging()
+
+        fn, ext = os.path.splitext(os.path.basename(notebook_path))
+        nr.save_ipynb(os.path.join(outdir, fn + '.ipynb'))
+        nr.save_html(os.path.join(outdir, fn + '.html'))

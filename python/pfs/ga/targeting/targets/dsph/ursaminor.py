@@ -9,6 +9,7 @@ from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ...config.pmap import PMapConfig
 from .dsphgalaxy import DSphGalaxy
 
 class UrsaMinor(DSphGalaxy):
@@ -71,6 +72,16 @@ class UrsaMinor(DSphGalaxy):
         )
 
         config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+
+        return config
+
+    def get_pmap_config(self):
+        config = PMapConfig(
+            cut_nb = True,
+            keep_blue = True,
+            extents = [[0.1, 2.0], [17.0, 23.5]],
+            merge_list = [np.s_[:10], np.s_[10:]]
+        )
 
         return config
     

@@ -14,6 +14,9 @@ class MagnitudeAxis(Axis):
 
         self._validate()
 
+    def __repr__(self):
+        return f'MagnitudeAxis({self.__magnitude}, limits={self.limits})'
+
     def _validate(self):
         if self.__magnitude is None:
             raise ValueError('The value of magnitude must be set.')

@@ -13,6 +13,9 @@ class ColorAxis(Axis):
 
         self._validate()
 
+    def __repr__(self):
+        return f'ColorAxis({self.__color}, limits={self.limits})'
+
     def _validate(self):
         if self.__color is None:
             raise ValueError('The value of color must be set.')
