@@ -93,6 +93,10 @@ echo "Data directory is $PFS_TARGETING_DATA"
 pushd . > /dev/null
 
 # Register command-line scripts
+function ga-pmap() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.pmap.pmapscript" "$@"
+}
+export -f ga-upload
 
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"
