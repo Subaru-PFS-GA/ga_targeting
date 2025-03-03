@@ -29,6 +29,9 @@ class ReadOnlyList():
 
     def __str__(self):
         return self.__l.__str__()
+    
+    def __repr__(self):
+        return f'ReadOnlyList({self.__l.__str__()})'
 	
     def clear(self):
         raise RuntimeError("The list is read-only.")

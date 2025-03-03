@@ -44,6 +44,13 @@ class DSphGalaxy(Galaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
+    def get_text_observation_reader(self, instrument=SubaruHSC):
+        if instrument == SubaruHSC:
+            return SubaruHSC.text_observation_reader(
+                mags=['i', 'g', 'nb515'], ext=['g', 'i', 'nb515'])
+        else:
+            raise NotImplementedError()
+
     def get_photometry(self, instrument=SubaruHSC):
         """
         Return the photometric system for the given instrument.

@@ -1,2 +1,3 @@
 nb/**/*.ipynb filter=ipynb_stripout
+python/pfs/ga/targeting/scripts/**/notebooks/*.ipynb filter=ipynb_stripout
 

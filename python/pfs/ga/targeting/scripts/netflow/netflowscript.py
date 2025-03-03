@@ -18,7 +18,6 @@ from ...netflow import Netflow, Design
 from ...util.args import *
 from ...util.astro import *
 from ...util.pandas import *
-from ...util.notebookrunner import NotebookRunner
 from ..targetingscript import TargetingScript
 
 from ...setup_logger import logger
@@ -276,7 +275,13 @@ class NetflowScript(TargetingScript):
         if not self.__skip_notebooks:
             for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
-                self.__execute_notebook(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb'))
+                notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb')
+                parameters = {
+                    'DEBUG': False,
+                    'CONFIG_FILE': self.__get_output_config_path(),
+                    'OUTPUT_PATH': self.__outdir,
+                }
+                self._execute_notebook(notebook_path, parameters, self._outdir)
     
     def load_source_target_lists(self):
         target_lists = {}
@@ -1003,29 +1008,6 @@ class NetflowScript(TargetingScript):
 
     def _get_design_list_path(self):
         return os.path.join(self.__outdir, f'{self._config.field.key}_designs.feather')
-
-    def __execute_notebook(self, notebook_path):
-        fn = os.path.basename(notebook_path)
-        logger.info(f'Executing notebook `{fn}`.')
-
-        nr = NotebookRunner()
-        nr.parameters = {
-            'DEBUG': False,
-            'CONFIG_FILE': self.__get_output_config_path(),
-            'OUTPUT_PATH': self.__outdir,
-        }
-        # nr.kernel = kernel
-        nr.open_ipynb(notebook_path)
-
-        # Suspend logging because nbconvert writes and insane
-        # amount of messages at debug level
-        self.suspend_logging()
-        nr.run()
-        self.resume_logging()
-
-        fn, ext = os.path.splitext(os.path.basename(notebook_path))
-        nr.save_ipynb(os.path.join(self.__outdir, fn + '.ipynb'))
-        nr.save_html(os.path.join(self.__outdir, fn + '.html'))
 
 if __name__ == '__main__':
     script = NetflowScript()

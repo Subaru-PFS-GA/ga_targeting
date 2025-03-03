@@ -31,6 +31,9 @@ class Magnitude():
 
         self._validate()
 
+    def __repr__(self):
+        return f'Magnitude(filter=\'{self.__filter}\')'
+
     def _validate(self):
         pass
 
