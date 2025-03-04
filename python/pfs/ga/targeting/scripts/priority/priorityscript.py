@@ -127,6 +127,18 @@ class PriorityScript(Script):
         self.__assign_priorities(hsc)
         self.__save_target_list(hsc)
 
+        # Execute the evaluation notebooks
+        if not self.__skip_notebooks:
+            for notebook in ['selections']:
+                logger.info(f'Executing evaluation notebook `{notebook}`...')
+                notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/priority/notebooks/{notebook}.ipynb')
+                parameters = {
+                    'DEBUG': False,
+                    'CONFIG_FILE': self.__get_output_config_path(),
+                    'OUTPUT_PATH': self.__outdir,
+                }
+                self._execute_notebook(notebook_path, parameters, self.__outdir)
+
     def __load_observations(self):
         reader = self._field.get_text_observation_reader()
         obs = reader.read(os.path.expandvars(self._config.obs_path))
