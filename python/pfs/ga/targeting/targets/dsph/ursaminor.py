@@ -13,6 +13,8 @@ from ...config.pmap import PMapConfig
 from ...config.priority import PriorityConfig
 from .dsphgalaxy import DSphGalaxy
 
+prioritize_DEIMOS = True
+
 class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
@@ -145,11 +147,11 @@ class UrsaMinor(DSphGalaxy):
             prob = catalog.data['p_member'][mask]
             code = np.full(prob.shape, 0, dtype=np.int32)
 
-            top_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((i0 - 16)/(23.0 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+            top_pri = np.maximum(np.floor((g0 - 17)/(23.0 - 17) * 4).astype(int), 0) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((g0 - 17)/(23.0 - 17) * 4).astype(int) + 4, 4) # bot pri goes from 4-8 based on brightness
           
             w = ~np.isnan(prob)
-            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
+            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 8)
             
             # Everything without membership probability
             w = np.isnan(prob) | (prob == 0.0)
@@ -157,8 +159,15 @@ class UrsaMinor(DSphGalaxy):
             code[w] = 0
             
             # Blue Horizontal Branch
-            w = (g0 > 19.6) & (g0 < 20.2) & (gi0 > -0.5) & (gi0 < 0.2) & (cli <= 0.5) & (clg < 0.5)
+            w = (g0 > 19.4) & (g0 < 20.2) & (gi0 > -0.5) & (gi0 < 0.2) & (cli <= 0.5) & (clg < 0.5)
             priority[w] = 6
+            code[w] = 0
+            
+            # Blue Stragglers
+            x1,x2,x3,x4 = -0.7, -0.2, -0.2, 0.3
+            y1,y2,y3,y4 = 20.8, 20.8, 23.0, 23.0
+            w = (priority == 9) & (g0 > y1) & (g0 < y3) & ((g0-y1) < ((y3-y1)/(x3-x1)*(gi0-x1))) & ((g0-y2) > ((y4-y2)/(x4-x2)*(gi0-x2)))
+            priority[w] = 7
             code[w] = 0
             
             # Very bright stars, this does nothing because there aren't any of those
@@ -167,7 +176,7 @@ class UrsaMinor(DSphGalaxy):
             code[w] = 1
             
             # Very faint stars with lowest priority
-            w = (i0 >= 23.0) & (cli <= 0.5) & (clg <= 0.5)
+            w = ((g0 >= 23.0) | (i0 >= 23.0)) & (cli <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 2
 
@@ -213,6 +222,22 @@ class UrsaMinor(DSphGalaxy):
             # Cuts on probability of being a point source are already imposed when loading the data file
             # w = (catalog['cli'] > 0.5) | (catalog['clg'] > 0.5)
             # priority[w] = 14
+
+        
+        #If a target has been previously observed by DEIMOS (Kirby et al. 2010), then set its priority to 0.
+        if prioritize_DEIMOS:
+            import os
+            from astropy.coordinates import SkyCoord
+            from astropy.io import fits
+
+            hdul = fits.open(os.environ['PFS_DATA_DIR']+'/data/targeting/dSph/'+self.name.lower().translate({ord(c):None for c in ' \n\t\r'})+'/'+self.ID+'_moogify_member.fits.gz')
+            deimos = hdul[1].data
+            c_deimos = SkyCoord(deimos['RA']*u.degree, deimos['DEC']*u.degree)
+            c_hsc = catalog.get_skycoords() #SkyCoord(catalog.data['RA']*u.degree, catalog.data['Dec']*u.degree)
+            idx, d2d, _ = c_deimos.match_to_catalog_sky(c_hsc)
+            priority[idx] = 0
+            code[idx] = 0
+
 
         exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10**((i0-19.0)/2.5)) + 1).astype(int), 6), 1)
 
