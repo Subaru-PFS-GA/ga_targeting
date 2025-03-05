@@ -25,7 +25,7 @@ from ..targetingscript import TargetingScript
 
 from ...setup_logger import logger
 
-class UploadScript(TargetingScript):
+class ExportScript(TargetingScript):
     """
     Command-line script to convert the netflow output into a format that can be uploaded
     to the spt_ssp_observation repository.
@@ -41,6 +41,8 @@ class UploadScript(TargetingScript):
         self.__obs_wg = 'GA'
         self.__nframes = 2                  # Number of frame repeats for CR removal
         self.__priority = 0                 # Priority of pointing within obs run
+        self.__input_catalog_id = None      # Overrides whatever catId is used during fiber assignment
+        self.__proposal_id = None           # Overrides whatever proposalId is used during fiber assignment
         
         self.__input_args = None            # arguments loaded from the input directory
 
@@ -57,6 +59,8 @@ class UploadScript(TargetingScript):
         self.add_arg('--obs-wg', type=str, help='SSP working group abbreviation.')
         self.add_arg('--nframes', type=int, help='Number of frame repeats for CR removal.')
         self.add_arg('--priority', type=int, help='Priority of pointing within obs run.')
+        self.add_arg('--input-catalog-id', type=int, help='Overrides whatever catId is used during fiber assignment.')
+        self.add_arg('--proposal-id', type=str, help='Overrides whatever proposalId is used during fiber assignment.')
 
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
@@ -72,6 +76,8 @@ class UploadScript(TargetingScript):
         self.__obs_wg = self.get_arg('obs_wg', args, self.__obs_wg)
         self.__nframes = self.get_arg('nframes', args, self.__nframes)
         self.__priority = self.get_arg('priority', args, self.__priority)
+        self.__input_catalog_id = self.get_arg('input_catalog_id', args, self.__input_catalog_id)
+        self.__proposal_id = self.get_arg('proposal_id', args, self.__proposal_id)
 
         # Load the arguments file from the input directory and parse a few arguments
         fn = self.__find_last_dumpfile('*.args')
@@ -243,7 +249,7 @@ class UploadScript(TargetingScript):
 
         # TODO: move these dictionaries to some kind of settings file or config section and make
         #       them the default
-        filter_map = {
+        filter_bands = {
             'g_ps1': 'g',
             'r_ps1': 'r',
             'i_ps1': 'i',
@@ -257,6 +263,13 @@ class UploadScript(TargetingScript):
             'i_hsc': 'i',
         }
 
+        # TODO: is this map valid for all GA fields?
+        filter_map = {
+            'g_hsc': 'g2_hsc',
+            'r_hsc': 'r2_hsc',
+            'i_hsc': 'i2_hsc',
+        }
+
         bands = 'bgrizy'
 
         filter = { b: len(assignments_all) * [None,] for b in bands }
@@ -265,10 +278,10 @@ class UploadScript(TargetingScript):
 
         for i, (_, ff, flux, flux_err) in enumerate(assignments_all[['filter', 'psf_flux', 'psf_flux_err']].to_records()):
             for j, f in enumerate(ff):
-                if f in filter_map:
-                    b = filter_map[f]
+                if f in filter_bands:
+                    b = filter_bands[f]
                     if b is not None and filter[b][i] is None:
-                        filter[b][i] = f
+                        filter[b][i] = filter_map[f] if f in filter_map else f        ####
                         psf_flux[b][i] = flux[j]
                         psf_flux_err[b][i] = flux_err[j]
 
@@ -283,14 +296,17 @@ class UploadScript(TargetingScript):
     def __write_assignments(self, pointings, assignments_all):
 
         for target_type in [ TargetType.SCIENCE, TargetType.FLUXSTD, TargetType.SKY ]:
+            vidx = 0
             for pidx in range(len(pointings)):
-                for vidx in range(pointings[pidx].nvisits):
-                    field_code = self.__get_field_code(pidx, vidx)
+                for vi in range(pointings[pidx].nvisits):
+                    field_code = self.__get_field_code(pidx, vi)
 
                     # Get the list of targets for this pointing and visit
-                    mask = ((assignments_all['target_type'] == TargetType.SCIENCE) &
+                    mask = ((assignments_all['target_type'] == target_type) &
                             (assignments_all['pointing_idx'] == pidx) &
                             (assignments_all['visit_idx'] == vidx))
+
+                    assert mask.sum() > 0
 
                     table = Table()
 
@@ -306,20 +322,34 @@ class UploadScript(TargetingScript):
                     obj_id = np.array(assignments_all['targetid'][mask], dtype=np.int64)
                     ra = np.array(assignments_all['RA'][mask], dtype=np.float64)
                     dec = np.array(assignments_all['Dec'][mask], dtype=np.float64)
-                    pmra = np.array(assignments_all['pmra'][mask], dtype=np.float64)
-                    pmdec = np.array(assignments_all['pmdec'][mask], dtype=np.float64)
-                    parallax = np.array(assignments_all['parallax'][mask], dtype=np.float64)
+                    pmra = np.array(assignments_all['pmra'][mask].fillna(0.0), dtype=np.float64)
+                    pmdec = np.array(assignments_all['pmdec'][mask].fillna(0.0), dtype=np.float64)
+                    parallax = np.array(assignments_all['parallax'][mask].fillna(1.0e-5), dtype=np.float64)
                     epoch = np.array([f'J{e:0.2f}' for e in assignments_all['epoch'][mask] ], dtype=str)
-                    tract = np.array(assignments_all['tract'][mask], dtype=np.int64)
-                    patch = np.array(assignments_all['patch'][mask], dtype=str)
+                    tract = np.array(assignments_all['tract'][mask].fillna(-1), dtype=np.int64)
+                    patch = np.array(assignments_all['patch'][mask].fillna('-1,-1'), dtype=str)
                     # catalog_id = 
                     target_type_id = np.array(assignments_all['target_type'][mask], dtype=np.int32)
-                    input_catalog_id = np.array(assignments_all['targetid'][mask], dtype=np.int64)
+
+                    if target_type == TargetType.SCIENCE and self.__input_catalog_id is not None:
+                        input_catalog_id = np.full(mask.sum(), self.__input_catalog_id, dtype=np.int64)
+                    else:
+                        input_catalog_id = np.array(assignments_all['catid'][mask], dtype=np.int64)
+
                     ob_code = np.array(assignments_all['obcode'][mask], dtype=str)
-                    proposal_id = np.array(assignments_all['proposalid'][mask], dtype=str)
-                    priority = np.array(assignments_all['priority'][mask], dtype=np.int32)
-                    effective_exptime = np.array(assignments_all['exp_time'][mask], dtype=np.float32)
-                    fiberid = np.array(assignments_all['cobraid'][mask], dtype=np.int32)
+                    
+                    if self.__proposal_id is not None:
+                        proposal_id = np.array(mask.sum() * [self.__proposal_id], dtype=str)
+                    else:
+                        proposal_id = np.array(assignments_all['proposalid'][mask], dtype=str)
+                    
+                    if target_type == TargetType.SCIENCE:
+                        priority = np.array(assignments_all['priority'][mask], dtype=np.int32)
+                    else:
+                        priority = np.full(mask.sum(), -1, dtype=np.int32)
+
+                    effective_exptime = np.array(assignments_all['exp_time'][mask].fillna(0.0), dtype=np.float32)
+                    cobraid = np.array(assignments_all['cobraid'][mask], dtype=np.int32)
                     pfi_x = np.array(assignments_all['fp_x'][mask], dtype=np.float64)
                     pfi_y = np.array(assignments_all['fp_y'][mask], dtype=np.float64)
 
@@ -349,15 +379,21 @@ class UploadScript(TargetingScript):
                         if np.any([ f is not None for f in filter[b] ]):
                             table[f'filter_{b}'] = filter[b]
                             table[f'psf_flux_{b}'] = psf_flux[b]
-                            table[f'psf_flux_err_{b}'] = psf_flux_err[b]
+                            table[f'psf_flux_error_{b}'] = psf_flux_err[b]
+                        else:
+                            table[f'filter_{b}'] = np.array(mask.sum() * [''], dtype=str)
+                            table[f'psf_flux_{b}'] = np.zeros(mask.sum(), dtype=float)
+                            table[f'psf_flux_error_{b}'] = np.zeros(mask.sum(), dtype=float)
 
-                    table['fiberid'] = fiberid                      # This is in fact the cobra ID
+                    table['cobraid'] = cobraid
                     table['pfi_X'] = pfi_x
                     table['pfi_Y'] = pfi_y
 
                     fn = self.__get_targets_path(target_type, field_code)
                     os.makedirs(os.path.dirname(fn), exist_ok=True)
                     table.write(fn)
+
+                    vidx += 1
 
     def __get_pfsDesign_path(self):
         return os.path.join(self.__outdir, f'runs/{self.__obs_run}/pfs_designs/{self.__obs_wg}')
@@ -372,5 +408,5 @@ class UploadScript(TargetingScript):
             shutil.copy(fn, dir)
 
 if __name__ == '__main__':
-    script = UploadScript()
+    script = ExportScript()
     script.execute()

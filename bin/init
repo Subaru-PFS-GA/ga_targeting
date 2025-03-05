@@ -108,7 +108,7 @@ function ga-netflow() {
 }
 export -f ga-netflow
 
-function ga-upload() {
-    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.upload.uploadscript" "$@"
+function ga-export() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.export.exportscript" "$@"
 }
-export -f ga-upload
+export -f ga-export
