@@ -62,6 +62,9 @@ class SubaruPFI(Instrument, FiberAllocator):
                 [1598, 2338, 2392, 1652],
                 [854, 800, 1540, 1594]]
 
+    fiber_map_cache = {}
+    bench_cache = {}
+
     def __init__(self, projection=None, instrument_options=None, orig=None):
         from ..config.instrument.instrumentoptionsconfig import InstrumentOptionsConfig
         
@@ -129,18 +132,26 @@ class SubaruPFI(Instrument, FiberAllocator):
     def __load_grand_fiber_map(self):
         # Load the grand fiber map
         fiberids_path = self.__get_instrument_option(self.__instrument_options.fiberids_path, SubaruPFI.DEFAULT_FIBERIDS_PATH)
-        fiber_map = FiberIds(path=fiberids_path)
 
-        logger.info(f"Loading the grand fiber map from `{os.path.abspath(fiberids_path)}`")
+        if fiberids_path in SubaruPFI.fiber_map_cache:
+            logger.info(f"Getting the grand fiber map from cache.")
 
-        # Load the list of blocked fibers
-        config_root = os.path.join(self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH), 'data')
-        butler = Butler(configRoot=config_root)
-        blocked_fibers = butler.get('fiberBlocked').set_index('fiberId')
+            (fiber_map, blocked_fibers) = SubaruPFI.fiber_map_cache[fiberids_path]
+        else:
+            fiber_map = FiberIds(path=fiberids_path)
+            
+            logger.info(f"Loading the grand fiber map from `{os.path.abspath(fiberids_path)}`")
 
-        logger.info(f"Loaded configuration for {len(fiber_map.fiberId)} fibers.")
-        logger.info(f"Number of fibers connected to cobras: {(fiber_map.cobraId != fiber_map.MISSING_VALUE).sum()}")
-        logger.info(f"Number of science fibers: {(fiber_map.scienceFiberId < fiber_map.ENGINEERING).sum()}")
+            # Load the list of blocked fibers
+            config_root = os.path.join(self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH), 'data')
+            butler = Butler(configRoot=config_root)
+            blocked_fibers = butler.get('fiberBlocked').set_index('fiberId')
+
+            logger.info(f"Loaded configuration for {len(fiber_map.fiberId)} fibers.")
+            logger.info(f"Number of fibers connected to cobras: {(fiber_map.cobraId != fiber_map.MISSING_VALUE).sum()}")
+            logger.info(f"Number of science fibers: {(fiber_map.scienceFiberId < fiber_map.ENGINEERING).sum()}")
+
+            SubaruPFI.fiber_map_cache[fiberids_path] = (fiber_map, blocked_fibers)
 
         return fiber_map, blocked_fibers
 
@@ -160,12 +171,20 @@ class SubaruPFI(Instrument, FiberAllocator):
     def __create_bench(self):
         layout = self.__get_instrument_option(self.__instrument_options.layout, 'full')
 
-        if layout == 'full':
-            return self.__create_default_bench()
-        elif layout == 'calibration':
-            return self.__create_configured_bench()
+        if layout in SubaruPFI.bench_cache:
+            logger.info(f"Getting the bench from cache.")
+            bench = SubaruPFI.bench_cache[layout]
         else:
-            raise NotImplementedError()
+            if layout == 'full':
+                bench = self.__create_default_bench()
+            elif layout == 'calibration':
+                bench = self.__create_configured_bench()
+            else:
+                raise NotImplementedError()
+
+            SubaruPFI.bench_cache[layout] = bench
+
+        return bench
 
     def __create_default_bench(self):
         """
@@ -1699,21 +1718,28 @@ class SubaruPFI(Instrument, FiberAllocator):
     def plot_focal_plane(self, ax: plt.Axes, diagram, res=None, projection=None, **kwargs):
         corners = kwargs.pop('corners', False)
         blocks = kwargs.pop('blocks', False)
+        fill = kwargs.pop('fill', False)
 
-        style = styles.solid_line(**kwargs)
         res = res if res is not None else 36
         native_frame = diagram._get_native_frame()
 
-        def plot_outline(ids):
-            for ii in ids:
-                xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
-                diagram.plot(ax, xy, mask=mask, native_frame=native_frame, **style)
+        if not fill:
+            style = styles.solid_line(**kwargs)
+            def plot_outline(ids):
+                for ii in ids:
+                    xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
+                    diagram.plot(ax, xy, mask=mask, native_frame=native_frame, **style)
 
-        if corners:
-            plot_outline(self.CORNERS)
-        
-        if blocks:
-            plot_outline(self.BLOCKS)           
+            if corners:
+                plot_outline(self.CORNERS)
+            
+            if blocks:
+                plot_outline(self.BLOCKS)
+        else:
+            style = styles.red_fill(**kwargs)
+            for ii in self.CORNERS:
+                xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
+                diagram.fill(ax, xy, mask=mask, native_frame=native_frame, **style)
 
     def plot_cobras(self, ax, diagram, data=None, cmap='viridis', vmin=None, vmax=None,
                     scalex=True, scaley=True,

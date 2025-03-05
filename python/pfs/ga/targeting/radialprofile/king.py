@@ -117,7 +117,8 @@ class King(RadialProfile):
         else:
             p0 = [np.exp(log_S[-1]), np.exp(log_S[0]), R[-1] / 2, R[-1]]
         
-        p, pcov = curve_fit(self.__log_S, R, log_S, sigma=log_S_sigma, p0=p0)
+        mask = np.isfinite(R) & np.isfinite(log_S)
+        p, pcov = curve_fit(self.__log_S, R[mask], log_S[mask], sigma=log_S_sigma[mask], p0=p0)
         self.params = p
         self.pcov = pcov
         return self.params, self.pcov

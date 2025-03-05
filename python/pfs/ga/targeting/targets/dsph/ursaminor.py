@@ -19,20 +19,38 @@ class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
         name = 'Ursa Minor'
-        pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]
+        # pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]                   # Simbad, Carlsten et al. (2021)
         # pos = [ 227.29725, 67.21436111 ] * u.deg                    # Evan
+        pos = [ 227.36640892,  67.25400504 ] * u.deg                  # Profile fit, Dobos
         rad = 120 * u.arcmin
         DM, DM_err = 18.9, 0.2
         pm = [ -0.119, 0.072 ] * u.mas / u.yr                         # Pace et al. (2022)
         pm_err = [ 0.005, 0.005 ] * u.mas / u.yr
         RV, RV_err = (-274.0, 1.0) * u.kilometer / u.second
 
-        ra0 = [ 229.2, 226.0, 225.2, 228.5, 228.2, 226.3, 226.0, 228.0 ] * u.deg
-        dec0 = [ 67.90, 67.80, 66.55, 66.60, 67.5, 67.5, 66.9, 66.955 ] * u.deg
-        pa = [ 0, 0, 0, 0, 0, 0, 0, 0] * u.deg
+        # Predefined pointings
+        # ra0 = [ 229.2, 226.0, 225.2, 228.5, 228.2, 226.3, 226.0, 228.0 ] * u.deg
+        # dec0 = [ 67.90, 67.80, 66.55, 66.60, 67.5, 67.5, 66.9, 66.955 ] * u.deg
+        # pa = [ 0, 0, 0, 0, 0, 0, 0, 0] * u.deg
+        # pointings = {
+        #     SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa) ]
+        # }
 
+        # Generate the poitings algorithmically
         pointings = {
-            SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa) ]
+            SubaruPFI: [
+                Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=-20),
+
+                Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-20),
+
+                Pointing.from_relative_pos(pos, sep=0.6, dir=140, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-0.6, dir=140, posang=-20),
+
+                Pointing.from_relative_pos(pos, sep=1.0, dir=140, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-1.0, dir=140, posang=-20),
+            ]
         }
 
         super().__init__(ID, name,
@@ -230,7 +248,8 @@ class UrsaMinor(DSphGalaxy):
             from astropy.coordinates import SkyCoord
             from astropy.io import fits
 
-            hdul = fits.open(os.environ['PFS_DATA_DIR']+'/data/targeting/dSph/'+self.name.lower().translate({ord(c):None for c in ' \n\t\r'})+'/'+self.ID+'_moogify_member.fits.gz')
+            fn = os.path.expandvars('$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_moogify_member.fits.gz')
+            hdul = fits.open(fn)
             deimos = hdul[1].data
             c_deimos = SkyCoord(deimos['RA']*u.degree, deimos['DEC']*u.degree)
             c_hsc = catalog.get_skycoords() #SkyCoord(catalog.data['RA']*u.degree, catalog.data['Dec']*u.degree)

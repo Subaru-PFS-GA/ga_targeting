@@ -16,8 +16,11 @@ NGC6822 = __NGC6822()
 
 GALAXIES = {
     'umi': UrsaMinor,
+    'ursaminor': UrsaMinor,
     'scl': Sculptor,
+    'sculptor': Sculptor,
     'dra': Draco,
+    'draco': Draco,
     'for': Fornax,
     'fornax': Fornax,
     'booi': Bootes,

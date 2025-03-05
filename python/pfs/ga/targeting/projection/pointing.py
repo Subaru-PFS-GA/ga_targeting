@@ -1,6 +1,10 @@
 from datetime import datetime
 from typing import Any
 from astropy.time import Time
+from astropy.coordinates import SkyCoord
+from astropy.coordinates import CartesianRepresentation
+from astropy.coordinates.matrix_utilities import rotation_matrix
+import astropy.units as u
 
 from ..util.args import *
 
@@ -26,7 +30,7 @@ class Pointing():
             self.__nvisits = nvisits if nvisits is not None else orig.__nvisits
 
     def __repr__(self):
-        return f'Pointing({self.ra:0.4f}, {self.dec:0.4f}, posang={self.posang:0.4f}'
+        return f'Pointing({self.ra:0.4f}, {self.dec:0.4f}, posang={self.posang:0.4f})'
 
     def __get_pos(self):
         return self.__pos
@@ -77,3 +81,31 @@ class Pointing():
         self.__nvisits = value
 
     nvisits = property(__get_nvisits, __set_nvisits)
+
+    @staticmethod
+    def __get_full_rotation(sep, pa, ra, dec):
+        r1 = rotation_matrix(sep * u.deg, 'z')  # separation of the pointing center from the center of the object
+        r2 = rotation_matrix(pa * u.deg, 'x')   # position angle of the ellipse
+        r3 = rotation_matrix(dec * u.deg, 'y')    # declination
+        r4 = rotation_matrix(-ra * u.deg, 'z')    # right ascension
+
+        return r4 @ r3 @ r2 @ r1
+
+    @staticmethod
+    def __calculate_center(sep, pa, ra, dec):
+        r = Pointing.__get_full_rotation(sep, pa, ra, dec)
+        c = SkyCoord(CartesianRepresentation(1, 0, 0).transform(r))
+        return c.ra.value, c.dec.value
+    
+    @staticmethod
+    def from_relative_pos(*pos, dir, sep, posang=None,
+                          obs_time=None, exp_time=None, nvisits=None):
+        """
+        Calculate the pointing center relative to the `ra` and `dec` coordinates in the direction
+        `dir` at a separation angle of `sep`.
+        """
+
+        pos = normalize_pos(*pos)
+        pra, pdec = Pointing.__calculate_center(sep, dir, pos.ra.value, pos.dec.value)
+        return Pointing(pra, pdec, posang=posang,
+                        obs_time=obs_time, exp_time=exp_time, nvisits=nvisits)

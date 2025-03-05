@@ -93,6 +93,15 @@ class SpatialDiagram(Diagram):
         l = super().scatter(ax, coords[..., 0], coords[..., 1], transform=transform, s=s, **kwargs)
         return l
 
+    def fill(self, ax: plt.Axes, *coords, native_frame=None,
+             mask_fov=True, mask=None, s=None, **kwargs):
+        
+        ctype, coords, mask, s, fov_mask, transform = self._get_coords(ax, 
+            *coords, mask_fov=mask_fov, mask=mask, s=s, native_frame=native_frame, **kwargs)
+        
+        l = super().fill(ax, coords[..., 0], coords[..., 1], transform=transform, s=s, **kwargs)
+        return l
+
     def plot_catalog(self, ax: plt.Axes, catalog, population_id=None, apply_categories=None, g=None,
                      observed=None, mask_fov=False, mask=None, s=None, **kwargs):
         

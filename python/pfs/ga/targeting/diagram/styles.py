@@ -73,3 +73,11 @@ def histogram_imshow(**kwargs):
     __update_style(args, 'origin', 'lower')
 
     return args
+
+def red_fill(**kwargs):
+    args = kwargs.copy()
+
+    __update_style(args, ('color', 'c', 'fmt'), 'r')
+    __update_style(args, 'edgecolor', 'None')
+
+    return args

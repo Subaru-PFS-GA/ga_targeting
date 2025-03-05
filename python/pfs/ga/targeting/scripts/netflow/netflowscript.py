@@ -281,7 +281,7 @@ class NetflowScript(TargetingScript):
                     'CONFIG_FILE': self.__get_output_config_path(),
                     'OUTPUT_PATH': self.__outdir,
                 }
-                self._execute_notebook(notebook_path, parameters, self._outdir)
+                self._execute_notebook(notebook_path, parameters, self.__outdir)
     
     def load_source_target_lists(self):
         target_lists = {}

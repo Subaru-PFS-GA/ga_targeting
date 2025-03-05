@@ -29,6 +29,9 @@ class PointingConfig(Config):
             exp_time=pointing.exp_time.to_value('s') if pointing.exp_time is not None else None
         )
 
-    def get_pointing(self):
-        return Pointing(self.ra, self.dec, posang=self.posang, obs_time=self.obs_time, exp_time=self.exp_time)
+    def get_pointing(self, obs_time=None, exp_time=None):
+        obs_time = obs_time if obs_time is not None else self.obs_time
+        exp_time = exp_time if exp_time is not None else self.exp_time
+
+        return Pointing(self.ra, self.dec, posang=self.posang, obs_time=obs_time, exp_time=exp_time)
     

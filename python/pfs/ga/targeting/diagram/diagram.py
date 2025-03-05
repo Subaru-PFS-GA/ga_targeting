@@ -69,10 +69,11 @@ class Diagram():
         return l
 
     def plot(self, ax: plt.Axes, x, y, fmt=None, mask=None, s=None, scalex=True, scaley=True, **kwargs):
-        style = styles.tiny_dots_plot(**kwargs)
 
         s = s if s is not None else np.s_[:]
         mask = mask if mask is not None else np.s_[:]
+
+        style = styles.tiny_dots_plot(**kwargs)        
 
         args = (x[mask][s], y[mask][s])
         if fmt is not None:
@@ -80,11 +81,26 @@ class Diagram():
         
         lines = ax.plot(*args, **styles.sanitize_style(**style))
         
+        # TODO: something is wrong here because the FOV plots are scaled incorrectly
+        #       if lines are plotted
         for l in lines:
             x, y = l.get_data()
             self.__update_datalim(x, y, scalex, scaley)
 
         self.apply(ax)
+
+        return lines
+    
+    def fill(self, ax: plt.Axes, x, y, mask=None, s=None, scalex=True, scaley=True, **kwargs):
+        
+        s = s if s is not None else np.s_[:]
+        mask = mask if mask is not None else np.s_[:]
+
+        style = styles.red_fill(**kwargs)
+
+        args = (x[mask][s], y[mask][s])
+
+        lines = ax.fill(*args, **styles.sanitize_style(**style))
 
         return lines
 

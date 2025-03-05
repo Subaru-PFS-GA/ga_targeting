@@ -62,13 +62,17 @@ class Whitening(Transformation):
 
     iteration_callback = property(__get_iteration_callback, __set_iteration_callback)
 
-    def create(self, *coords, iterations=10, callback=None):
+    def create(self, *coords, iterations=10, s_cut=None, callback=None):
         ctype, xy = self._world_to_pixel(*coords)
 
         callback = callback if callback is not None else self.__iteration_callback
             
         # Sigma cuts as a function of iteration number
-        s_cut = (iterations // 2) * [2,] + (iterations - iterations // 2) * [2.8,]
+        if s_cut is None:
+            s_cut = (iterations // 2) * [2,] + (iterations - iterations // 2) * [2.8,]
+
+        if not isinstance(s_cut, Iterable):
+            s_cut = iterations * [s_cut]
 
         # Start with all data points included
         mask = np.full((xy.shape[0],), True)
@@ -84,7 +88,6 @@ class Whitening(Transformation):
             
             # Whiten and throw away everything outside s_cut sigma
             white = np.matmul(W, (xy - M).T).T
-
 
             if callback is not None:
                 callback(xy, white, mask, M, W, U, S, Vh)
