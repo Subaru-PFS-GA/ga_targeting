@@ -112,6 +112,24 @@ class UrsaMinor(DSphGalaxy):
         )
 
         return config
+
+    def get_filter_map(self):
+        """
+        Return a dictionary that maps between filter names used internally and the actual
+        filter names that are to be written into the exported target lists and design files.
+
+        This is just a final hack because propagating the new filter names through the stack
+        can take a significant effort. 
+        """
+
+        # Ursa Minor was imaged by Sakurako Okamoto with i band in 2015. That makes it i_hsc
+        # instead of i2_hsc.
+        filter_map = {
+            # 'r_hsc': 'r2_hsc',
+            # 'i_hsc': 'i2_hsc',
+        }
+
+        return filter_map
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
