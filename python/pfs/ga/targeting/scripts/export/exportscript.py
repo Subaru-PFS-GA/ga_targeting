@@ -264,11 +264,7 @@ class ExportScript(TargetingScript):
         }
 
         # TODO: is this map valid for all GA fields?
-        filter_map = {
-            'g_hsc': 'g2_hsc',
-            'r_hsc': 'r2_hsc',
-            'i_hsc': 'i2_hsc',
-        }
+        filter_map = self._field.get_filter_map()
 
         bands = 'bgrizy'
 
@@ -348,6 +344,14 @@ class ExportScript(TargetingScript):
                     else:
                         priority = np.full(mask.sum(), -1, dtype=np.int32)
 
+                    if target_type == TargetType.FLUXSTD:
+                        if 'prob_f_star' in assignments_all:
+                            prob_f_star = np.array(assignments_all['prob_f_star'][mask], dtype=float)
+                        else:
+                            prob_f_star = np.full(mask.sum(), 1, dtype=float)
+                    else:
+                        prob_f_star = np.full(mask.sum(), -1, dtype=float)
+
                     effective_exptime = np.array(assignments_all['exp_time'][mask].fillna(0.0), dtype=np.float32)
                     cobraid = np.array(assignments_all['cobraid'][mask], dtype=np.int32)
                     pfi_x = np.array(assignments_all['fp_x'][mask], dtype=np.float64)
@@ -373,6 +377,7 @@ class ExportScript(TargetingScript):
                     table['ob_code'] = ob_code
                     table['proposal_id'] = proposal_id
                     table['priority'] = priority
+                    table['prob_f_star'] = prob_f_star
                     table['effective_exptime'] = effective_exptime
 
                     for b in filter:
@@ -385,7 +390,7 @@ class ExportScript(TargetingScript):
                             table[f'psf_flux_{b}'] = np.zeros(mask.sum(), dtype=float)
                             table[f'psf_flux_error_{b}'] = np.zeros(mask.sum(), dtype=float)
 
-                    table['cobraid'] = cobraid
+                    table['cobraId'] = cobraid
                     table['pfi_X'] = pfi_x
                     table['pfi_Y'] = pfi_y
 
