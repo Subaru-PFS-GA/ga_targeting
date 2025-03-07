@@ -21,8 +21,14 @@ class UrsaMinor(DSphGalaxy):
         name = 'Ursa Minor'
         # pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]                   # Simbad, Carlsten et al. (2021)
         # pos = [ 227.29725, 67.21436111 ] * u.deg                    # Evan
-        pos = [ 227.36640892,  67.25400504 ] * u.deg                  # Profile fit, Dobos
-        rad = 120 * u.arcmin
+        
+        # Radial profile fit parameters
+        pos = [ 227.27229069,  67.23449905 ] * u.deg                  # Profile fit, Dobos
+        white = (np.array([-0.0433267, -0.02317608]), np.array([[[-4.37100736, -3.55293437], [-9.83032195, 12.09378084]]]))
+        king = (45.302893030209475, 1084.807251671976, 1.3825051586583355, 7.252224797182235)
+
+        rad = 120 * u.arcmin                                          # Approximate field radius
+        
         DM, DM_err = 18.9, 0.2
         pm = [ -0.119, 0.072 ] * u.mas / u.yr                         # Pace et al. (2022)
         pm_err = [ 0.005, 0.005 ] * u.mas / u.yr
@@ -42,18 +48,23 @@ class UrsaMinor(DSphGalaxy):
                 Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=-20),
                 Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=-20),
 
-                Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-20),
+                # 6-fold overlap in the center
+                # Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-20),
+                # Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-20),
 
                 # Rotated outer pointings along the minor axis
                 # Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-50),
                 # Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-50),
 
-                Pointing.from_relative_pos(pos, sep=0.6, dir=140, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-0.6, dir=140, posang=-20),
+                # Rotated outer pointings along the minor axis
+                Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=-50),
+                Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=-50),
 
-                Pointing.from_relative_pos(pos, sep=1.0, dir=140, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-1.0, dir=140, posang=-20),
+                Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=-20),
+
+                Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=-20),
+                Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=-20),
             ]
         }
 
