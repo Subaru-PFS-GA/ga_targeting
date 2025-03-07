@@ -78,7 +78,7 @@ config = dict(
         heuristics = 0.5,
         mipfocus = 1,           
         mipgap = 0.01,
-        LogToConsole = 0,
+        LogToConsole = 1,
         timelimit = 300 # sec
     ),
     debug_options = dict(

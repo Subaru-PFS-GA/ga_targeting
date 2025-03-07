@@ -88,6 +88,8 @@ def plot_target_list_coordinates(ax, fov, target_list, **kwargs):
 
     ax.set_title(target_list.name)
     ax.set_aspect('equal', adjustable='datalim')
+    ax.set_xlim(3, -3)
+    ax.set_ylim(-3, 3)
     ax.grid(True)
 
     return l

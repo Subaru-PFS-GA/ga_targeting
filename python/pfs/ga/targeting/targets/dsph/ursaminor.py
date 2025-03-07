@@ -28,7 +28,7 @@ class UrsaMinor(DSphGalaxy):
         pm_err = [ 0.005, 0.005 ] * u.mas / u.yr
         RV, RV_err = (-274.0, 1.0) * u.kilometer / u.second
 
-        # Predefined pointings
+        # Naive pointings
         # ra0 = [ 229.2, 226.0, 225.2, 228.5, 228.2, 226.3, 226.0, 228.0 ] * u.deg
         # dec0 = [ 67.90, 67.80, 66.55, 66.60, 67.5, 67.5, 66.9, 66.955 ] * u.deg
         # pa = [ 0, 0, 0, 0, 0, 0, 0, 0] * u.deg
@@ -44,6 +44,10 @@ class UrsaMinor(DSphGalaxy):
 
                 Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-20),
                 Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-20),
+
+                # Rotated outer pointings along the minor axis
+                # Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-50),
+                # Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-50),
 
                 Pointing.from_relative_pos(pos, sep=0.6, dir=140, posang=-20),
                 Pointing.from_relative_pos(pos, sep=-0.6, dir=140, posang=-20),

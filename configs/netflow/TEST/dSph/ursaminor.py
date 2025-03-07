@@ -17,9 +17,30 @@ config = dict(
     # pointings = [
     #     dict(ra=229.2, dec=67.90, posang=0),
     # ],
+    # Override the minimum number of calibration targets
+    netflow_options = dict(
+        target_classes = {
+            'sky': dict(
+                prefix = 'sky',
+                min_targets = 240,
+                max_targets = 320,
+            ),
+            'cal': dict(
+                prefix = 'cal',
+                min_targets = 40,
+                max_targets = 240,
+            ),
+        },
+        cobra_groups = {
+            'cal_location': dict(
+                min_targets = 0,
+            )
+        }
+    ),
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
+            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/priority/ursaminor_nb_3/hsc_umi_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -133,7 +154,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [13, 18],
+                    'ps1_g': [16, 19],
                     'ps1_g-ps1_r': [0.25, 0.4],
                 }
             )
@@ -161,12 +182,4 @@ config = dict(
             )
         )
     },
-    # Override the minimum number of calibration targets
-    netflow_options = dict(
-        cobra_groups = {
-            'cal_location': dict(
-                min_targets = 0,
-            )
-        }
-    )
 )
