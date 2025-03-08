@@ -10,7 +10,7 @@ from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
-from ...config.priority import PriorityConfig
+from ...config.sample import SampleConfig
 from .dsphgalaxy import DSphGalaxy
 
 prioritize_DEIMOS = True
@@ -121,8 +121,8 @@ class UrsaMinor(DSphGalaxy):
 
         return config
 
-    def get_priority_config(self):
-        config = PriorityConfig(
+    def get_sample_config(self):
+        config = SampleConfig(
 
         )
 

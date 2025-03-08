@@ -6,7 +6,7 @@ from pfs.ga.isochrones.isogrid import IsoGrid
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_FIELDS
-from ...config.priority import PriorityConfig
+from ...config.sample import SampleConfig
 from ..script import Script
 from ...io import Hdf5SimulationReader
 from ...instrument import SubaruHSC
@@ -16,7 +16,7 @@ from ...io import GaiaReader, ObservationSerializer
 
 from ...setup_logger import logger
 
-class PriorityScript(Script):
+class SampleScript(Script):
     """
     Script to apply selections and assign priorities to the targets based on HSC data.
     """
@@ -65,9 +65,9 @@ class PriorityScript(Script):
 
         # If a field is specified, load its default configuration      
         if self._field is not None:
-            self._config = self._field.get_priority_config()
+            self._config = self._field.get_sample_config()
         else:
-            self._config = PriorityConfig.default()
+            self._config = SampleConfig.default()
 
         # Load the configuration template files and merge with the default config
         config_files = self.get_arg('config', args)
@@ -243,5 +243,5 @@ class PriorityScript(Script):
         logger.info(f'Saved target list with priorities to {fn}.')
 
 if __name__ == '__main__':
-    script = PriorityScript()
+    script = SampleScript()
     script.execute()

@@ -2,7 +2,7 @@ import numpy as np
 
 from ..config import Config
 
-class PriorityConfig(Config):
+class SampleConfig(Config):
     def __init__(self,
                  obs_path: str = None,
                  pmap_path: str = None,

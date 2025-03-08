@@ -1,1 +1,0 @@
-from .priorityconfig import PriorityConfig

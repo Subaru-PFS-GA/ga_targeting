@@ -98,10 +98,10 @@ function ga-pmap() {
 }
 export -f ga-pmap
 
-function ga-priority() {
-    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.priority.priorityscript" "$@"
+function ga-sample() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.sample.samplescript" "$@"
 }
-export -f ga-priority
+export -f ga-sample
 
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"

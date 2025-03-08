@@ -17,7 +17,7 @@ class PMapScript(Script):
     Script to generate the probability map from a simulated CMD
     """
 
-    # TODO: merge repeated functions with PriorityScript
+    # TODO: merge repeated functions with SampleScript
 
     def __init__(self):
         super().__init__()
