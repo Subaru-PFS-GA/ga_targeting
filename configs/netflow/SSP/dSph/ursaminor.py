@@ -40,7 +40,7 @@ config = dict(
     targets = {
         "hsc": dict(
             # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/priority/ursaminor_nb_3/hsc_umi_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/priority/ursaminor_nb_anc/hsc_umi_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -61,6 +61,37 @@ config = dict(
                     "nb515_hsc": dict(
                         mag = 'obs_hsc_nb515',
                         mag_err = 'err_hsc_nb515',
+                    ),
+                }
+            )
+        ),
+        "anc": dict(
+            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi.anc.feather",
+            # reader = None
+            reader_args = dict(),
+            column_map = {'objid': 'targetid'},
+            prefix = "sci",
+            frame='icrs',
+            catid = 10088,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "g_ps": dict(
+                        mag = 'obs_ps_g',
+                        mag_err = 'err_ps_g',
+                    ),
+                    "r_ps": dict(
+                        mag = 'obs_ps_r',
+                        mag_err = 'err_ps_r',
+                    ),
+                    "i_ps": dict(
+                        mag = 'obs_ps_i',
+                        mag_err = 'err_ps_i',
+                    ),
+                    "z_ps": dict(
+                        mag = 'obs_ps_z',
+                        mag_err = 'err_ps_z',
                     ),
                 }
             )

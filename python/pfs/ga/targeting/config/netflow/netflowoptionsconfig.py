@@ -141,7 +141,7 @@ class NetflowOptionsConfig(Config):
             ),
         }
             
-        for i in range(10):
+        for i in range(13):
             target_classes[f'sci_P{i}'] = TargetClassConfig(
                 prefix = 'sci',
                 min_targets = None,
@@ -150,6 +150,7 @@ class NetflowOptionsConfig(Config):
                 partial_observation_cost = 1e5,
             )
 
+        """  #This was the state of the non_observation_costs on 2025 Mar 7
         target_classes[f'sci_P0'].non_observation_cost = 1000
         target_classes[f'sci_P1'].non_observation_cost = 500
         target_classes[f'sci_P2'].non_observation_cost = 200
@@ -159,6 +160,21 @@ class NetflowOptionsConfig(Config):
         target_classes[f'sci_P6'].non_observation_cost = 100
         target_classes[f'sci_P7'].non_observation_cost = 50
         target_classes[f'sci_P8'].non_observation_cost = 10
+        target_classes[f'sci_P9'].non_observation_cost = 0
+        """
+
+        target_classes[f'sci_P0'].non_observation_cost = 1000
+        target_classes[f'sci_P1'].non_observation_cost = 658
+        target_classes[f'sci_P2'].non_observation_cost = 433
+        target_classes[f'sci_P3'].non_observation_cost = 285
+        target_classes[f'sci_P4'].non_observation_cost = 187
+        target_classes[f'sci_P5'].non_observation_cost = 123
+        target_classes[f'sci_P6'].non_observation_cost = 81
+        target_classes[f'sci_P7'].non_observation_cost = 53
+        target_classes[f'sci_P8'].non_observation_cost = 35
+        target_classes[f'sci_P10'].non_observation_cost = 23   #ancillary
+        target_classes[f'sci_P11'].non_observation_cost = 15   #ancillary
+        target_classes[f'sci_P12'].non_observation_cost = 10   #ancillary
         target_classes[f'sci_P9'].non_observation_cost = 0
 
         return target_classes
