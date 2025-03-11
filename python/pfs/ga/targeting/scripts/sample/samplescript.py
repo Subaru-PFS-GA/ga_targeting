@@ -124,14 +124,14 @@ class SampleScript(Script):
         # Apply the selection and assing probabilites
         selection, mask = self.__assign_probabilities(hsc, pmap, probcut)
 
-        self.__assign_priorities(hsc)
+        self.__assign_priorities(hsc, isogrid=iso)
         self.__save_target_list(hsc)
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
-            for notebook in ['selections']:
+            for notebook in ['sample']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
-                notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/priority/notebooks/{notebook}.ipynb')
+                notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/sample/notebooks/{notebook}.ipynb')
                 parameters = {
                     'DEBUG': False,
                     'CONFIG_FILE': self.__get_output_config_path(),
@@ -151,13 +151,21 @@ class SampleScript(Script):
         return pmap
 
     def __load_isochrones(self):
+        fn = os.path.expandvars(os.path.join(self._config.isochrones_path, 'isochrones.h5'))
         iso = IsoGrid()
-        iso.load(os.path.expandvars(os.path.join(self._config.isochrones_path, 'isochrones.h5')))
+        iso.load(fn)
+
+        logger.info(f'Loaded isochrones from `{fn}`.')
+
+        return iso
 
     def __query_gaia(self):
         logger.info('Querying Gaia DR3...')
         reader = GaiaReader()
         gaia = reader.cone_search((self._field.pos.ra, self._field.pos.dec), self._field.rad)
+
+        logger.info(f'Found {gaia.shape[0]} stars in the GAIA database.')
+
         return gaia
 
     def __get_gaia_file_path(self):
@@ -194,37 +202,37 @@ class SampleScript(Script):
         Merge the proper motions from GAIA and HSC
         """
 
-        logger.info('Merging proper motions from GAIA and HSC...')
+        logger.info('Merging proper motions from GAIA into HSC...')
         columns = ['parallax', 'pm', 'pmdec', 'pmra', 'err_parallax', 'err_pmdec', 'err_pmra']
         hsc.merge(gaia, hsc_gaia_idx, columns=columns, mask=hsc_gaia_mask)
 
-    def __assign_probabilities(self, hsc, pmap, probcut):
+    def __assign_probabilities(self, obs, pmap, probcut):
         """
         Assign probabilities to the targets based on the probability map
         """
 
         logger.info('Applying selection...')
-        selection = self._field.get_selection_mask(hsc, nb=self._config.cut_nb, probcut=probcut)
-        logger.info(f'HSC target count: {hsc.data.shape}, selected target count: {selection.sum()}.')
+        selection = self._field.get_selection_mask(obs, nb=self._config.cut_nb, probcut=probcut)
+        logger.info(f'HSC target count: {obs.data.shape}, selected target count: {selection.sum()}.')
 
         logger.info('Assigning probabilities...')
-        self._field.assign_probabilities(hsc, pmap, mask=selection)
-        logger.info(f"HSC targets with assigned probabilities: {(~np.isnan(hsc.data['p_member'])).sum()}.")
+        self._field.assign_probabilities(obs, pmap, mask=selection)
+        logger.info(f"HSC targets with assigned probabilities: {(~np.isnan(obs.data['p_member'])).sum()}.")
 
-        mask = selection & ~np.isnan(hsc.data['p_member'])
+        mask = selection & ~np.isnan(obs.data['p_member'])
 
         return selection, mask
 
-    def __assign_priorities(self, hsc, mask=None):
+    def __assign_priorities(self, obs, mask=None, isogrid=None):
         """
         Assign priorities to the targets based on the probabilities
         """
 
         logger.info('Assigning priorities...')
-        self._field.assign_priorities(hsc, mask=mask)
-        logger.info(f"HSC targets with assigned priorities: {(0 <= hsc.data['priority']).sum()}.")
-        logger.info(f"Unique priority classes: {np.sort(hsc.data['priority'].unique())}.")
-        logger.info(f"Unique exposure times: {np.sort(hsc.data['exp_time'].unique())}.")
+        self._field.assign_priorities(obs, mask=mask, isogrid=isogrid)
+        logger.info(f"HSC targets with assigned priorities: {(0 <= obs.data['priority']).sum()}.")
+        logger.info(f"Unique priority classes: {np.sort(obs.data['priority'].unique())}.")
+        logger.info(f"Unique exposure times: {np.sort(obs.data['exp_time'].unique())}.")
 
     def __get_target_list_path(self):
         return os.path.expandvars(os.path.join(self.__outdir, f'hsc_{self._field.ID}_priorities.feather'))

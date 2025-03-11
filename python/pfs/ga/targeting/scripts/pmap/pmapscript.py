@@ -23,6 +23,7 @@ class PMapScript(Script):
         super().__init__()
 
         self._field = None
+        self._use_p_stars = False
         self._config = None
 
         self.__outdir = None
@@ -170,6 +171,7 @@ class PMapScript(Script):
             merge_list = self._config.merge_list,
             population_weights = w1,
             observed = True,
+            use_p_stars = self._config.use_p_stars,
             mask = mask)
         pmap.maximum_filter()
 

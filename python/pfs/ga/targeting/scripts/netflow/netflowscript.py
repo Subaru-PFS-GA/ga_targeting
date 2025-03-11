@@ -218,6 +218,10 @@ class NetflowScript(TargetingScript):
         self.__append_source_target_lists(netflow, target_lists)
         self.__validate_targets(netflow)
 
+        # Because the target lists have changed (__key and __target_idx added)
+        # we save them again at this point
+        self.__save_preprocessed_target_lists(target_lists)
+
         # Run the netflow optimization                
         self.__run_netflow(netflow)
 
@@ -273,7 +277,7 @@ class NetflowScript(TargetingScript):
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
-            for notebook in ['targets', 'calibration', 'assignments', 'cobra_groups', 'design']:
+            for notebook in ['assignments', 'targets', 'calibration', 'cobra_groups', 'design']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
                 notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb')
                 parameters = {
@@ -312,6 +316,11 @@ class NetflowScript(TargetingScript):
                     self.__save_preprocessed_target_list(k, target_lists[k], path)
 
         return target_lists
+
+    def __save_preprocessed_target_lists(self, target_lists):
+        for k, target_list_config in self._config.targets.items():
+            path = self.__get_preprocessed_target_list_path(k)
+            self.__save_preprocessed_target_list(k, target_lists[k], path)
 
     @staticmethod
     def load_target_list(key, target_list_config, fn=None):
@@ -695,15 +704,15 @@ class NetflowScript(TargetingScript):
         return target_list
     
     def __run_netflow(self, netflow):
-        logger.info('Building netflow model.')
+        logger.info('Building the netflow model.')
         netflow.build(resume=self.__resume, save=True)
 
-        logger.info('Solving netflow model.')
+        logger.info('Solving the netflow model.')
         netflow.solve()
 
         # TODO: report netflow results or turn on logging
 
-        logger.info('Saving netflow solution.')
+        logger.info('Saving the netflow solution.')
         netflow.save_solution()
 
     def __unassign_colliding_cobras(self, netflow):
