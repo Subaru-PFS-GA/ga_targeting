@@ -87,11 +87,6 @@ PFS_TARGETING_TEMP="$PFS_TARGETING_TEMP"
 PYTHONPATH="$PYTHONPATH"
 EOF
 
-echo "Configured environment for PFS development."
-echo "Data directory is $PFS_TARGETING_DATA"
-
-pushd . > /dev/null
-
 # Register command-line scripts
 function ga-pmap() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.pmap.pmapscript" "$@"
@@ -112,3 +107,14 @@ function ga-export() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.export.exportscript" "$@"
 }
 export -f ga-export
+
+# Unset buggy vscode debugger endpoints
+unset DEBUGPY_ADAPTER_ENDPOINTS
+unset VSCODE_DEBUGPY_ADAPTER_ENDPOINTS
+unset BUNDLED_DEBUGPY_PATH
+unset 
+
+echo "Configured environment for PFS development."
+echo "Data directory is $PFS_TARGETING_DATA"
+
+pushd . > /dev/null
