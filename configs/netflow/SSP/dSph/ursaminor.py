@@ -30,6 +30,66 @@ config = dict(
                 min_targets = 40,
                 max_targets = 240,
             ),
+            # Very likely members on the RGB + DEIMOS stars
+            "sci_P0": {
+                "prefix": "sci",
+                "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            # Bright p_member > 0.7
+            "sci_P1": {
+                "prefix": "sci",
+                "non_observation_cost": 775,
+                "partial_observation_cost": 100000.0
+            },
+            # Bright p_member > 0.0
+            "sci_P2": {
+                "prefix": "sci",
+                "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0
+            },
+            # BHB + AGB + ToRGB
+            "sci_P3": {
+                "prefix": "sci",
+                "non_observation_cost": 465,
+                "partial_observation_cost": 100000.0
+            },
+            # Blue Stragglers
+            "sci_P4": {
+                "prefix": "sci",
+                "non_observation_cost": 360,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 0
+            "sci_P5": {
+                "prefix": "sci",
+                "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 1
+            "sci_P6": {
+                "prefix": "sci",
+                "non_observation_cost": 775,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 2
+            "sci_P7": {
+                "prefix": "sci",
+                "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0
+            },
+            # Faint dSph members
+            "sci_P8": {
+                "prefix": "sci",
+                "non_observation_cost": 130,
+                "partial_observation_cost": 100000.0
+            },
+            # Fillers
+            "sci_P9": {
+                "prefix": "sci",
+                "non_observation_cost": 10,
+                "partial_observation_cost": 100000.0
+            }
         },
         cobra_groups = {
             'cal_location': dict(
@@ -40,7 +100,7 @@ config = dict(
     targets = {
         "hsc": dict(
             # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/priority/ursaminor_nb_anc/hsc_umi_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/ursaminor_nb_3/hsc_umi_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -66,33 +126,43 @@ config = dict(
             )
         ),
         "anc": dict(
-            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi.anc.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi.anc-short_exposures.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
+            value_map = {
+                'priority': {
+                    0: 5,
+                    1: 6,
+                    2: 7
+                }
+            },
             prefix = "sci",
             frame='icrs',
             catid = 10088,
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
-                    "g_ps": dict(
+                    "g_ps1": dict(
                         mag = 'obs_ps_g',
                         mag_err = 'err_ps_g',
                     ),
-                    "r_ps": dict(
+                    "r_ps1": dict(
                         mag = 'obs_ps_r',
                         mag_err = 'err_ps_r',
                     ),
-                    "i_ps": dict(
+                    "i_ps1": dict(
                         mag = 'obs_ps_i',
                         mag_err = 'err_ps_i',
                     ),
-                    "z_ps": dict(
+                    "z_ps1": dict(
                         mag = 'obs_ps_z',
                         mag_err = 'err_ps_z',
                     ),
+                },
+                limits = {
+                    'ps1_g': [16, 23],
+                    'ps1_i': [16, 23],
                 }
             )
         ),

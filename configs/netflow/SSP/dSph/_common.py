@@ -77,9 +77,10 @@ config = dict(
         degenmoves = 0,
         heuristics = 0.5,
         mipfocus = 1,           
-        mipgap = 0.01,
+        mipgap = 0.0,
+        mipgapabs = 100,
         LogToConsole = 1,
-        timelimit = 300 # sec
+        timelimit = 600 # sec
     ),
     debug_options = dict(
         ignore_endpoint_collisions = False,
