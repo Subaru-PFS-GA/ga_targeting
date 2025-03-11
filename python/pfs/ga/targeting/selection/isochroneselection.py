@@ -69,7 +69,7 @@ class IsochroneSelection(Selection):
 
         ip = interp1d(iso_y, iso_x, bounds_error=False, fill_value=fill_value)
 
-        mask = mask if mask is not None else np.full_like(cat_x, True, dtype=bool)
+        mask = mask.copy() if mask is not None else np.full_like(cat_x, True, dtype=bool)
         if selection_direction == '+':
             mask &= (cat_x >= ip(cat_y))
         elif selection_direction == '-':

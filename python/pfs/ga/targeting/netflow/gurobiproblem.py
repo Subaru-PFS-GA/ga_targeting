@@ -35,6 +35,12 @@ class GurobiProblem(ILPProblem):
     def __create_model(self):
         model = gbp.Model(self.name)
         model.ModelSense = 1  # Minimize
+        self.__cost = gbp.LinExpr()
+        self.__sum = gbp.quicksum
+        self.__model = model
+        self.__apply_options()
+
+    def __apply_options(self):
         if self.solver_options is not None:
             if isinstance(self.solver_options, dict):
                 solver_options = self.solver_options
@@ -43,11 +49,7 @@ class GurobiProblem(ILPProblem):
                 
             for key, value in solver_options.items():
                 if value is not None:
-                    model.setParam(key, value)
-
-        self.__cost = gbp.LinExpr()
-        self.__sum = gbp.quicksum
-        self.__model = model
+                    self.__model.setParam(key, value)
 
     def add_variable(self, name, lo, hi):       
         if lo is None:
@@ -114,6 +116,11 @@ class GurobiProblem(ILPProblem):
 
     def solve(self):
         assert self.__model.getObjective().size() > 0, 'Objective function is not set.'
+
+        # TODO: randomize seed?
+
+        # Re-apply options, in case model was loaded from a file
+        self.__apply_options()
 
         self.__model.update()
         self.__model.optimize()

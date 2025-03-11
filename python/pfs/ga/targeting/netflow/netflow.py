@@ -369,9 +369,6 @@ class Netflow():
         else:
             raise FileNotFoundError(f"Problem file `{fn}` not found.")
 
-        self.__restore_variables()
-        self.__restore_constraints()
-
     def __restore_variables(self):
 
         logger.info("Restoring variables...")
@@ -2444,6 +2441,12 @@ class Netflow():
 
     def solve(self):
         if self.__problem.solve():
+            # If the processing is resumed and the variables are empty we
+            # need to restore them
+            if self.__variables is None or self.__constraints is None:
+                self.__restore_variables()
+                self.__restore_constraints()
+
             # Verify the solution
             self.__extract_assignments()
         else:

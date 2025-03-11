@@ -30,7 +30,18 @@ class ProbabilityMap(HistogramND):
     
     population_weights = property(__get_population_weights)
 
-    def from_simulation(self, sim: Simulation, population_weights=None, merge_list=None, observed=None, mask=None, extents=None, bins=None, bin_sizes=None, digits=None):
+    def from_simulation(self,
+                        sim: Simulation,
+                        population_weights=None,
+                        merge_list=None,
+                        observed=None,
+                        use_p_stars=False,
+                        mask=None,
+                        extents=None,
+                        bins=None,
+                        bin_sizes=None,
+                        digits=None):
+        
         """
         Calculate the probability map for each population
         """
@@ -39,9 +50,17 @@ class ProbabilityMap(HistogramND):
 
         x = sim.get_diagram_values(self.__axes, observed=observed)
         x = np.stack([i[0] for i in x], axis=-1)
+
+        # Use the probability value for each star. When stellar parameters are
+        # sampled from a uniform distribution, use these for weighting the pmap
+        if use_p_stars:
+            weights = np.exp(sim.data['lp_stars'])
+        else:
+            weights = None
        
         # Generate the histograms
-        super().create(x, mask=mask, extents=extents, bins=bins, bin_sizes=bin_sizes, digits=digits)
+        super().create(x, weights=weights,
+                       mask=mask, extents=extents, bins=bins, bin_sizes=bin_sizes, digits=digits)
         
         # Get weights from argument or simulation
         if population_weights is not None:

@@ -8,7 +8,8 @@ class PMapConfig(Config):
                  bins = [100, 100],
                  population_names = None,
                  population_weights = None,
-                 merge_list = None):
+                 merge_list = None,
+                 use_p_stars = False):
         
         # Use the NB515 filter to define the color cuts
         self.cut_nb = cut_nb
@@ -33,6 +34,9 @@ class PMapConfig(Config):
 
         # Population merge list
         self.merge_list = merge_list
+
+        # Use p_stars to weight the histogram
+        self.use_p_stars = use_p_stars
 
         # Simulation path where sample.h5 and sim.h5 are located
         self.sim_path = None

@@ -80,12 +80,12 @@ class Catalog(DiagramValueProvider):
     def append_photometry(self, photometry):
         self.__photometry[photometry.name] = photometry
 
-    def get_magnitude(self, magnitude: Magnitude, observed=False, mask=None):
+    def get_magnitude(self, magnitude: Magnitude, observed=False, dered=None, mask=None):
         raise NotImplementedError()
 
-    def get_color(self, color: Color, observed=False, mask=None):
-        m1, s_m1 = self.get_magnitude(color.magnitudes[0], observed=observed, mask=mask)
-        m2, s_m2 = self.get_magnitude(color.magnitudes[1], observed=observed, mask=mask)
+    def get_color(self, color: Color, observed=False, dered=None, mask=None):
+        m1, s_m1 = self.get_magnitude(color.magnitudes[0], observed=observed, dered=dered, mask=mask)
+        m2, s_m2 = self.get_magnitude(color.magnitudes[1], observed=observed, dered=dered, mask=mask)
 
         # TODO: correlated error?
         if s_m1 is not None and s_m2 is not None:
@@ -154,13 +154,17 @@ class Catalog(DiagramValueProvider):
         # Create a target frame here, with an optional equinox, because `transform_to` doesn't allow for
         # specifying the equinox for FK5 etc.
         if target_equinox is None:
+            logger.info(f'Target frame is {target_frame}.')
             target_frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=target_frame).frame
         else:
+            logger.info(f'Target frame is {target_frame}, target equinox is {target_equinox}.')
             target_frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=target_frame, equinox=Time(target_equinox, format='decimalyear')).frame
 
         if 'pmra' in self.data and 'pmdec' in self.data:
+            logger.info(f'Transforming coordinates and proper motions.')
             self.__transform_coords_pm(target_frame=target_frame, target_epoch=target_epoch)
         else:
+            logger.info(f'Transforming coordinates only, without proper motion.')
             self.__transform_coords(target_frame=target_frame)
 
     def __transform_coords(self, target_frame='icrs'):
@@ -189,6 +193,9 @@ class Catalog(DiagramValueProvider):
         # Astropy only takes a single epoch when applying proper motions, so find all unique epochs
         # and apply proper motion in batches
         unique_epochs = self.data['epoch'].unique()
+
+        logger.info(f'{unique_epochs.size} unique epochs found in the catalog.')
+
         for epoch in unique_epochs:
             # Filter down the dataset to this epoch only
             mask = (self.data['epoch'] == epoch)
@@ -236,9 +243,11 @@ class Catalog(DiagramValueProvider):
                 equinox = self.equinox)
 
             # Propagate coordinates to the default epoch
+            logger.info(f'Propagating coordinates from epoch {epoch} to target epoch {target_epoch}.')
             target_coords = source_coords.apply_space_motion(Time(target_epoch, format='decimalyear'))
 
             # Convert coordinates to the default target frame
+            logger.info(f'Transforming coordinates to target frame.')
             target_coords = target_coords.transform_to(frame=target_frame)
 
             self.data.loc[mask, 'RA'] = target_coords.ra.degree

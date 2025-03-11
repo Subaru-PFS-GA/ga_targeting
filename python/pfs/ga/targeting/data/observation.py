@@ -87,6 +87,7 @@ class Observation(Catalog):
         """
 
         data = self.get_data(mask=mask, filter=filter, selection=selection)
+        data.reset_index(inplace=True)
         return type(self)(data=data, orig=self)
 
     def apply_magnitude_limits(self, limits):

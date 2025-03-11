@@ -53,7 +53,7 @@ class Galaxy(Target):
         [ (g0, _), (i0, _), (gi0, _) ] = catalog.get_diagram_values([
                     hsc.magnitudes['g'],
                     hsc.magnitudes['i'],
-                    Color([hsc.magnitudes['g'], hsc.magnitudes['i']])
+                    Color([hsc.magnitudes['g'], hsc.magnitudes['i']]),
                 ], observed=True, mask=mask)
         
         return g0, i0, gi0

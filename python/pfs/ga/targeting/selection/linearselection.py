@@ -77,7 +77,7 @@ class LinearSelection(Selection):
         x = x.transpose((-2, -1) + tuple(range(x.ndim - 2)))
         lhs = lhs.transpose((-1,) + tuple(range(lhs.ndim - 1)))
 
-        mask = mask if mask is not None else np.full_like(x[0], True, dtype=bool)
+        mask = mask.copy() if mask is not None else np.full_like(x[0], True, dtype=bool)
         
         if self.__b_min is not None:
             mask &= (lhs - self.__b_min >= 0)

@@ -32,6 +32,8 @@ class GurobiOptionsConfig(Config):
         # mipgap to be in the range of the lowest priority science targets.
         self.mipgap = 0.01
 
+        self.mipgapabs = None
+
         # The number of threads to use for the optimization. Set to 0 to determine the
         # thread count automatically.
         self.threads = 0
