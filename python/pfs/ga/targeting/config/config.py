@@ -313,7 +313,7 @@ class Config():
         # TODO: something is wrong here because lambda functions using
         #       numpy wont work, maybe we should pass global() and local()?
 
-        global_variables = {}
+        global_variables = { 'np': np }
         local_variables = {}
         try:
             exec(code, global_variables, local_variables)

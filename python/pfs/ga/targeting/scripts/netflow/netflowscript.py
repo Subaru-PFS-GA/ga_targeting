@@ -1,6 +1,7 @@
 import os
 import commentjson as json
 from datetime import datetime, timedelta, tzinfo
+import numpy as np
 import pandas as pd
 from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
@@ -466,7 +467,14 @@ class NetflowScript(TargetingScript):
                     set_extra_column_pattern(c, config.dtype, None, config.pattern)
 
         # If constants are defined for these columns in the config, assign them
-        set_extra_column_constant('epoch', 'string', 'J2016.0', self._config.targets[key].epoch)
+        epoch = normalize_epoch(self._config.targets[key].epoch)
+        if epoch is not None:
+            epoch = epoch.jyear
+            target_list.epoch = epoch
+            set_extra_column_constant('epoch', 'string', 'J2016.0', f'J{epoch:0.2f}')
+        else:
+            set_extra_column_constant('epoch', 'string', 'J2016.0', None)
+           
         set_extra_column_constant('catid', pd.Int32Dtype(), -1, self._config.targets[key].catid)
         set_extra_column_constant('priority', pd.Int32Dtype(), None, self._config.targets[key].priority)
         set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self._config.targets[key].exp_time)
@@ -577,10 +585,9 @@ class NetflowScript(TargetingScript):
 
         # TODO: move this to the Catalog object from here?
 
-        target_epoch = self._config.netflow_options.epoch
-        target_epoch = normalize_epoch(target_epoch)
+        target_epoch = normalize_epoch(self._config.netflow_options.epoch)
         
-        logger.info(f'Converting target list `{target_list.name}` to ICRS and epoch J{target_epoch:0.2f}.')
+        logger.info(f'Making sure target list `{target_list.name}` is in ICRS and at epoch J{target_epoch.jyear:0.2f}.')
         target_list.transform_coords(target_frame='icrs', target_epoch=target_epoch)
 
     def __append_source_target_lists(self, netflow, target_lists):

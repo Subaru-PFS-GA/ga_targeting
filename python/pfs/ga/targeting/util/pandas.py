@@ -10,6 +10,8 @@ def pd_append_column(df, name, data, dtype=None):
 
     if isinstance(data, str) or not isinstance(data, Iterable):
         df[name] = pd.Series([data] * len(df), index=df.index, dtype=dtype)
+    elif isinstance(data, pd.DataFrame):
+        df[name] = data[data.columns[0]].astype(dtype).values
     elif isinstance(data, pd.Series):
         #df[name] = data.reset_index(drop=True)
         df[name] = data.astype(dtype).values

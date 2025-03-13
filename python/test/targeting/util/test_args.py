@@ -30,12 +30,12 @@ class UtilArgsTest(TestBase):
     def test_normalize_epoch(self):
         self.assertIsNone(normalize_epoch(None))
         self.assertIsNone(normalize_epoch(None, allow_none=True))
-        self.assertRaises(TypeError, normalize_angle, None, allow_none=False)
+        self.assertRaises(TypeError, normalize_epoch, None, allow_none=False)
 
-        self.assertEqual(normalize_epoch('J2000'), 2000.0)
-        self.assertEqual(normalize_epoch('j2015.15'), 2015.15)
-        self.assertEqual(normalize_epoch(2015.0), 2015.0)
-        self.assertEqual(normalize_epoch(2015), 2015.0)
+        self.assertEqual(2000.0, normalize_epoch('J2000').jyear)
+        self.assertEqual(2015.15, normalize_epoch('j2015.15').jyear)
+        self.assertEqual(2015.0, normalize_epoch(2015.0).jyear)
+        self.assertEqual(2015.0, normalize_epoch(2015).jyear)
 
     def test_normalize_pos(self):
         self.assertIsNone(normalize_pos(None))
@@ -130,6 +130,57 @@ class UtilArgsTest(TestBase):
         self.assertEqual(Quantity(60 * u.s), normalize_exp_time(Quantity(1 * u.min)))
         
         self.assertRaises(UnitConversionError, normalize_exp_time, Quantity(1 * u.km))
+
+    def test_normalize_equinox(self):
+        eq = normalize_equinox(None)
+        self.assertIsNone(eq)
+
+        eq = normalize_equinox(None, allow_none=True)
+        self.assertIsNone(eq)
+
+        self.assertRaises(TypeError, lambda: normalize_equinox(None, allow_none=False))
+
+        eq = normalize_equinox('J2000.0')
+        self.assertEqual(2000.0, eq.jyear)
+
+        eq = normalize_equinox('2000.0')
+        self.assertEqual(2000.0, eq.jyear)
+
+        eq = normalize_equinox(2000.0)
+        self.assertEqual(2000.0, eq.jyear)
+
+        eq = normalize_equinox(Time(2000, format='jyear'))
+        self.assertEqual(2000.0, eq.jyear)
+
+    def test_normalize_frame(self):
+        frame = SkyCoord(0 * u.deg, 0 * u.deg)
+        f = normalize_frame(frame)
+        self.assertIsInstance(f, BaseRADecFrame)
+        self.assertEqual('icrs', f.name.lower())
+        self.assertRaises(AttributeError, lambda: f.equinox)
+
+        frame = SkyCoord(0 * u.deg, 0 * u.deg, frame='fk5')
+        f = normalize_frame(frame)
+        self.assertIsInstance(f, BaseRADecFrame)
+        self.assertEqual('fk5', f.name.lower())
+        self.assertEqual(2000.0, f.equinox.jyear)
+
+        frame = SkyCoord(0 * u.deg, 0 * u.deg, frame='fk5')
+        f = normalize_frame(frame, equinox=2015.0)
+        self.assertIsInstance(f, BaseRADecFrame)
+        self.assertEqual('fk5', f.name.lower())
+        self.assertEqual(2015.0, f.equinox.jyear)
+        
+        f = normalize_frame(f)
+        self.assertIsInstance(f, BaseRADecFrame)
+        self.assertEqual('fk5', f.name.lower())
+        self.assertEqual(2015.0, f.equinox.jyear)
+
+        frame, equinox = 'fk5', 2000.0
+        f = normalize_frame(frame, equinox=equinox)
+        self.assertIsInstance(f, BaseRADecFrame)
+        self.assertEqual('fk5', f.name.lower())
+        self.assertEqual(2000.0, f.equinox.jyear)
 
     def test_normalize_skycoord(self):
         pos, pm_err, RV_err, obs_time = normalize_skycoord(12, 14, pm=[2, 2], pm_err=[0.2, 0.2], RV=125, RV_err=3)

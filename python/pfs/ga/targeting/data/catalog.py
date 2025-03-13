@@ -101,13 +101,13 @@ class Catalog(DiagramValueProvider):
         id = np.array(self.data[id or 'objid'])[mask]
         return id
     
-    def has_coords(self, ra=None, dec=None):
-        ra = ra if ra is not None else 'RA'
-        dec = dec if dec is not None else 'Dec'
+    def has_coords(self, ra_column=None, dec_column=None):
+        ra_column = ra_column if ra_column is not None else 'RA'
+        dec_column = dec_column if dec_column is not None else 'Dec'
 
-        return ra in self.data and dec in self.data
+        return ra_column in self.data and dec_column in self.data
 
-    def get_coords(self, ra_column=None, dec=None, mask=None, ctype=None):
+    def get_coords(self, ra_column=None, dec_column=None, mask=None, ctype=None):
         """
         Returns the coordinates in any of the well-known array formats from the catalog.
         If `ra_column` or `dec_column` are specified, it assumes that those columns contain
@@ -115,20 +115,20 @@ class Catalog(DiagramValueProvider):
         """
 
         ra_column = ra_column if ra_column is not None else 'RA'
-        dec = dec if dec is not None else 'Dec'
+        dec_column = dec_column if dec_column is not None else 'Dec'
         
         mask = np.s_[()] if mask is None else mask
 
-        ra_column = np.array(self.data[ra_column])[mask]
-        dec = np.array(self.data[dec])[mask]
+        ra = np.array(self.data[ra_column])[mask]
+        dec = np.array(self.data[dec_column])[mask]
 
         if ctype is not None:
-            _, coords = normalize_coords(ra_column, dec)
+            _, coords = normalize_coords(ra, dec)
             return denormalize_coords(ctype, coords)
         else:
-            return ra_column, dec
+            return ra, dec
 
-    def get_skycoords(self, mask=None, frame=None, equinox=None, **kwargs):
+    def get_skycoords(self, mask=None, frame=None, equinox=None, include_pm=False, **kwargs):
         """
         Returns the coordinates as astropy SkyCoords. The coordinate frame and equinox are
         taken from the catalog by default but can be overriden by the function parameters.
@@ -136,82 +136,21 @@ class Catalog(DiagramValueProvider):
 
         # TODO: what if we have coordinate errors?
 
-        # TODO: include parallax, etc, if available
-
-        frame = frame or self.__frame
-        equinox = equinox or self.__equinox
-
+        mask = np.s_[:] if mask is None else mask
+        frame = normalize_frame(frame or self.__frame, equinox or self.__equinox)
         ra, dec = self.get_coords(mask=mask)
-        coords = SkyCoord(ra, dec, unit=u.degree, frame=frame, equinox=equinox, **kwargs)
-        return coords
 
-    def transform_coords(self, target_frame='icrs', target_equinox=None, target_epoch=None):
-        """
-        Converts the coordinates of the catalog to the specified frame. The input frame
-        is taken from the catalog.
-        """
-
-        # Create a target frame here, with an optional equinox, because `transform_to` doesn't allow for
-        # specifying the equinox for FK5 etc.
-        if target_equinox is None:
-            logger.info(f'Target frame is {target_frame}.')
-            target_frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=target_frame).frame
+        if not include_pm:
+            coords = SkyCoord(ra, dec, unit=u.degree, frame=frame, **kwargs)
         else:
-            logger.info(f'Target frame is {target_frame}, target equinox is {target_equinox}.')
-            target_frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=target_frame, equinox=Time(target_equinox, format='decimalyear')).frame
-
-        if 'pmra' in self.data and 'pmdec' in self.data:
-            logger.info(f'Transforming coordinates and proper motions.')
-            self.__transform_coords_pm(target_frame=target_frame, target_epoch=target_epoch)
-        else:
-            logger.info(f'Transforming coordinates only, without proper motion.')
-            self.__transform_coords(target_frame=target_frame)
-
-    def __transform_coords(self, target_frame='icrs'):
-        ra = np.array(self.data['RA'])
-        dec = np.array(self.data['Dec'])
-
-        # Coordinates in the source catalog
-        source_coords = SkyCoord(
-            ra = ra * u.deg,
-            dec = dec * u.deg,
-            frame = self.frame,
-            equinox = self.equinox)
-
-        # Convert coordinates to the default target frame
-        target_coords = source_coords.transform_to(frame=target_frame)
-        
-        self.data['RA'] = target_coords.ra.degree
-        self.data['Dec'] = target_coords.dec.degree
-
-    def __transform_coords_pm(self, target_frame='icrs', target_epoch=None):
-        """
-        Transform the coordinates into a new frame and propagate them to a new epoch if
-        proper motions are available.
-        """
-
-        # Astropy only takes a single epoch when applying proper motions, so find all unique epochs
-        # and apply proper motion in batches
-        unique_epochs = self.data['epoch'].unique()
-
-        logger.info(f'{unique_epochs.size} unique epochs found in the catalog.')
-
-        for epoch in unique_epochs:
-            # Filter down the dataset to this epoch only
-            mask = (self.data['epoch'] == epoch)
-            epoch = normalize_epoch(epoch)
-
-            # Skip coordinate conversion when frame and epoch are the same
-            # if (epoch == target_epoch
-            #     and catalog.frame.lower() == target_frame.lower()
-            #     and catalog.equinox == target_equinox):
-
-            #     continue
-
-            ra = np.array(self.data['RA'][mask])
-            dec = np.array(self.data['Dec'][mask])
             pmra = np.array(self.data['pmra'][mask])
             pmdec = np.array(self.data['pmdec'][mask])
+
+            # If the epoch is specified on class level, it overrides the data
+            if self.__epoch is not None:
+                epoch = np.full_like(ra, normalize_epoch(self.__epoch).jyear)
+            else:
+                epoch = np.array(self.data['epoch'][mask].apply(normalize_epoch).apply(lambda e: e.jyear))
 
             if 'parallax' in self.data:
                 parallax = np.array(self.data['parallax'][mask])
@@ -224,42 +163,106 @@ class Catalog(DiagramValueProvider):
             else:
                 rv = np.zeros_like(ra)
 
-            # Sanitize the peculiar motion components
+            # Sanitize the parallax, apply_space_motion requires a non-zero distance
             parallax[np.isnan(parallax) | (parallax < 1e-7)] = 1e-7
+
+            # Sanitize the peculiar motion components
             pmra[np.isnan(pmra)] = 0.0
             pmdec[np.isnan(pmdec)] = 0.0
             rv[np.isnan(rv)] = 0.0
-
-            # Coordinates in the source catalog
-            source_coords = SkyCoord(
+            
+            coords = SkyCoord(
                 ra = ra * u.deg,
                 dec = dec * u.deg,
                 distance = Distance(parallax=parallax * u.mas, allow_negative=False),
                 pm_ra_cosdec = pmra * u.mas / u.yr,
                 pm_dec = pmdec * u.mas / u.yr,
                 radial_velocity = rv * u.km / u.s,
-                obstime = Time(epoch, format='decimalyear'),
+                obstime = Time(epoch, format='jyear'),
                 frame = self.frame,
                 equinox = self.equinox)
+        
+        return coords
 
-            # Propagate coordinates to the default epoch
-            logger.info(f'Propagating coordinates from epoch {epoch} to target epoch {target_epoch}.')
-            target_coords = source_coords.apply_space_motion(Time(target_epoch, format='decimalyear'))
+    def transform_coords(self, target_frame='icrs', target_equinox=None, target_epoch=None, apply_motion=True, mask=None):
+        """
+        Converts the coordinates of the catalog to the specified frame. The input frame
+        is taken from the catalog.
+        """
+        
+        mask = mask if mask is not None else np.s_[:]
 
-            # Convert coordinates to the default target frame
-            logger.info(f'Transforming coordinates to target frame.')
-            target_coords = target_coords.transform_to(frame=target_frame)
+        # Compare the source and target frames to see if any conversion is necessary
+        source_frame = normalize_frame(self.__frame, self.__equinox)
+        target_frame = normalize_frame(target_frame, equinox=target_equinox)
 
-            self.data.loc[mask, 'RA'] = target_coords.ra.degree
-            self.data.loc[mask, 'Dec'] = target_coords.dec.degree
+        source_equinox = source_frame.equinox.value if hasattr(source_frame, 'equinox') else None
+        target_equinox = target_frame.equinox.value if hasattr(target_frame, 'equinox') else None
+
+        need_frame_conv = (source_frame.name.lower() != target_frame.name.lower() or
+                           source_equinox != target_equinox)
+
+        # Compare the source and target epochs to see if any spatial motion propagation
+        # is necessary. Here we assume, that `self.__epoch` always overrides the epoch values in
+        # the DataFrame, unless None. This is fine, because when `self.__epoch` is None, the values
+        # from the DataFrame must be taken and we can't assume they're all the same
+        source_epoch = normalize_epoch(self.__epoch)
+        target_epoch = normalize_epoch(target_epoch)
+
+        need_space_motion = (apply_motion and target_epoch is not None and 
+                             (source_epoch is None or
+                              source_epoch is not None and source_epoch.jyear != target_epoch.jyear))
+
+        logger.info(f'Catalog: `{self.name}`, frame {source_frame.name} ({source_equinox}), epoch {source_epoch}, '
+                    f'target frame {target_frame.name} ({target_equinox}), epoch {target_epoch}')
+
+        if not need_frame_conv and not need_space_motion:
+            logger.info(f'Source and target frames, coordinate epochs are the same for catalog `{self.name}`, '
+                        f'no coordinate conversion necessary.')
+            return
+
+        # If proper motions are available, include them in the conversions
+        pm_avail = 'pmra' in self.data and 'pmdec' in self.data and 'epoch' in self.data
+        source_coords = self.get_skycoords(mask=mask, include_pm=pm_avail)
+
+        # Check if we can and need to apply spatial motion
+        # If so, this is done in the original coordinate frame of the catalog
+
+        if not pm_avail and apply_motion:
+            logger.warning(f'Proper motion not available in catalog `{self.name}` to apply space motion.')
+        elif target_epoch is None and apply_motion:
+            logger.warning(f'Target epoch for catalog `{self.name}` is not defined. Cannot apply space motion.')
+        elif pm_avail and need_space_motion:
+            logger.info(f'Applying space motion for catalog `{self.name}` to epoch J{target_epoch.jyear:0.2f}.')
+
+            # Here we silently assume that the epoch is always given in Julian years as opposed to
+            # decimal Gregorian years. GAIA uses Julian years for the coordinate epochs
+            source_coords = source_coords.apply_space_motion(target_epoch)
+            self.__epoch = target_epoch.jyear
+
+        if not need_frame_conv:
+            logger.info(f'Source and target frames for catalog `{self.name}` are the same. No conversion necessary. '
+                        f'Keeping {target_frame.name} with equinox {target_equinox}')
+            target_coords = source_coords
+        else:
+            logger.info(f'Source and target frames for catalog `{self.name}` are not the same. '
+                        f'Converting from {source_frame.name} with equinox {source_equinox} '
+                        f'to {target_frame.name} with equinox {target_equinox}.')
+
+            target_coords = source_coords.transform_to(frame=target_frame)
+
+        # Save the new coordinates to the DataFrame
+        self.data.loc[mask, 'RA'] = target_coords.ra.degree
+        self.data.loc[mask, 'Dec'] = target_coords.dec.degree
+
+        if pm_avail:
             self.data.loc[mask, 'parallax'] = target_coords.distance.parallax.mas
             self.data.loc[mask, 'pmra'] = target_coords.pm_ra_cosdec.value
             self.data.loc[mask, 'pmdec'] = target_coords.pm_dec.value
             self.data.loc[mask, 'rv'] = target_coords.radial_velocity.value
-            if self.data['epoch'].dtype == 'string' or self.data['epoch'].dtype == str:
-                self.data.loc[mask, 'epoch'] = f'J{target_epoch}'
-            else:
-                self.data.loc[mask, 'epoch'] = target_epoch
+
+            if target_epoch is not None and 'epoch' in self.data:
+                self.data.loc[mask, 'epoch'] = target_epoch.jyear
     
     def cone_search(self, pos, rad):
         pos = normalize_pos(pos)

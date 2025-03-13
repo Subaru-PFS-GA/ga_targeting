@@ -5,7 +5,7 @@ import numpy as np
 from astropy import units as u
 from astropy.units import Quantity
 from astropy.time import Time
-from astropy.coordinates import Angle, SkyCoord, Distance
+from astropy.coordinates import Angle, SkyCoord, Distance, BaseRADecFrame
 
 def __unwrap_iterable(v):
     if v is None:
@@ -89,13 +89,15 @@ def normalize_epoch(epoch, allow_none=True):
         return None
     elif epoch is None:
         raise TypeError('Argument `epoch` cannot be None.')
+    elif isinstance(epoch, Time):
+        pass
     elif isinstance(epoch, str):
         if epoch.upper().startswith('J'):
-            epoch = float(epoch[1:])
+            epoch = Time(float(epoch[1:]), format='jyear')
         else:
-            epoch = float(epoch)
+            epoch = Time(float(epoch), format='jyear')
     elif isinstance(epoch, Number):
-        pass
+        epoch = Time(epoch, format='jyear')
     else:
         raise NotImplementedError()
 
@@ -208,6 +210,57 @@ def normalize_parallax(parallax, parallax_err=None, allow_none=True):
 def normalize_exp_time(exp_time, allow_none=True):
     exp_time, _ = __normalize_scalar_quantity('exp_time', exp_time, None, u.s, allow_none=allow_none)
     return exp_time
+
+def normalize_equinox(equinox, allow_none=True):
+    if allow_none and equinox is None:
+        return None
+    elif equinox is None:
+        raise TypeError(f'Argument {equinox}` cannot be None.')
+    elif isinstance(equinox, Time):
+        pass
+    elif isinstance(equinox, str):
+        if equinox.lower().startswith('j'):
+            equinox = Time(equinox, format='jyear_str')
+        else:
+            equinox = Time(float(equinox), format='jyear')
+    else:
+        equinox = Time(equinox, format='jyear')
+
+    return equinox
+
+def normalize_frame(frame, equinox=None):
+    """
+    Normalize a frame definition.
+
+    Parameters
+    ----------
+    frame : string or SkyCoord or Frame
+        String abbreviation of the frame or a SkyCoord defined in the frame.
+    equinox : Time or float
+        Equinox of the frame, if applicable. Will be ignored if `frame` is SkyCoord.
+    """
+
+    equinox = normalize_equinox(equinox, allow_none=True)
+
+    # Create a target frame through the SkyCoord initializer, with an optional equinox, because
+    # `transform_to` doesn't allow for specifying the equinox for FK5 etc.
+
+    if isinstance(frame, SkyCoord):
+        if equinox is None:
+            # Just return the frame information from the SkyCoord isntance
+            frame = frame.frame
+        else:
+            # Create a new frame with the specified equinox
+            frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=type(frame.frame), equinox=equinox).frame
+    elif isinstance(frame, BaseRADecFrame):
+        if equinox is None:
+            pass
+        else:
+            frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=type(frame), equinox=equinox).frame
+    else:
+        frame = SkyCoord(0 * u.deg, 0 * u.deg, frame=frame, equinox=equinox).frame
+        
+    return frame
 
 def normalize_skycoord(*pos, pm=None, pm_err=None, RV=None, RV_err=None, obs_time=None, frame='icrs', equinox=None, scale='utc'):
     # TODO: Add support for arrays
