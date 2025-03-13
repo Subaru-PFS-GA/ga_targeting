@@ -1,14 +1,24 @@
+import numpy as np
 from datetime import datetime, timedelta
-from pfs.ga.targeting.targets.dsph import Fornax
+
 from pfs.ga.targeting.instrument import SubaruHSC
+
+PROPOSALID = 'S25A-OT02'
+CATID_SKY_GAIA = 1006
+CATID_SKY_PS1 = 1007
+CATID_FLUXSTD = 3006
+CATID_SCIENCE_CO = 10091
+CATID_SCIENCE_GA = 10092
+CATID_SCIENCE_GE = 10093
 
 extra_columns = {
     'proposalid': dict(
-        pattern = "SSP_GA_{obs_time:%Y%m%d}_{name}",
+        # pattern = "SSP_GA_{obs_time:%Y%m%d}_{name}",
+        constant = PROPOSALID,
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "SSP_GA_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+        pattern = "PFS_SSP_GA_S25A_{name}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
@@ -60,22 +70,22 @@ config = dict(
                 "non_observation_cost": 360,
                 "partial_observation_cost": 100000.0
             },
-            # Anc 0
+            # Anc 0, Pace, Sestito
             "sci_P5": {
                 "prefix": "sci",
-                "non_observation_cost": 1000,
+                "non_observation_cost": 600,
                 "partial_observation_cost": 100000.0
             },
             # Anc 1
             "sci_P6": {
                 "prefix": "sci",
-                "non_observation_cost": 775,
+                "non_observation_cost": 450,
                 "partial_observation_cost": 100000.0
             },
             # Anc 2
             "sci_P7": {
                 "prefix": "sci",
-                "non_observation_cost": 600,
+                "non_observation_cost": 350,
                 "partial_observation_cost": 100000.0
             },
             # Faint dSph members
@@ -106,7 +116,8 @@ config = dict(
             column_map = {'objid': 'targetid'},
             prefix = "sci",
             frame='icrs',
-            catid = 10088,
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
@@ -138,8 +149,9 @@ config = dict(
                 }
             },
             prefix = "sci",
-            frame='icrs',
-            catid = 10088,
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
@@ -166,6 +178,126 @@ config = dict(
                 }
             )
         ),
+        "pace": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_pace_low.csv",
+            column_map =
+            {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'pmRA': 'pmra',
+                'e_pmRA': 'err_pmra',
+                'pmDE': 'pmdec',
+                'e_pmDE': 'err_pmdec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['Gmag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'Gmag',
+                    ),
+                    "bp_gaia": dict(
+                        mag = 'BPmag',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'RPmag',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),
+        "sestito": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_sestito.csv",
+            column_map =
+            {
+                'name': 'targetid',
+                'ra_epoch2000': 'RA',
+                'dec_epoch2000': 'Dec',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2000.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['phot_g_mean_mag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'phot_g_mean_mag',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'phot_rp_mean_mag',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),
+        "jingkun": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_jingkun.csv",
+            column_map =
+            {
+                'name': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['phot_g_mean_mag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'phot_g_mean_mag',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sky_ursaminor.feather",
             reader_args = dict(),
@@ -175,7 +307,7 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "sky",
-            catid = 1007,
+            catid = CATID_SKY_PS1,
             extra_columns = extra_columns,
         ),
 
@@ -198,7 +330,7 @@ config = dict(
         #     prefix = "cal",
         #     frame = 'icrs',
         #     epoch = 2016.0,
-        #     catid = 3006,
+        #     catid = SCIENCE_GA_CATID,
         #     extra_columns = extra_columns,
         #     photometry = dict(
         #         filters = {
@@ -242,7 +374,7 @@ config = dict(
             prefix = "cal",
             frame = 'icrs',
             epoch = 2016.0,
-            catid = 3006,
+            catid = CATID_FLUXSTD,
             extra_columns = extra_columns,
             photometry = dict(
                 bands = {
