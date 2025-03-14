@@ -99,7 +99,8 @@ class SubaruWFC(Instrument, TelescopeProjection):
 
         sky_pos = CoordinateTransform(xyin=coords.T, mode="pfi_sky",
             za=0.0, inr=0.0,
-            cent=np.array([[self.pointing.ra, self.pointing.dec]]).T,
+            # cent=np.array([[self.pointing.ra, self.pointing.dec]]).T,
+            cent=np.array([self.pointing.ra, self.pointing.dec]),
             pa=self.pointing.posang,
             time=self.pointing.obs_time.to_string())
 
