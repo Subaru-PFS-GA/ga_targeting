@@ -189,8 +189,9 @@ class UrsaMinor(DSphGalaxy):
         # Always impose faint and bright magnitude cuts
         mask &= MagnitudeSelection(cmd.axes[1], bright, faint).apply(catalog, observed=observed)
 
-        # Make sure only point sources are selected
-        mask &= (catalog.data['clg'] < 0.1) & (catalog.data['cli'] < 0.1)
+        # Make sure only point sources are selected (applies to observations only)
+        if 'clg' in catalog.data and 'cli' in catalog.data:
+            mask &= (catalog.data['clg'] < 0.1) & (catalog.data['cli'] < 0.1)
 
         return mask
 
