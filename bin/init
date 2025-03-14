@@ -98,6 +98,11 @@ function ga-sample() {
 }
 export -f ga-sample
 
+function ga-import() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.import.importscript" "$@"
+}
+export -f ga-import
+
 function ga-netflow() {
     `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.netflow.netflowscript" "$@"
 }

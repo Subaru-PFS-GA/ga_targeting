@@ -595,6 +595,7 @@ class Script():
         logger.info(f'Executing notebook `{fn}`.')
 
         nr = NotebookRunner()
+        nr.workdir = os.path.dirname(notebook_path)
         nr.parameters = parameters
         # nr.kernel = kernel
         nr.open_ipynb(notebook_path)

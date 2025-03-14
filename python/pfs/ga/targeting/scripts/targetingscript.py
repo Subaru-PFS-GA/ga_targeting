@@ -1,5 +1,9 @@
+import os
 import pandas as pd
 
+from ..config.netflow import NetflowConfig
+from ..io import ObservationSerializer
+from ..netflow import Netflow
 from ..core import Pointing
 from ..instrument import SubaruPFI
 from ..targets.dsph import GALAXIES as DSPH_FIELDS
@@ -16,6 +20,7 @@ class TargetingScript(Script):
     def __init__(self):
         super().__init__()
 
+        self._outdir = None
         self._nvisits = None
         self._field = None
         self._config = None
@@ -27,6 +32,41 @@ class TargetingScript(Script):
 
     def _add_args(self):
         super()._add_args()
+
+    def _create_field_from_args(self, args):
+        if self.is_arg('dsph', args):
+            self._field = DSPH_FIELDS[self.get_arg('dsph', args)]
+
+        if self.is_arg('m31', args):
+            self._field = M31_FIELDS[self.get_arg('m31', args)]
+
+    def _create_config_from_field(self):
+        # If a field is specified, load its default configuration      
+        if self._field is not None:
+            self._config = self._field.get_netflow_config()
+        else:
+            self._config = NetflowConfig.default()
+
+    def _load_config_files(self, args):
+        # Load the configuration template files and merge with the default config
+        config_files = self.get_arg('config', args)
+        self._config.load(config_files, ignore_collisions=True)
+        logger.info(f'Loaded {len(config_files)} config files from {config_files}.')
+        logger.info(f'Found {len(self._config.targets)} target lists in the configuration.')
+
+    def _get_output_config_path(self):
+        command = self.get_command_name()
+        path = os.path.join(self._outdir, f'{command}_{self.timestamp}.config')
+        return path
+
+    def _dump_settings(self):
+        super()._dump_settings()
+
+        # Save the active configuration to the output directory
+        path = self._get_output_config_path()
+        self._config.save(path)
+
+        logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 
     def _create_instrument(self):
         return SubaruPFI(instrument_options=self._config.instrument_options)
@@ -60,6 +100,55 @@ class TargetingScript(Script):
                 nvisits = nvisits))
             
         return pointings
+
+    @staticmethod
+    def load_target_list(key, target_list_config, fn=None):
+        if target_list_config.reader is not None:
+            # TODO: implement custom reader function
+            raise NotImplementedError()
+        
+        fn = fn if fn is not None else os.path.expandvars(target_list_config.path)
+        
+        logger.info(f'Reading target list from `{fn}`.')
+
+        reader = ObservationSerializer(
+            catalog_name=key,
+            columns = target_list_config.columns,
+            column_map = target_list_config.column_map,
+            data_types = target_list_config.data_types,
+            value_map = target_list_config.value_map,
+            index = target_list_config.index,
+            filters = target_list_config.photometry.filters if target_list_config.photometry is not None else None,
+            bands = target_list_config.photometry.bands if target_list_config.photometry is not None else None,
+            limits = target_list_config.photometry.limits if target_list_config.photometry is not None else None,
+            mask = target_list_config.mask,
+            kwargs = target_list_config.reader_args,
+        )
+        catalog = reader.read(fn)
+        catalog.name = key
+        
+        logger.info(f'Read {catalog.shape[0]} targets from target list.')
+
+        return catalog
+
+    def _validate_targets(self, netflow: Netflow):
+        # TODO: Make sure cobra location/instrument group constraints are satisfiable
+        
+        # TODO: Move these under netflow and run on the cached target list
+        
+        netflow.validate_science_targets()
+        netflow.validate_fluxstd_targets()
+        netflow.validate_sky_targets()
+
+    def _get_preprocessed_target_list_path(self, key):
+        return os.path.join(self._outdir, f'{self._config.field.key}_targets_{key}.feather')
+
+    def _load_preprocessed_target_list(self, key, path):
+        logger.info(f'Loading preprocessed target list `{key}` list from `{path}`.')
+        s = ObservationSerializer()
+        target_list = s.read(path)
+        target_list.name = key
+        return target_list
     
     def _get_design_list_path(self):
         raise NotImplementedError()

@@ -341,10 +341,10 @@ class Netflow():
             filename += ext
         return filename
     
-    def __get_target_filename(self, filename=None):
+    def __get_targets_filename(self, filename=None):
         # TODO: add support for .zip, .gz, .bz2, and .7z
-        fn = self.__get_prefixed_filename(filename, 'netflow_targets.csv')
-        fn = self.__append_extension(fn, '.csv')
+        fn = self.__get_prefixed_filename(filename, 'netflow_targets.feather')
+        fn = self.__append_extension(fn, '.feather')
         return fn
     
     def __get_problem_filename(self, filename=None):
@@ -358,6 +358,22 @@ class Netflow():
         fn = self.__get_prefixed_filename(filename, 'netflow_solution.sol')
         fn = self.__append_extension(fn, '.sol')
         return fn
+
+    def save_targets(self, filename=None):
+        """Save the targets in a file"""
+        
+        fn = self.__get_targets_filename(filename)
+        self.__targets.to_feather(fn)
+
+        logger.debug(f'Saved targets to `{fn}`.')
+
+    def load_targets(self, filename=None):
+        """Load the targets from a file"""
+
+        fn = self.__get_targets_filename(filename)
+        self.__targets = pd.read_feather(fn)
+
+        logger.debug(f'Loaded targets from `{fn}`.')
 
     def load_problem(self, filename=None, options=None):
         """Read the LP problem from a file"""
@@ -1269,17 +1285,21 @@ class Netflow():
 
         pass
 
-    def build(self, resume=False, save=True):
-        """Construct the ILP problem"""
-
-        logger.info("Processing netflow configuration")
-
+    def init(self, resume=False, save=True):
+        """Preprocess the targets"""
+        
+        logger.info("Validating netflow configuration")
         self.__validate_options()
-        self.__check_pointing_visibility()
 
+        logger.info("Preprocessing target list")
         self.__calculate_exp_time()
         self.__calculate_target_visits()
         self.__validate_target_visits()
+
+    def build(self, resume=False, save=True):
+        """Construct the ILP problem"""
+
+        self.__check_pointing_visibility()
 
         # Create a cache of target properties to optimize data access
         cache_loaded = False
