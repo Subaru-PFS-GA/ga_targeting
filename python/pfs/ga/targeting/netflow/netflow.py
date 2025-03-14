@@ -1643,8 +1643,8 @@ class Netflow():
             Cv_CG_max = dict(),             # Cobra group maximum target constraints, key: (cobra_group_name, visit_idx, cobra_group)
             Cv_i_sum = dict(),              # At most one target per cobra, key: (cobra_idx, visit_idx)
             Cv_i_max = dict(),              # Hard upper limit on the number of assigned fibers, key (visit_idx)
-            Tv_i_Tv_o_sum = dict(),         # Target visit nodes must be balanced, key: (target_id, visit_idx)
-            T_i_T_o_sum = dict(),           # Inflow and outflow at every T node must be balanced, key: (target_id)
+            Tv_i_Tv_o_sum = dict(),         # Target visit nodes must be balanced, key: (target_idx, visit_idx)
+            T_i_T_o_sum = dict(),           # Inflow and outflow at every T node must be balanced, key: (target_idx)
             
             Tv_i_sum = dict(),              # Science program time budget, key: (budget_idx)
         )
@@ -1756,11 +1756,11 @@ class Netflow():
         self.__create_calibration_target_class_constraints()
 
         # Inflow and outflow at every T node must be balanced
-        # > T_i_T_o_sum_{target_id}
+        # > T_i_T_o_sum_{target_idx}
         self.__create_science_target_constraints()
 
         # Inflow and outflow at every Tv node must be balanced
-        # > Tv_i_Tv_o_sum_{target_id}_{visit_idx}
+        # > Tv_i_Tv_o_sum_{target_idx}_{visit_idx}
         self.__create_Tv_i_Tv_o_constraints()
 
         # Every cobra can observe at most one target per visit 
@@ -2343,9 +2343,8 @@ class Netflow():
         # Inflow and outflow at every Tv node must be balanced
         for (tidx, vidx), in_var in self.__variables.Tv_i.items():
             out_vars = self.__variables.Tv_o[(tidx, vidx)]
-            target_id = self.__target_cache.id[tidx]
 
-            name = self.__make_name("Tv_i_Tv_o_sum", target_id, vidx)
+            name = self.__make_name("Tv_i_Tv_o_sum", tidx, vidx)
             # constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
             constr = ([ 1 ] + [ -1 ] * len(out_vars), [ in_var ] + [ v for v, _ in out_vars ], '==', 0)
             self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
