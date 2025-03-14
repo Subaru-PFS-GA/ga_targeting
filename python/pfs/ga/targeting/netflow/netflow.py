@@ -1748,12 +1748,13 @@ class Netflow():
         # > STC_o_max_{target_class}
         self.__create_science_target_class_constraints()
 
-        # Every calibration target class must be observed a minimum number of times
-        # every visit
-        # > CTCv_o_sum_{target_class}_{visit_idx}
-        # > CTCv_o_min_{target_class}_{visit_idx}
-        # > CTCv_o_max_{target_class}_{visit_idx}
-        self.__create_calibration_target_class_constraints()
+        for visit_idx, visit in enumerate(self.__visits):
+            # Every calibration target class must be observed a minimum number of times
+            # every visit
+            # > CTCv_o_sum_{target_class}_{visit_idx}
+            # > CTCv_o_min_{target_class}_{visit_idx}
+            # > CTCv_o_max_{target_class}_{visit_idx}
+            self.__create_calibration_target_class_constraints(visit_idx)
 
         # Inflow and outflow at every T node must be balanced
         # > T_i_T_o_sum_{target_idx}
@@ -2227,70 +2228,79 @@ class Netflow():
         ignore_science_target_class_minimum = self.__debug_options.ignore_science_target_class_minimum
         ignore_science_target_class_maximum = self.__debug_options.ignore_science_target_class_maximum
         
-        for target_class, vars in self.__variables.STC_o.items():
-            sink = self.__variables.STC_sink[target_class]
-            num_targets = len(vars)
+        for target_class in self.__netflow_options.target_classes:
+            if self.__netflow_options.target_classes[target_class].prefix == 'sci':
+                vars = self.__variables.STC_o[target_class]
+                sink = self.__variables.STC_sink[target_class]
+                num_targets = len(vars)
 
-            # All STC_o edges must be balanced. We don't handle the incoming edges in the model
-            # so simply the sum of outgoing edges must add up to the number of targets.
-            name = self.__make_name("STC_o_sum", target_class)
-            # constr = self.__problem.sum(vars + [ sink ]) == num_targets
-            constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
-            self.__constraints.STC_o_sum[target_class] = constr
-            self.__add_constraint(name, constr)
-
-            # If a minimum or maximum constraint is set on the number observed targets in this
-            # class, enforce it through a maximum constraint on the sum of the outgoing edges not
-            # including the sink
-            min_targets = self.__netflow_options.target_classes[target_class].min_targets
-            if not ignore_science_target_class_minimum and min_targets is not None:
-                name = self.__make_name("STC_o_min", target_class)
-                # constr = self.__problem.sum(vars) >= min_targets
-                constr = ([1] * len(vars), vars, '>=', min_targets)
-                self.__constraints.STC_o_min[target_class] = constr
+                # All STC_o edges must be balanced. We don't handle the incoming edges in the model
+                # so simply the sum of outgoing edges must add up to the number of targets.
+                name = self.__make_name("STC_o_sum", target_class)
+                # constr = self.__problem.sum(vars + [ sink ]) == num_targets
+                constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
+                self.__constraints.STC_o_sum[target_class] = constr
                 self.__add_constraint(name, constr)
 
-            max_targets = self.__netflow_options.target_classes[target_class].max_targets
-            if not ignore_science_target_class_maximum and max_targets is not None:
-                name = self.__make_name("STC_o_max", target_class)
-                # constr = self.__problem.sum(vars) <= max_targets
-                constr = ([1] * len(vars), vars, '<=', max_targets)
-                self.__constraints.STC_o_max[target_class] = constr
-                self.__add_constraint(name, constr)
+                # If a minimum or maximum constraint is set on the number observed targets in this
+                # class, enforce it through a maximum constraint on the sum of the outgoing edges not
+                # including the sink
+                min_targets = self.__netflow_options.target_classes[target_class].min_targets
+                if not ignore_science_target_class_minimum and min_targets is not None:
+                    name = self.__make_name("STC_o_min", target_class)
+                    # constr = self.__problem.sum(vars) >= min_targets
+                    constr = ([1] * len(vars), vars, '>=', min_targets)
+                    self.__constraints.STC_o_min[target_class] = constr
+                    self.__add_constraint(name, constr)
 
-    def __create_calibration_target_class_constraints(self):
+                max_targets = self.__netflow_options.target_classes[target_class].max_targets
+                if not ignore_science_target_class_maximum and max_targets is not None:
+                    name = self.__make_name("STC_o_max", target_class)
+                    # constr = self.__problem.sum(vars) <= max_targets
+                    constr = ([1] * len(vars), vars, '<=', max_targets)
+                    self.__constraints.STC_o_max[target_class] = constr
+                    self.__add_constraint(name, constr)
+
+    def __create_calibration_target_class_constraints(self, vidx):
+        """
+        Create constrains for calibration target classes that set the minimum and
+        maximum number of required targets for each calibration target class for
+        each visit.
+        """
         
         ignore_calib_target_class_minimum = self.__debug_options.ignore_calib_target_class_minimum
         ignore_calib_target_class_maximum = self.__debug_options.ignore_calib_target_class_maximum
         
-        for (target_class, vidx), vars in self.__variables.CTCv_o.items():
-            sink = self.__variables.CTCv_sink[(target_class, vidx)]
-            num_targets = len(vars)
+        for target_class in self.__netflow_options.target_classes:
+            if self.__netflow_options.target_classes[target_class].prefix in ['cal', 'sky']:
+                vars = self.__variables.CTCv_o[(target_class, vidx)]
+                sink = self.__variables.CTCv_sink[(target_class, vidx)]
+                num_targets = len(vars)
 
-            # The sum of all outgoing edges must be equal the number of calibration targets within each class
-            name = self.__make_name("CTCv_o_sum", target_class, vidx)
-            # constr = self.__problem.sum(vars + [ sink ]) == num_targets
-            constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
-            self.__constraints.CTCv_o_sum[(target_class, vidx)] = constr
-            self.__add_constraint(name, constr)
-
-            # Every calibration target class must be observed a minimum number of times every visit
-            min_targets = self.__netflow_options.target_classes[target_class].min_targets
-            if not ignore_calib_target_class_minimum and min_targets is not None:
-                name = self.__make_name("CTCv_o_min", target_class, vidx)
-                # constr = self.__problem.sum(vars) >= min_targets
-                constr = ([1] * len(vars), vars, '>=', min_targets)
-                self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
+                # The sum of all outgoing edges must be equal the number of calibration targets within each class
+                name = self.__make_name("CTCv_o_sum", target_class, vidx)
+                # constr = self.__problem.sum(vars + [ sink ]) == num_targets
+                constr = ([1] * (len(vars) + 1), vars + [ sink ], '==', num_targets)
+                self.__constraints.CTCv_o_sum[(target_class, vidx)] = constr
                 self.__add_constraint(name, constr)
 
-            # Any calibration target class cannot be observed more tha a maximum number of times every visit
-            max_targets = self.__netflow_options.target_classes[target_class].max_targets
-            if not ignore_calib_target_class_maximum and max_targets is not None:
-                name = self.__make_name("CTCv_o_max", target_class, vidx)
-                # constr = self.__problem.sum(vars) <= max_targets
-                constr = ([1] * len(vars), vars, '<=', max_targets)
-                self.__constraints.CTCv_o_max[(target_class, vidx)] = constr
-                self.__add_constraint(name, constr)
+                # Every calibration target class must be observed a minimum number of times every visit
+                min_targets = self.__netflow_options.target_classes[target_class].min_targets
+                if not ignore_calib_target_class_minimum and min_targets is not None:
+                    name = self.__make_name("CTCv_o_min", target_class, vidx)
+                    # constr = self.__problem.sum(vars) >= min_targets
+                    constr = ([1] * len(vars), vars, '>=', min_targets)
+                    self.__constraints.CTCv_o_min[(target_class, vidx)] = constr
+                    self.__add_constraint(name, constr)
+
+                # Any calibration target class cannot be observed more tha a maximum number of times every visit
+                max_targets = self.__netflow_options.target_classes[target_class].max_targets
+                if not ignore_calib_target_class_maximum and max_targets is not None:
+                    name = self.__make_name("CTCv_o_max", target_class, vidx)
+                    # constr = self.__problem.sum(vars) <= max_targets
+                    constr = ([1] * len(vars), vars, '<=', max_targets)
+                    self.__constraints.CTCv_o_max[(target_class, vidx)] = constr
+                    self.__add_constraint(name, constr)
 
     def __create_science_target_constraints(self):
         """
