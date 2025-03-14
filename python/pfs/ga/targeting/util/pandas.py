@@ -13,7 +13,7 @@ def pd_append_column(df, name, data, dtype=None):
     elif isinstance(data, pd.DataFrame):
         df[name] = data[data.columns[0]].astype(dtype).values
     elif isinstance(data, pd.Series):
-        #df[name] = data.reset_index(drop=True)
+        # Ignore the index of data by converting to an array using .values
         df[name] = data.astype(dtype).values
     else:
         df[name] = pd.Series(data, index=df.index, dtype=dtype)
