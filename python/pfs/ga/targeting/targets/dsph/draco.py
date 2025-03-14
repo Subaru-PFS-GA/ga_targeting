@@ -49,12 +49,12 @@ class Draco(DSphGalaxy):
         pointings = {
             SubaruPFI: [
                 # major axis
-                Pointing.from_relative_pos(pos, sep=0.47, dir=0.0, posang=30.0),
-                Pointing.from_relative_pos(pos, sep=-0.47, dir=0.0, posang=30.0),
+                Pointing.from_relative_pos(pos, sep=0.47, dir=0.0, posang=30.0, stage=0, priority=0),
+                Pointing.from_relative_pos(pos, sep=-0.47, dir=0.0, posang=30.0, stage=0, priority=0),
     
                 # minor axis
-                Pointing.from_relative_pos(pos, sep=0.25, dir=90.0, posang=0.0),
-                Pointing.from_relative_pos(pos, sep=-0.25, dir=90.0, posang=0.0),
+                Pointing.from_relative_pos(pos, sep=0.25, dir=90.0, posang=0.0, stage=1, priority=0),
+                Pointing.from_relative_pos(pos, sep=-0.25, dir=90.0, posang=0.0, stage=1, priority=0),
             ]
         }
 
@@ -95,7 +95,7 @@ class Draco(DSphGalaxy):
             resolution = 'm',
         )
 
-        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
 
         return config
 

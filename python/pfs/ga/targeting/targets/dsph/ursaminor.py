@@ -48,26 +48,21 @@ class UrsaMinor(DSphGalaxy):
         # Generate the poitings algorithmically
         pointings = {
             SubaruPFI: [
-                Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=-20),
-
-                # 6-fold overlap in the center
-                # Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-20),
-                # Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-20),
+                # Inner pointings along the minor axis
+                Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=-20, stage=0, priority=2),
+                Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=-20, stage=0, priority=2),
 
                 # Rotated outer pointings along the minor axis
-                # Pointing.from_relative_pos(pos, sep=0.6, dir=50, posang=-50),
-                # Pointing.from_relative_pos(pos, sep=-0.6, dir=50, posang=-50),
+                Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=-50, stage=1, priority=2),
+                Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=-50, stage=1, priority=2),
 
-                # Rotated outer pointings along the minor axis
-                Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=-50),
-                Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=-50),
+                # Inner pointings along the major axis
+                Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=-20, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=-20, stage=0, priority=1),
 
-                Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=-20),
-
-                Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=-20),
-                Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=-20),
+                # Outer pointings along the major axis
+                Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=-20, stage=1, priority=1),
+                Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=-20, stage=1, priority=1),
             ]
         }
 
@@ -110,7 +105,7 @@ class UrsaMinor(DSphGalaxy):
             resolution = 'm',
         )
 
-        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
 
         return config
 
