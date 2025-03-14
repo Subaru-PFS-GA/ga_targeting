@@ -23,6 +23,9 @@ extra_columns = {
 }
 
 config = dict(
+    debug_options = dict(
+        ignore_calib_target_class_minimum = False,
+    ),
     netflow_options = dict(
         target_classes = {
             'sky': dict(
@@ -171,6 +174,88 @@ config = dict(
                 }
             )
         ),
+        "jpass_vmp": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/draco_JPLUS_VMP.csv",
+            column_map =
+            {
+                'SOURCEID': 'targetid',
+                'RA': 'RA',
+                'DEC': 'Dec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['GMAG'],
+                    lambda_func = "lambda g0: 1800 * np.maximum(np.minimum(np.rint(5 * ((g0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'GMAG',
+                    ),
+                    "bp_gaia": dict(
+                        mag = 'BPMAG',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'RPMAG',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),
+        "jpass_more": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/draco_JPLUS_more.csv",
+            column_map =
+            {
+                'SOURCEID': 'targetid',
+                'RA': 'RA',
+                'DEC': 'Dec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 6,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['GMAG'],
+                    lambda_func = "lambda g0: 1800 * np.maximum(np.minimum(np.rint(5 * ((g0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'GMAG',
+                    ),
+                    "bp_gaia": dict(
+                        mag = 'BPMAG',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'RPMAG',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),
         "jingkun": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/dra_jingkun.csv",
             column_map =
@@ -218,31 +303,85 @@ config = dict(
             catid = CATID_SKY_PS1,
             extra_columns = extra_columns,
         ),
+
+        # DOBOS PS1
         "fluxstd": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/fluxstd_draco.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/PS1_Dra_fluxstd_3_dobos.feather",
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec',
+                # 'ra': 'RA',
+                # 'dec': 'Dec',
+                'parallax_error': 'err_parallax',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
+                'radial_velocity': 'rv',
+                'radial_velocity_error': 'err_rv',
             },
+            # mask = 'lambda df: df["prob_f_star"] > 0.5',
+            # mask = 'lambda df: df["prob_f_star"] > 0.1',
             prefix = "cal",
             frame = 'icrs',
             epoch = 2016.0,
-            catid = CATID_FLUXSTD,
+            catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
-                bands = {
-                    b: dict(
-                        filter = f'filter_{b}',                   # Column storing filter names
-                        psf_mag = f'psf_mag_{b}',
-                        psf_mag_err = f'psf_mag_error_{b}',
-                        psf_flux = f'psf_flux_{b}',
-                        psf_flux_err = f'psf_flux_error_{b}',
-                    ) for b in 'gri'
+                filters = {
+                    'g_ps1': dict(
+                        mag = 'gPSFMag',
+                        mag_err = 'gPSFMagErr'
+                    ),
+                    'r_ps1': dict(
+                        mag = 'rPSFMag',
+                        mag_err = 'rPSFMagErr'
+                    ),
+                    'i_ps1': dict(
+                        mag = 'iPSFMag',
+                        mag_err = 'iPSFMagErr'
+                    ),
+                    'z_ps1': dict(
+                        mag = 'zPSFMag',
+                        mag_err = 'zPSFMagErr'
+                    ),
+                    'y_ps1': dict(
+                        mag = 'yPSFMag',
+                        mag_err = 'yPSFMagErr'
+                    )
+                },
+                limits = {
+                    'ps1_g': [16, 19],
+                    'ps1_g-ps1_r': [0.25, 0.4],
                 }
             )
         ),
+
+        # MIHO OLD
+        # "fluxstd": dict(
+        #     path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/fluxstd_draco.feather",
+        #     reader_args = dict(),
+        #     column_map = {
+        #         'obj_id': 'targetid',
+        #         'ra': 'RA',
+        #         'dec': 'Dec',
+        #     },
+        #     prefix = "cal",
+        #     frame = 'icrs',
+        #     epoch = 2016.0,
+        #     catid = CATID_FLUXSTD,
+        #     extra_columns = extra_columns,
+        #     photometry = dict(
+        #         bands = {
+        #             b: dict(
+        #                 filter = f'filter_{b}',                   # Column storing filter names
+        #                 psf_mag = f'psf_mag_{b}',
+        #                 psf_mag_err = f'psf_mag_error_{b}',
+        #                 psf_flux = f'psf_flux_{b}',
+        #                 psf_flux_err = f'psf_flux_error_{b}',
+        #             ) for b in 'gri'
+        #         }
+        #     )
+        # ),
+
         # "guide": dict(
         #     path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/guide_draco.feather",
         #     reader_args = dict(),
