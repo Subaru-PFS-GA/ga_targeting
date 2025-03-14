@@ -73,6 +73,10 @@ class NotebookRunner():
         self.__nb, resources = cpp.preprocess(self.__nb, None)
 
     def __execute(self):
+        cwd = os.getcwd()
+        if self.__workdir is not None:
+            os.chdir(self.__workdir)
+
         resources = {
             'metadata': {
                 'path': self.__workdir
@@ -84,6 +88,8 @@ class NotebookRunner():
         except Exception as ex:
             logger.error(f'An error has occurred while executing notebook `{self.__notebook_path}`')
             # Error is not propagated to allow saving notebook
+        finally:
+            os.chdir(cwd)
 
     def run(self):        
         # Set kernel
