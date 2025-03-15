@@ -50,7 +50,6 @@ class ImportScript(TargetingScript):
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
-        self.add_arg('--nvisits', type=int, help='Number of visits for each pointing.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')        
         self.add_arg('--xmatch-rad', type=float, help='Cross-match radius in arcseconds.')
@@ -71,16 +70,12 @@ class ImportScript(TargetingScript):
         # Load the configuration template files and merge with the default config
         self._load_config_files(args)
 
-        self._nvisits = self.get_arg('nvisits', args, self._nvisits)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__xmatch_rad = self.get_arg('xmatch_rad', args, self.__xmatch_rad)
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
-        if self._nvisits is not None:
-            self._config.field.nvisits = self._nvisits
-
         if self.__exp_time is not None:
             self._config.field.exp_time = self.__exp_time
 
@@ -133,13 +128,13 @@ class ImportScript(TargetingScript):
         # that are written back into the target list DataFrames
         # This target_idx will be unique
         self.__append_source_target_lists(netflow, target_lists)
-        self._validate_targets(netflow)
 
         # Because the target lists have changed (__key and __target_idx added)
         # we save them again at this point
-        self.__save_preprocessed_target_lists(target_lists)
+        self._save_preprocessed_target_lists(target_lists, self._outdir)
 
-        # Save the netflow targets
+        # Save the netflow targets, by default to the output directory.
+        netflow.validate_targets()
         netflow.save_targets()
 
         # Execute the evaluation notebooks
@@ -157,8 +152,6 @@ class ImportScript(TargetingScript):
     def load_source_target_lists(self):
         target_lists = {}
         for k, target_list_config in self._config.targets.items():
-            path = self._get_preprocessed_target_list_path(k)
-
             target_list = self.load_target_list(k, target_list_config)
             target_list.name = k
             
@@ -167,9 +160,6 @@ class ImportScript(TargetingScript):
             self.__validate_target_list(k, target_list_config, target_list)
             
             target_lists[k] = target_list
-
-            if self._outdir is not None:
-                self.__save_preprocessed_target_list(k, target_lists[k], path)
 
         return target_lists
 
@@ -505,16 +495,6 @@ class ImportScript(TargetingScript):
             logger.info(f'Cross-matching resulted in {mask.sum()} unique matches with separation less than {self.__xmatch_rad} arc sec.')
 
             return idx1, idx2, sep, mask
-
-    def __save_preprocessed_target_lists(self, target_lists):
-        for k, target_list_config in self._config.targets.items():
-            path = self._get_preprocessed_target_list_path(k)
-            self.__save_preprocessed_target_list(k, target_lists[k], path)
-
-    def __save_preprocessed_target_list(self, key, target_list, path):
-        logger.info(f'Saving preprocessed target list `{key}` to `{path}`.')
-        s = ObservationSerializer()
-        s.write(target_list, path)
 
 if __name__ == '__main__':
     script = ImportScript()

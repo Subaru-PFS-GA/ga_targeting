@@ -159,8 +159,8 @@ class Netflow():
     millions of variables and constraints. After the ILP problem is built it can be saved to a file
     with `save_problem` and loaded with `load_problem`.
     
-    The problem can be solved with the `solve` function which executes the solver and calls
-    `__extract_assignments` to extract the results. The results are stored in the variables
+    The problem can be solved with the `solve` function which executes the solver and
+    `extract_assignments` can be called to extract the results. The results are stored in the variables
     `__target_assignments` and `__cobra_assignments` which are lists of dictionaries keyed by
     the target index or the cobra index, respectively.
 
@@ -568,7 +568,6 @@ class Netflow():
 
         fn = self.__get_solution_filename(filename)
         self.__problem.read_solution(fn)
-        self.__extract_assignments()
 
     def save_solution(self, filename=None):
         """Save the LP solution to a file."""
@@ -1258,7 +1257,14 @@ class Netflow():
 
         logger.info(f'Updated {idx2.size} targets with prefix `{prefix}` in the target list.')
 
-    def validate_science_targets(self):
+    def validate_targets(self):
+        # TODO: Make sure cobra location/instrument group constraints are satisfiable
+                
+        self.__validate_science_targets()
+        self.__validate_fluxstd_targets()
+        self.__validate_sky_targets()
+
+    def __validate_science_targets(self):
         # Make sure all science targets have a priority class and exposure time
         for column, ignore in zip(['priority', 'exp_time'],
                                   [self.__debug_options.ignore_missing_priority,
@@ -1272,10 +1278,10 @@ class Netflow():
                 else:
                     logger.warning(msg)
 
-    def validate_fluxstd_targets(self):
+    def __validate_fluxstd_targets(self):
         pass
 
-    def validate_sky_targets(self):
+    def __validate_sky_targets(self):
         pass
 
     def __validate_cobra_group_limits(self):
@@ -2475,9 +2481,6 @@ class Netflow():
             if self.__variables is None or self.__constraints is None:
                 self.__restore_variables()
                 self.__restore_constraints()
-
-            # Verify the solution
-            self.__extract_assignments()
         else:
             if len(self.__problem.infeasible_constraints) > 0:
                 # TODO: Find the infeasible constraints and give detailed information about them
@@ -2485,9 +2488,10 @@ class Netflow():
 
             raise NetflowException("Failed to solve the netflow problem.")
 
-    def __extract_assignments(self):
+    def extract_assignments(self):
         """
-        Extract the fiber assignments from an LP solution
+        Extract the fiber assignments from an LP solution by converting variable values
+        into meaningful fiber assignment info.
         
         The assignments are stored in two lists:
         - target_assignments: a list of dictionaries for each visit that maps target indices
@@ -2521,6 +2525,22 @@ class Netflow():
                     if self.__problem.get_value(v1) > 0:
                         _, _, tidx, cidx, vidx = k1.split("_")
                         set_assigment(int(tidx), int(cidx), int(vidx))
+
+
+    def update_done_visits(self):
+        """
+        Update the number of done visits in the targets data frame.
+        """
+
+        # self.__target_assignments is keyed by the target_idx and contains the cobra_idx (both 0-based)
+
+        for vidx, visit in enumerate(self.__visits):
+            # Map the indices of target assignments to the target list index
+            tidx = np.array([ ti for ti in self.__target_assignments[vidx].keys() ])
+            tidx = self.__cache_to_target_map[tidx]
+
+            # Update the number of done visits
+            self.__targets.loc[tidx, 'done_visits'] = self.__targets.loc[tidx, 'done_visits'] + 1
 
     def simulate_collisions(self):
         """
