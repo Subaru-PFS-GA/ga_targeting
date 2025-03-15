@@ -331,7 +331,7 @@ config = dict(
                     ),
                 },
                 limits = {
-                    'gaia_g': [16, 23],
+                    'gaia_rp': [16, 23],
                 }
             )
         ),

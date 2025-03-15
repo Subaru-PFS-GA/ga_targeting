@@ -298,6 +298,50 @@ config = dict(
                 }
             )
         ),
+        "pristine": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/UMi_VMP_G16.fits",
+            column_map = {
+                'source_id': 'targetid',
+                'Plx': 'parallax',
+                'pmRA': 'pmra',
+                'pmDE': 'pmdec',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['RPmag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        mag = 'Gmag',
+                        mag_err = 'e_Gmag'
+                    ),
+                    "bp_gaia": dict(
+                        mag = 'BPmag',
+                        mag_err = 'e_BPmag'
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'RPmag',
+                        mag_err = 'e_RPmag'
+                    ),
+                },
+                limits = {
+                    'gaia_rp': [16, 23],
+                }
+            )
+        ),
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sky_ursaminor.feather",
             reader_args = dict(),
