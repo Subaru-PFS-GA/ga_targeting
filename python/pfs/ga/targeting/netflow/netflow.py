@@ -1429,23 +1429,28 @@ class Netflow():
         # TODO: The number of done visits should come from the science target lists
 
         sci_mask = (self.__targets['prefix'] == 'sci')
+        cal_mask = self.__targets['prefix'].isin(['cal', 'sky'])
 
-        # Reset the number of done visits for non science targets
-        if 'done_visits' in self.__targets.columns:
-            raise NotImplementedError()
-            self.__targets['done_visits'][~sci_mask]
-        else:
-            self.__targets['done_visits'] = 0
+        # Reset the number of done visits for new targets
+        if 'done_visits' not in self.__targets.columns:
+            pd_append_column(self.__targets, 'done_visits', 0, np.int32)
+
+        if 'req_visits' not in self.__targets.columns:
+            pd_append_column(self.__targets, 'req_visits', 0, np.int32)
+
+        # Some targets have already be observed
+        done_mask = self.__targets['done_visits'] >= self.__targets['req_visits']
 
         # Calculate the number of required visits from the exposure time
         # The default is 0 for the non-science targets. Some targets are both flux
         # standards and science targets, so we calculate the number of required visits
         # based on the presence of exp_time
 
-        pd_append_column(self.__targets, 'req_visits', 0, np.int32)
-
         exp_time_mask = self.__targets['exp_time'].notna()
-        pd_update_column(self.__targets, exp_time_mask, 'req_visits', np.ceil(self.__targets['exp_time'][exp_time_mask] / self.__visit_exp_time), dtype=np.int32)
+        mask = (~done_mask | cal_mask) & exp_time_mask
+        pd_update_column(
+            self.__targets, mask, 'req_visits',
+            np.ceil(self.__targets['exp_time'][mask] / self.__visit_exp_time), dtype=np.int32)
 
     def __validate_target_visits(self):
         """
@@ -2247,6 +2252,12 @@ class Netflow():
                 self.__add_constraint(name, constr)
 
     def __create_science_target_class_constraints(self):
+        
+        # TODO: other than balancing the total number of targets in the class,
+        #       the class minimum and maximum constraints don't make too much sense
+        #       when netflow is run in stages because the limits will apply to
+        #       a single stage only.
+        
         # Science targets must be either observed or go to the sink
         # If a maximum on the science target is set fo the target class, enforce that
         # in a separate constraint
@@ -2347,14 +2358,15 @@ class Netflow():
             T_i = self.__variables.T_i[tidx]
             T_sink = self.__variables.T_sink[tidx]
             req_visits = self.__target_cache.req_visits[tidx]
+            done_visits = self.__target_cache.done_visits[tidx]
             max_visits = len(self.__visits)
 
             if not allow_more_visits:
                 # Require an exact number of visits
                 name = self.__make_name("T_i_T_o_sum", tidx)
-                # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == 0
+                # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == done_visits
                 constr = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
-                          [ T_i ] + T_o + [ T_sink ], '==', 0)
+                          [ T_i ] + T_o + [ T_sink ], '==', done_visits)
                 self.__constraints.T_i_T_o_sum[tidx] = constr
                 self.__add_constraint(name, constr)
             else:
@@ -2362,10 +2374,15 @@ class Netflow():
                 name0 = self.__make_name("T_i_T_o_sum_0", tidx)
                 name1 = self.__make_name("T_i_T_o_sum_1", tidx)
 
-                # constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= 0
+                # The number of visits (together with the number of already done visits) must be
+                # at least the number of required visits
+                # constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= done_visits
                 constr0 = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
-                           [ T_i ] + T_o + [ T_sink ], '<=', 0)
+                           [ T_i ] + T_o + [ T_sink ], '<=', done_visits)
 
+                # The total number of outgoind edges must not be larger, together with the sink,
+                # than the number of visits. This is true regardless how many visits have been done so far,
+                # so done_visits doesn't play a role here.
                 # constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
                 constr1 = ([ max_visits ] + [ -1 for _ in T_o ] + [ -1 ],
                            [ T_i ] + T_o + [ T_sink ], '>=', 0)
@@ -2411,6 +2428,7 @@ class Netflow():
 
                 # TODO: This assumes a single, per visit exposure time which is fine for now
                 #       but the logic could be extended further
+                # TODO: add done_visits
                 name = self.__make_name("Tv_i_sum", budget_name)
                 # constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
                 constr = ([self.__visit_exp_time.value] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
