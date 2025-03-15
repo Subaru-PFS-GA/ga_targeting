@@ -214,36 +214,17 @@ class NetflowScript(TargetingScript):
         # TODO: this would check trajectory collisions but this test is not required
         #       when the cobras can move radially
         # self.__unassign_colliding_cobras(netflow)
-        
-        # Extract the assignments from the netflow solution
-        # The column target_idx is a unique index into the netflow target cache
-        assignments = self.__extract_assignments(netflow)
-        self.__save_assignments(assignments)
 
-        # Generate a summary of the target assignments
-        # The index of the data frame is a unique index into the netflow target cache
-        summary = netflow.get_target_assignment_summary()
-        self.__save_summary(summary)
+        # Extract the fiber assignments. These results contain only those targets
+        # that got fibers assigned in the current processing stage
+        fiber_assignments_all = self.__process_fiber_assignments(netflow, target_lists)
 
-        # TODO: plot assignment statistics
-
-        # Join the targets lists with the assignments to append the fluxes and
-        # filter names as columns of lists, as  required for the design files
-        assigned_target_lists = self.__append_flux_filter_lists(assignments, target_lists)
-
-        # Concatenate the assigned target lists into a single DataFrame with only
-        # the columns that are needed for the design files
-        assigned_targets_all = self.__merge_assigned_target_lists(assigned_target_lists)
-
-        # TODO: this is the point to postfix obcode with the visit id
-
-        # Join the assignments with the merged target list to append the fluxes and
-        # filter names, ob_code, etc.
-        assignments_all = self.__join_assignments(assignments, assigned_targets_all)
-        self._save_assignments_all(assignments_all)
+        # Generate a list of all targets with assigned fibers so far, including
+        # earlier processing stages
+        self.__process_target_assignments(netflow, target_lists)
 
         # Generate the designs and save them to the output directory
-        designs = self.__create_designs(netflow, assignments_all)
+        designs = self.__create_designs(netflow, fiber_assignments_all)
 
         # Verify the final target lists
         self.__verify_designs(designs)
@@ -310,44 +291,68 @@ class NetflowScript(TargetingScript):
         netflow.simulate_collisions()
         netflow.simulate_collisions()
 
-    def __extract_assignments(self, netflow):
+    def __process_fiber_assignments(self, netflow, target_lists):
+        # Extract the fiber assignments from the netflow solution
+        # The column target_idx is a unique index into the netflow target cache
+        fiber_assignments = self.__extract_fiber_assignments(netflow)
+        self.__save_fiber_assignments(fiber_assignments)
+
+        # Join the targets lists with the assignments to append the fluxes and
+        # filter names as columns of lists, as  required for the design files
+        fiber_assignment_lists = self.__append_flux_filter_lists(fiber_assignments, target_lists)
+
+        # Concatenate the assigned target lists into a single DataFrame with only
+        # the columns that are needed for the design files
+        fiber_assignments_merged = self.__merge_fiber_assignment_lists(fiber_assignment_lists)
+
+        # TODO: this is the point to postfix obcode with the visit id
+
+        # Join the assignments with the merged target list to append the fluxes and
+        # filter names, ob_code, etc.
+        fiber_assignments_all = self.__join_fiber_assignments(fiber_assignments, fiber_assignments_merged)
+        self._save_fiber_assignments_all(fiber_assignments_all)
+
+        # Return what's necessary to generate the design files
+        return fiber_assignments_all
+
+    def __extract_fiber_assignments(self, netflow):
         """
         Extract the assignments from the netflow problem as a DataFrame with all
         necessary information to generate the design files.
         """
         
-        assignments = netflow.get_fiber_assignments(
+        fiber_assignments = netflow.get_fiber_assignments(
             include_target_columns=True,
             include_unassigned_fibers=True,
             include_engineering_fibers=True)
 
-        return assignments
+        return fiber_assignments
     
-    def __get_assignments_path(self):
+    def __get_fiber_assignments_path(self):
         return os.path.join(self._outdir, f'{self._config.field.key}_assignments.feather')
     
-    def __save_assignments(self, assignments):
-        path = self.__get_assignments_path()
+    def __save_fiber_assignments(self, fiber_assignments):
+        path = self.__get_fiber_assignments_path()
         logger.info(f'Saving fiber assignments to `{path}`.')
-        assignments.to_feather(path)
+        fiber_assignments.to_feather(path)
 
-    def __load_assignments(self):
-        path = self.__get_assignments_path()
+    def __load_fiber_assignments(self):
+        path = self.__get_fiber_assignments_path()
         logger.info(f'Loading fiber assignments from `{path}`.')
         return pd.read_feather(path)
     
-    def __get_summary_path(self):
+    def __get_target_assignments_path(self):
         return os.path.join(self._outdir, f'{self._config.field.key}_summary.feather')
     
-    def __save_summary(self, summary):
-        path = self.__get_summary_path()
+    def __save_target_assignments(self, summary):
+        path = self.__get_target_assignments_path()
         logger.info(f'Saving target assignment summary to `{path}`.')
         summary.to_feather(path)
     
-    def _get_assignments_all_path(self):
+    def _get_fiber_assignments_all_path(self):
         return os.path.join(self._outdir, f'{self._config.field.key}_assignments_all.feather')
 
-    def __append_flux_filter_lists(self, assignments, target_lists):
+    def __append_flux_filter_lists(self, fiber_assignments, target_lists):
         """
         Join the assignments with the target lists to append the fluxes that will
         be included in the design files.
@@ -355,9 +360,9 @@ class NetflowScript(TargetingScript):
 
         # Indexes of all assigned targets
         # Make it unique in case a target is assigned multiple times (multiple visits)
-        assigned_target_idx = pd.DataFrame({'__target_idx': assignments[assignments['target_idx'] != -1]['target_idx'].unique()})
+        assigned_target_idx = pd.DataFrame({'__target_idx': fiber_assignments[fiber_assignments['target_idx'] != -1]['target_idx'].unique()})
 
-        assigned_target_lists = {}
+        fiber_assignment_lists = {}
         for k, config in self._config.targets.items():
             # Only include targets that can be assigned to fibers, ie. no guide stars
             if config.prefix in ['sci', 'cal', 'sky']:
@@ -419,11 +424,11 @@ class NetflowScript(TargetingScript):
 
                     assigned['filter'] = assigned.apply(lambda row: [], axis=1)
 
-                assigned_target_lists[k] = assigned
+                fiber_assignment_lists[k] = assigned
 
-        return assigned_target_lists
+        return fiber_assignment_lists
     
-    def __merge_assigned_target_lists(self, assigned_target_lists):
+    def __merge_fiber_assignment_lists(self, fiber_assignment_lists):
         """
         Compile the list of the targets that will make it into the final design files.
         Some targets might be repeated in more than one target lists. These were taken care
@@ -444,7 +449,7 @@ class NetflowScript(TargetingScript):
         
         assigned_targets_all = None
         for prefix in ['cal', 'sci']:
-            for k, assigned_targets in assigned_target_lists.items():
+            for k, assigned_targets in fiber_assignment_lists.items():
                 if self._config.targets[k].prefix == prefix:
 
                     if assigned_targets_all is None:
@@ -497,7 +502,7 @@ class NetflowScript(TargetingScript):
                         assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[~mask][columns] ], ignore_index=True)
 
         # Sky positions are never cross-matched, so simply append them to the assigned targets list
-        for k, assigned_targets in assigned_target_lists.items():
+        for k, assigned_targets in fiber_assignment_lists.items():
             if self._config.targets[k].prefix == 'sky':
                 assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[columns] ], ignore_index=True)
         
@@ -508,7 +513,7 @@ class NetflowScript(TargetingScript):
 
         return assigned_targets_all
     
-    def __join_assignments(self, assignments, assigned_targets_all):
+    def __join_fiber_assignments(self, fiber_assignments, fiber_assignments_merged):
         """
         Joins in additional target information to the assignments list, such as
         fluxes, filter names, etc. that's not already in the assignments list.
@@ -523,35 +528,25 @@ class NetflowScript(TargetingScript):
         """
         
         # Only include columns that are not already in `assignments`
-        columns = assigned_targets_all.columns.difference(assignments.columns)
+        columns = fiber_assignments_merged.columns.difference(fiber_assignments.columns)
 
         # Join the assignments with the assigned targets to get the final object lists
         assignments_all = pd.merge(
-            pd_to_nullable(assignments.set_index('target_idx')), 
-            pd_to_nullable(assigned_targets_all[columns].set_index('__target_idx')),
+            pd_to_nullable(fiber_assignments.set_index('target_idx')), 
+            pd_to_nullable(fiber_assignments_merged[columns].set_index('__target_idx')),
             how='left', left_index=True, right_index=True)
         
         assignments_all.reset_index(inplace=True, names='__target_idx')
 
         return assignments_all
-    
-    def __substitute_nans(self, df):
-        """
-        Substitute NaN values with zeros or other default values.
-        """
 
-        special = {
-            'parallax': 1e-7,
-        }
+    def __process_target_assignments(self, netflow, target_lists):
 
-        for c in df.columns:
-            if c in special:
-                value = special[c]
-            else:
-                value = 0.0
-
-            pd_fillna(df, c, value)
-            
+        # Generate a summary of the target assignments
+        # The index of the data frame is a unique index into the netflow target cache
+        target_assignments = netflow.get_target_assignment_summary()
+        self.__save_target_assignments(target_assignments)
+                
     def __create_designs(self, netflow : Netflow, assignments_all):
         designs = []
 

@@ -183,18 +183,18 @@ class TargetingScript(Script):
         fn = self._get_design_list_path()
         return pd.read_feather(fn)
 
-    def _get_assignments_all_path(self):
+    def _get_fiber_assignments_all_path(self):
         raise NotImplementedError()
 
-    def _save_assignments_all(self, assignments_all):
+    def _save_fiber_assignments_all(self, fiber_assignments_all):
         # This dataframe contains columns with dtype `object`` that contain the list of
         # magnitudes, fluxes, filter names, etc.
         
-        path = self._get_assignments_all_path()
+        path = self._get_fiber_assignments_all_path()
         logger.info(f'Saving assignments joined with the input catalogs to `{path}`.')
-        assignments_all.to_feather(path)
+        fiber_assignments_all.to_feather(path)
 
     def _load_assignments_all(self):
-        path = self._get_assignments_all_path()
+        path = self._get_fiber_assignments_all_path()
         logger.info(f'Loading assignments joined with the input catalogs from `{path}`.')
         return pd.read_feather(path)

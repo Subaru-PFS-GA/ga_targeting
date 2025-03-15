@@ -147,7 +147,7 @@ class ExportScript(TargetingScript):
     def _get_design_list_path(self):
         return os.path.join(self.__indir, f'{self._config.field.key}_designs.feather')
 
-    def _get_assignments_all_path(self):
+    def _get_fiber_assignments_all_path(self):
         return os.path.join(self.__indir, f'{self._config.field.key}_assignments_all.feather')
 
     def __get_field_code(self, pidx, vidx):
