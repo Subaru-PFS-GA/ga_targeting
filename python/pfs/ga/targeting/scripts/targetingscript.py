@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterable
 import pandas as pd
 
 from ..config.netflow import NetflowConfig
@@ -20,8 +21,8 @@ class TargetingScript(Script):
     def __init__(self):
         super().__init__()
 
+        self._indir = None
         self._outdir = None
-        self._nvisits = None
         self._field = None
         self._config = None
 
@@ -71,10 +72,16 @@ class TargetingScript(Script):
     def _create_instrument(self):
         return SubaruPFI(instrument_options=self._config.instrument_options)
     
-    def _generate_pointings(self):
+    def _generate_pointings(self, stage=None):
         # The list of pointings can be defined in the config file, which then
         # override the pointings defined for the field in the library source code.
 
+        if stage is not None:
+            if not isinstance(stage, Iterable):
+                stage = [ stage ]
+            stage = set(stage)
+
+        # Get the pointing for the config file or from the field, if defined
         if self._config.pointings is not None:
             pp = [ p.get_pointing() for p in self._config.pointings ]
         elif self._field is not None:
@@ -92,12 +99,15 @@ class TargetingScript(Script):
         # Create new pointing objects with obs_time, exp_time etc.
         pointings = []
         for p in pp:   
-            pointings.append(Pointing(
-                p.ra, p.dec,
-                posang = p.posang,
-                obs_time = obs_time,
-                exp_time = exp_time,
-                nvisits = nvisits))
+            if stage is None or p.stage in stage:
+                p.obs_time = obs_time
+                p.exp_time = exp_time
+                p.nvisits = nvisits
+                pointings.append(p)
+
+        logger.info(f'Found {len(pointings)} pointings for observation stage {stage}. '
+                    f'Number of visits is {nvisits} with exposure time {exp_time} s. '
+                    f'Observation time is {obs_time} UTC.')
             
         return pointings
 
@@ -131,17 +141,18 @@ class TargetingScript(Script):
 
         return catalog
 
-    def _validate_targets(self, netflow: Netflow):
-        # TODO: Make sure cobra location/instrument group constraints are satisfiable
-        
-        # TODO: Move these under netflow and run on the cached target list
-        
-        netflow.validate_science_targets()
-        netflow.validate_fluxstd_targets()
-        netflow.validate_sky_targets()
+    def _get_preprocessed_target_list_path(self, key, dir):
+        return os.path.join(dir, f'{self._config.field.key}_targets_{key}.feather')
 
-    def _get_preprocessed_target_list_path(self, key):
-        return os.path.join(self._outdir, f'{self._config.field.key}_targets_{key}.feather')
+    def _save_preprocessed_target_lists(self, target_lists, dir):
+        for k, target_list_config in self._config.targets.items():
+            path = self._get_preprocessed_target_list_path(k, dir)
+            self.__save_preprocessed_target_list(k, target_lists[k], path)
+
+    def __save_preprocessed_target_list(self, key, target_list, path):
+        logger.info(f'Saving preprocessed target list `{key}` to `{path}`.')
+        s = ObservationSerializer()
+        s.write(target_list, path)
 
     def _load_preprocessed_target_list(self, key, path):
         logger.info(f'Loading preprocessed target list `{key}` list from `{path}`.')
