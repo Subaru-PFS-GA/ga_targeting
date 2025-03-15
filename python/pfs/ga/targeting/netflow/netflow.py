@@ -1439,7 +1439,7 @@ class Netflow():
             pd_append_column(self.__targets, 'req_visits', 0, np.int32)
 
         # Some targets have already be observed
-        done_mask = self.__targets['done_visits'] >= self.__targets['req_visits']
+        done_mask = (self.__targets['done_visits'] > 0) & (self.__targets['done_visits'] >= self.__targets['req_visits'])
 
         # Calculate the number of required visits from the exposure time
         # The default is 0 for the non-science targets. Some targets are both flux
@@ -1451,6 +1451,12 @@ class Netflow():
         pd_update_column(
             self.__targets, mask, 'req_visits',
             np.ceil(self.__targets['exp_time'][mask] / self.__visit_exp_time), dtype=np.int32)
+
+        hist = np.bincount(self.__targets[self.__targets['prefix'] == 'sci']['req_visits'])
+        logger.info(f'Histogram of required visits: {hist}')
+
+        hist = np.bincount(self.__targets[self.__targets['prefix'] == 'sci']['done_visits'])
+        logger.info(f'Histogram of done visits: {hist}')
 
     def __validate_target_visits(self):
         """
