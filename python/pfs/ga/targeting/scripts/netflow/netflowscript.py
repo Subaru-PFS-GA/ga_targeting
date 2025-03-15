@@ -241,7 +241,7 @@ class NetflowScript(TargetingScript):
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
-            for notebook in ['targets', 'assignments', 'calibration', 'cobra_groups', 'design']:
+            for notebook in ['targets', 'assignments', 'assignments_all', 'calibration', 'cobra_groups', 'design']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
                 notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/netflow/notebooks/{notebook}.ipynb')
                 parameters = {
