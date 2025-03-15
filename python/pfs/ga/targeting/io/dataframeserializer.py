@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import h5py
+from astropy.table import Table
 
 from ..util import safe_deep_copy
 
@@ -190,6 +191,8 @@ class DataFrameSerializer():
         format = format if format is not None else self.__format
 
         if format is None:
+            # TODO: recognize if end with .gz and return the format
+            #       accordingly. Also support other compressions
             _, format = os.path.splitext(filename)
             
         return format
@@ -210,6 +213,9 @@ class DataFrameSerializer():
         elif format == ".h5" or format == ".hdf5":
             read_func = self.__read_hdf5
             write_func = self.__write_hdf5
+        elif format == '.fit' or format == '.fits':
+            read_func = self.__read_fits
+            write_func = self.__write_fits
         else:
             raise ValueError(f"Unknown file extension: {format}")
         
@@ -335,6 +341,14 @@ class DataFrameSerializer():
                     del g[col]
                 
                 g.create_dataset(col, data=np.array(df[col]))
+
+    def __read_fits(self, filename: str, dataset=None, mask=None, **kwargs) -> pd.DataFrame:
+        df = Table.read(filename, **kwargs).to_pandas()
+        df = self.__apply_mask(df, mask)
+        return df
+
+    def __write_fits(self, df: pd.DataFrame, filename: str, dataset=None, mask=None, **kwargs):
+        raise NotImplementedError()
 
     def read(self, filename: str, dataset=None, format=None, mask=None, **kwargs) -> pd.DataFrame:
         dataset = dataset if dataset is not None else self.__dataset
