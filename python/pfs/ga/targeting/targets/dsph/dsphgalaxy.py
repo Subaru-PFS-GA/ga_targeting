@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import astropy.units as u
 
 from ...util.args import *
@@ -7,12 +8,13 @@ from ...data import Catalog, Observation
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ...config.sample import SampleConfig
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ..galaxy import Galaxy
 
 class DSphGalaxy(Galaxy):
     def __init__(self,
-                 ID, name,
+                 ID, name, id_prefix,
                  pos, rad=None,
                  DM=None, DM_err=None,
                  pm=None, pm_err=None,
@@ -20,7 +22,7 @@ class DSphGalaxy(Galaxy):
                  pointings=None,
                  **kwargs):
         
-        super().__init__(ID, name,
+        super().__init__(ID, name, id_prefix,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
@@ -83,3 +85,37 @@ class DSphGalaxy(Galaxy):
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         raise NotImplementedError()
+
+    def get_pmap_config(self):
+        raise NotImplementedError()
+
+    def get_sample_config(self):
+        config = SampleConfig()
+        return config
+
+    def get_netflow_config(self):
+        config = NetflowConfig.default()
+
+        config.field = self.get_field_config()
+        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
+
+        return config
+
+    def get_field_config(self):
+        """
+        Return the default field configuration for dSph galaxies.
+        """
+
+        # TODO: it doesn't check visibility at abs_time
+
+        return FieldConfig(
+            key = self.ID,
+            name = self.name,
+            id_prefix = self.id_prefix,
+            center = PointingConfig.from_pointing(self.get_center()),
+            arms = 'bmn',
+            nvisits = 1,
+            exp_time = 30 * 60.,        # 3 hr total
+            obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
+            resolution = 'm',
+        )

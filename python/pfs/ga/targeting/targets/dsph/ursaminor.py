@@ -12,6 +12,7 @@ from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
 from ...config.sample import SampleConfig
 from ... import Isochrone
+from ..ids import *
 from .dsphgalaxy import DSphGalaxy
 
 from ...setup_logger import logger
@@ -22,6 +23,7 @@ class UrsaMinor(DSphGalaxy):
     def __init__(self):
         ID = 'umi'
         name = 'Ursa Minor'
+
         # pos = [ '15h 09m 08.5s', '+67d 13m 21s' ]                   # Simbad, Carlsten et al. (2021)
         # pos = [ 227.29725, 67.21436111 ] * u.deg                    # Evan
         
@@ -66,7 +68,7 @@ class UrsaMinor(DSphGalaxy):
             ]
         }
 
-        super().__init__(ID, name,
+        super().__init__(ID, name, ID_PREFIX_URSAMINOR,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
@@ -91,37 +93,12 @@ class UrsaMinor(DSphGalaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
-    def get_netflow_config(self):
-        config = NetflowConfig.default()
-
-        config.field = FieldConfig(
-            key = self.ID,
-            name = self.name,
-            center = PointingConfig.from_pointing(self.get_center()),
-            arms = 'bmn',
-            nvisits = 1,
-            exp_time = 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
-            resolution = 'm',
-        )
-
-        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
-
-        return config
-
     def get_pmap_config(self):
         config = PMapConfig(
             cut_nb = True,
             keep_blue = True,
             extents = [[0.1, 2.0], [17.0, 23.5]],
             merge_list = [np.s_[:10], np.s_[10:]]
-        )
-
-        return config
-
-    def get_sample_config(self):
-        config = SampleConfig(
-
         )
 
         return config

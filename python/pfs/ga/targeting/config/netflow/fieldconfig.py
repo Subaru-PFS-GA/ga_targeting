@@ -8,6 +8,7 @@ class FieldConfig(Config):
     def __init__(self,
                  key: str = None,
                  name: str = None,
+                 id_prefix: int = None,
                  center: PointingConfig = None,
                  arms: str = None,
                  nvisits: int = None,
@@ -20,6 +21,10 @@ class FieldConfig(Config):
 
         # Full name of the field
         self.name = name
+
+        # A bit prefix to combine with target_idx to generate
+        # unique database identifiers
+        self.id_prefix = id_prefix
 
         # Field center
         self.center = center

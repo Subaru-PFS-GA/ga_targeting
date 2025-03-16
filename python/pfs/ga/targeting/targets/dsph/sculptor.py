@@ -9,12 +9,14 @@ from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ..ids import *
 from .dsphgalaxy import DSphGalaxy
 
 class Sculptor(DSphGalaxy):
     def __init__(self):
         ID = 'scl'
         name = 'Sculptor'
+
         pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
         # pos = [ 15.0392, -33.7089 ] * u.deg               # Evan
         rad = 120 * u.arcmin
@@ -32,7 +34,7 @@ class Sculptor(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID, name,
+        super().__init__(ID, name, ID_PREFIX_SCULPTOR,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
@@ -54,24 +56,6 @@ class Sculptor(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
-
-    def get_netflow_config(self):
-        config = NetflowConfig.default()
-
-        config.field = FieldConfig(
-            key = self.ID,
-            name = self.name,
-            center = PointingConfig.from_pointing(self.get_center()),
-            arms = 'bmn',
-            nvisits = 1,
-            exp_time = 6 * 30 * 60.,        # 3 hr total
-            obs_time = datetime(2024, 11, 21, 0, 0, 0) + timedelta(hours=10),
-            resolution = 'm',
-        )
-
-        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
-
-        return config
 
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""

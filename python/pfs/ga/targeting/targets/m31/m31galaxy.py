@@ -13,7 +13,7 @@ from ..galaxy import Galaxy
 
 class M31Galaxy(Galaxy):
     def __init__(self,
-                 ID, name,
+                 ID, name, id_prefix,
                  pos, rad=None,
                  DM=None, DM_err=None,
                  pm=None, pm_err=None,
@@ -21,7 +21,7 @@ class M31Galaxy(Galaxy):
                  pointings=None,
                  **kwargs):
         
-        super().__init__(ID, name,
+        super().__init__(ID, name, id_prefix,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

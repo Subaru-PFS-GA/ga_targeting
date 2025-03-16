@@ -9,12 +9,14 @@ from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ..ids import *
 from .dsphgalaxy import DSphGalaxy
 
 class NGC6822(DSphGalaxy):
     def __init__(self):
         ID = 'ngc6822'
         name = 'NGC 6822'
+
         pos = [ 296.234, -14.7976 ] * u.deg
         rad = 120. * u.arcmin
         DM, DM_err = np.nan, np.nan
@@ -30,7 +32,7 @@ class NGC6822(DSphGalaxy):
             SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
-        super().__init__(ID, name,
+        super().__init__(ID, name, ID_PREFIX_NGC6822,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

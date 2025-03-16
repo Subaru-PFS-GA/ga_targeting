@@ -13,6 +13,7 @@ from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
 from ...config.sample import SampleConfig
 from ... import Isochrone
+from ..ids import *
 from .dsphgalaxy import DSphGalaxy
 
 from ...setup_logger import logger
@@ -23,6 +24,7 @@ class Draco(DSphGalaxy):
     def __init__(self):
         ID = 'dra'
         name = 'Draco'
+
         # pos = [ 260.051666667, 57.9152777778 ] * u.deg
 
         # Radial profile fit parameters
@@ -58,7 +60,7 @@ class Draco(DSphGalaxy):
             ]
         }
 
-        super().__init__(ID, name,
+        super().__init__(ID, name, ID_PREFIX_DRACO,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,
@@ -80,24 +82,6 @@ class Draco(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
-
-    def get_netflow_config(self):
-        config = NetflowConfig.default()
-
-        config.field = FieldConfig(
-            key = self.ID,
-            name = self.name,
-            center = PointingConfig.from_pointing(self.get_center()),
-            arms = 'bmn',
-            nvisits = 1,
-            exp_time = 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
-            resolution = 'm',
-        )
-
-        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
-
-        return config
 
     def get_pmap_config(self):
         config = PMapConfig(

@@ -2,10 +2,11 @@ import astropy.units as u
 
 from ..util.args import *
 from ..projection import Pointing
+from ..config.netflow import FieldConfig, PointingConfig
 
-class Target():
+class Field():
     def __init__(self,
-                 ID, name,
+                 ID, name, id_prefix,
                  pos,
                  DM=None, DM_err=None,
                  dist=None, dist_err=None,
@@ -19,6 +20,7 @@ class Target():
 
         self.__ID = ID
         self.__name = name
+        self.__id_prefix = id_prefix
 
         # Sky position, including pm and rv
         # SkyCoords doesn't support errors so store them separately
@@ -48,6 +50,11 @@ class Target():
         return self.__name
     
     name = property(__get_name)
+
+    def __get_id_prefix(self):
+        return self.__id_prefix
+    
+    id_prefix = property(__get_id_prefix)
         
     def __get_pos(self):
         return self.__pos
@@ -155,5 +162,11 @@ class Target():
     
     target_class = property(__get_target_class)
 
+    def get_center(self):
+        return Pointing(self.pos.ra, self.pos.dec, posang=0.0)
+
     def get_center_pointing(self, posang=None):
         return Pointing(self.__pos, posang=posang)
+
+    def get_field_config(self):
+        raise NotImplementedError()

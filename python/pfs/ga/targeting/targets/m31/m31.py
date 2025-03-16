@@ -9,12 +9,14 @@ from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ..ids import *
 from .m31galaxy import M31Galaxy
 
 class M31(M31Galaxy):
     def __init__(self):
         ID = 'm31'
         name = 'M31'
+
         pos = [ '00h 42m 44.33s', '+41d 16m 07.5s' ]
         rad = 6 * u.deg
         DM, DM_err = 24.407, 0.032   #Siyang Li et al. (2021, ApJ, 920, 84)
@@ -123,7 +125,7 @@ class M31(M31Galaxy):
 
         
 
-        super().__init__(ID, name,
+        super().__init__(ID, name, ID_PREFIX_M31,
                          pos, rad=rad,
                          DM=DM, DM_err=DM_err,
                          pm=pm, pm_err=pm_err,

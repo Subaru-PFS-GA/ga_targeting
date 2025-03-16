@@ -4,19 +4,20 @@ from ..util.args import *
 from ..instrument import SubaruHSC
 from ..photometry import Photometry, Magnitude, Color
 from ..probabilitymap import ProbabilityMap
-from .target import Target
 from ..projection import Pointing
+from .field import Field
 
-class Galaxy(Target):
+class Galaxy(Field):
     def __init__(self,
                  ID,
                  name,
+                 id_prefix,
                  pos,
                  rad=None,
                  pointings=None,
                  **kwargs):
         
-        super().__init__(ID, name, pos, **kwargs)
+        super().__init__(ID, name, id_prefix, pos, **kwargs)
 
         # Bounding radius
         self.__rad = normalize_angle(rad, u.arcmin)
@@ -32,9 +33,6 @@ class Galaxy(Target):
     rad = property(__get_rad)
 
     #endregion
-
-    def get_center(self):
-        return Pointing(self.pos.ra, self.pos.dec, posang=0.0)
 
     def get_pointings(self, instrument):
         return self.__pointings[instrument]
