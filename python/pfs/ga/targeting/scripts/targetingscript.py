@@ -166,11 +166,15 @@ class TargetingScript(Script):
 
     def _save_design_list(self, netflow, designs):
         df = pd.DataFrame({
+            'stage': [ v.pointing.stage for v in netflow.visits ],
             'pointing_idx': [ v.pointing_idx for v in netflow.visits ],
             'visit_idx': [ v.visit_idx for v in netflow.visits ],
+            'priority': [ v.pointing.priority for v in netflow.visits ],
             'ra': [ v.pointing.ra for v in netflow.visits ],
             'dec': [ v.pointing.dec for v in netflow.visits ],
             'posang': [ v.pointing.posang for v in netflow.visits ],
+            'obs_time': [ v.pointing.obs_time.iso for v in netflow.visits ],
+            'exp_time': [ v.pointing.exp_time.value for v in netflow.visits ],
             'pfsDesignId': [ d.pfsDesignId for d in designs]
         })
 
@@ -179,22 +183,18 @@ class TargetingScript(Script):
 
         logger.info(f'Saved list of designs to `{fn}`.')
 
-    def _load_design_list(self):
-        fn = self._get_design_list_path()
-        return pd.read_feather(fn)
-
-    def _get_fiber_assignments_all_path(self):
-        raise NotImplementedError()
+    def _get_fiber_assignments_all_path(self, dir):
+        return os.path.join(dir, f'{self._config.field.key}_assignments_all.feather')
 
     def _save_fiber_assignments_all(self, fiber_assignments_all):
         # This dataframe contains columns with dtype `object`` that contain the list of
         # magnitudes, fluxes, filter names, etc.
         
-        path = self._get_fiber_assignments_all_path()
+        path = self._get_fiber_assignments_all_path(self._outdir)
         logger.info(f'Saving assignments joined with the input catalogs to `{path}`.')
         fiber_assignments_all.to_feather(path)
 
-    def _load_assignments_all(self):
-        path = self._get_fiber_assignments_all_path()
+    def _load_fiber_assignments_all(self, dir):
+        path = self._get_fiber_assignments_all_path(dir)
         logger.info(f'Loading assignments joined with the input catalogs from `{path}`.')
         return pd.read_feather(path)

@@ -16,7 +16,7 @@ import pfs.instdata
 import ics.cobraCharmer
 import pfs.ga.targeting
 from gurobipy import gurobi
-from pfs.datamodel import TargetType
+from pfs.datamodel import TargetType, PfsDesign
 
 from ...config.netflow import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
@@ -34,22 +34,20 @@ class ExportScript(TargetingScript):
     def __init__(self):
         super().__init__()
 
-        self.__indir = None
-        self.__outdir = None
         self.__nan_values = True
         self.__obs_run = '2025-03'
         self.__obs_wg = 'GA'
-        self.__nframes = 2                  # Number of frame repeats for CR removal
-        self.__priority = 0                 # Priority of pointing within obs run
+        self.__nframes = 4                  # Number of frame repeats (for CR removal)
         self.__input_catalog_id = None      # Overrides whatever catId is used during fiber assignment
         self.__proposal_id = None           # Overrides whatever proposalId is used during fiber assignment
         
         self.__input_args = None            # arguments loaded from the input directory
+        self.__nvisits = None
 
     def _add_args(self):
         super()._add_args()
 
-        self.add_arg('--in', type=str, required=True, help='Input directory containing the netflow output.')
+        self.add_arg('--in', type=str, nargs='+', required=True, help='Input directories containing the netflow output.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
 
         self.add_arg('--nan-values', action='store_true', dest='nan_values', help='Use NaN values in the output files.')
@@ -58,15 +56,14 @@ class ExportScript(TargetingScript):
         self.add_arg('--obs-run', type=str, help='Observation run name.')
         self.add_arg('--obs-wg', type=str, help='SSP working group abbreviation.')
         self.add_arg('--nframes', type=int, help='Number of frame repeats for CR removal.')
-        self.add_arg('--priority', type=int, help='Priority of pointing within obs run.')
         self.add_arg('--input-catalog-id', type=int, help='Overrides whatever catId is used during fiber assignment.')
         self.add_arg('--proposal-id', type=str, help='Overrides whatever proposalId is used during fiber assignment.')
 
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
 
-        self.__indir = self.get_arg('in', args, self.__indir)
-        self.__outdir = self.get_arg('out', args, self.__outdir)
+        self._indir = sorted(self.get_arg('in', args, self._indir))
+        self._outdir = self.get_arg('out', args, self._outdir)
         
     def _init_from_args(self, args):
         super()._init_from_args(args)
@@ -75,11 +72,10 @@ class ExportScript(TargetingScript):
         self.__obs_run = self.get_arg('obs_run', args, self.__obs_run)
         self.__obs_wg = self.get_arg('obs_wg', args, self.__obs_wg)
         self.__nframes = self.get_arg('nframes', args, self.__nframes)
-        self.__priority = self.get_arg('priority', args, self.__priority)
         self.__input_catalog_id = self.get_arg('input_catalog_id', args, self.__input_catalog_id)
         self.__proposal_id = self.get_arg('proposal_id', args, self.__proposal_id)
 
-        # Load the arguments file from the input directory and parse a few arguments
+        # Load the arguments file from the first input directory and parse a few arguments
         fn = self.__find_last_dumpfile('*.args')
         logger.info(f'Using input args file `{fn}`')
         with open(fn) as f:
@@ -95,16 +91,16 @@ class ExportScript(TargetingScript):
         if self.is_arg('m31', self.__input_args):
             self._field = M31_FIELDS[self.get_arg('m31', self.__input_args)]
 
-        self._nvisits = self.get_arg('nvisits', self.__input_args, self._nvisits)
+        self.__nvisits = self.get_arg('nvisits', self.__input_args, self.__nvisits)
 
-        if self._nvisits is not None:
-            self._config.field.nvisits = self._nvisits
+        if self.__nvisits is not None:
+            self._config.field.nvisits = self.__nvisits
 
     def __find_last_dumpfile(self, pattern):
         """
         Find the last dump file in the input directory that matches the given pattern.
         """
-        files = glob(os.path.join(self.__indir, pattern))
+        files = glob(os.path.join(self._indir[-1], pattern))
         files.sort()
         return files[-1] if len(files) > 0 else None
 
@@ -115,73 +111,98 @@ class ExportScript(TargetingScript):
         super().prepare()
 
         # Create the output directory
-        if os.path.isdir(self.__outdir):
-            raise Exception(f'Output directory already exists: {self.__outdir}')
+        if os.path.isdir(self._outdir):
+            raise Exception(f'Output directory already exists: {self._outdir}')
         else:
-            logger.debug(f'Creating output directory `{self.__outdir}`')
-            os.makedirs(self.__outdir)
+            logger.debug(f'Creating output directory `{self._outdir}`')
+            os.makedirs(self._outdir)
 
         # Update log file path to point to the output directory
-        self.log_file = os.path.join(self.__outdir, os.path.basename(self.log_file))
+        self.log_file = os.path.join(self._outdir, os.path.basename(self.log_file))
 
     def run(self):
         # Load instrument calibration data
         # instrument = self._create_instrument()
 
-        # Generate the list of pointings
-        pointings = self._generate_pointings()
-        designs = self._load_design_list()
+        # Load the list of designs
+        designs = self.__load_design_list()
 
         # Load the final, merged assignments list
-        assignments_all = self._load_assignments_all()
+        assignments = self._load_fiber_assignments_all_list()
 
         # Save the list of pointings and netflow options
-        self.__write_ppcList(pointings, designs)
+        self.__write_ppcList(designs)
 
         # Save the list of targets
-        self.__write_assignments(pointings, assignments_all)
+        self.__write_assignments(designs, assignments)
 
         # Copy the pfsDesign files to the output directory
-        self.__copy_pfsDesign()
+        self.__copy_pfsDesigns(designs)
 
-    def _get_design_list_path(self):
-        return os.path.join(self.__indir, f'{self._config.field.key}_designs.feather')
+    def _load_fiber_assignments_all_list(self):
+        # Load the list of fiber assigments from each input directory
+        fiber_assignemnts_all_list = None
+        for dir in self._indir:
+            fn = self._get_fiber_assignments_all_path(dir)
+            df = pd.read_feather(fn)
 
-    def _get_fiber_assignments_all_path(self):
-        return os.path.join(self.__indir, f'{self._config.field.key}_assignments_all.feather')
+            if fiber_assignemnts_all_list is None:
+                fiber_assignemnts_all_list = df
+            else:
+                fiber_assignemnts_all_list = pd.concat([fiber_assignemnts_all_list, df])
 
-    def __get_field_code(self, pidx, vidx):
-        return f'SSP_{self.__obs_wg}_{self._config.field.key}_P{pidx:02d}_V{vidx:02d}'
+        return fiber_assignemnts_all_list
+
+    def __load_design_list(self):
+        # Load the list of design files from each input directory
+        design_list = None
+        for dir in self._indir:
+            fn = self._get_design_list_path(dir)
+            df = pd.read_feather(fn)
+
+            if design_list is None:
+                design_list = df
+            else:
+                design_list = pd.concat([design_list, df])
+
+        return design_list
+
+    def _get_design_list_path(self, dir):
+        return os.path.join(dir, f'{self._config.field.key}_designs.feather')
+    
+    def __get_field_code(self, stage, pidx, vidx):
+        return f'SSP_{self.__obs_wg}_{self._config.field.key}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
 
     def __get_ppcList_path(self):
-        return os.path.join(self.__outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
+        return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
     
-    def __write_ppcList(self, pointings, designs):
+    def __write_ppcList(self, designs):
         """
         Write the ppcList to a file in the output directory.
         """
+
+        table = Table()
         
         # Give a name to each visit
-        code = [ self.__get_field_code(pidx, vidx) for pidx in range(len(pointings)) for vidx in range(pointings[pidx].nvisits) ]
+        code = designs[['stage', 'pointing_idx', 'visit_idx']].apply(lambda x: self.__get_field_code(x['stage'], x['pointing_idx'], x['visit_idx']), axis=1)
+        resolution = len(designs) * [ self._config.field.resolution.upper() ]
 
-        # Pointing centers for each visit
-        ra = np.array([ p.ra for p in pointings for v in range(p.nvisits) ], dtype=np.float64)
-        dec = np.array([ p.dec for p in pointings for v in range(p.nvisits) ], dtype=np.float64)
-        pa = np.array([ p.posang for p in pointings for v in range(p.nvisits) ], dtype=np.float32)
-        resolution = np.array([ self._config.field.resolution.upper() for p in pointings for v in range(p.nvisits) ])
-        priority = np.array([ self.__priority for p in pointings for v in range(p.nvisits) ], dtype=np.int32)
-        
-        # TODO: time zone should come from the config
-        # TODO: obs_time could be different for each visit of each pointing
-        #       to approximate final focal plane positions better
+        # Convert to HST
         hawaii_tz = TimeDelta(-10 * u.hr)
-        obstime = np.array([ (p.obs_time + hawaii_tz).iso for p in pointings for v in range(p.nvisits) ])
-        
-        exptime = np.array([ int(np.ceil(p.exp_time.value / p.nvisits)) for p in pointings for v in range(p.nvisits) ], dtype=int)
-        nframes = np.array([ self.__nframes for p in pointings for v in range(p.nvisits) ], dtype=int)
-        pfsDesignId = np.array(designs['pfsDesignId'].apply(lambda id: f'0x{id:016x}'), dtype=str)
-        
-        table = Table()
+        obstime = designs['obs_time'].apply(lambda t: (Time(t) + hawaii_tz).iso)
+
+        nframes = code.size * [ self.__nframes ]
+
+        table['ppc_code'] = np.array(code, dtype=str)
+        table['ppc_ra'] = np.array(designs['ra'], dtype=np.float64)
+        table['ppc_dec'] = np.array(designs['dec'], dtype=np.float64)
+        table['ppc_pa'] = np.array(designs['posang'], dtype=np.float32)
+        table['ppc_resolution'] = np.array(resolution, dtype=str)
+        table['ppc_priority'] = np.array(designs['priority'], dtype=np.int32)
+        table['ppc_obstime'] = np.array(obstime, dtype=str)
+        table['ppc_exptime'] = designs['exp_time']
+        table['ppc_nframes'] = np.array(nframes, dtype=np.int32)
+        table['ppc_pfsDesignId'] = np.array(designs['pfsDesignId'].apply(lambda id: f'0x{id:016x}'), dtype=str)
 
         # Add package versions to the meta data
 
@@ -228,19 +249,6 @@ class ExportScript(TargetingScript):
             self._config.gurobi_options.threads,
         ]
 
-        # Add columns to the table
-
-        table['ppc_code'] = code
-        table['ppc_ra'] = ra
-        table['ppc_dec'] = dec
-        table['ppc_pa'] = pa
-        table['ppc_resolution'] = resolution
-        table['ppc_priority'] = priority
-        table['ppc_obstime'] = obstime
-        table['ppc_exptime'] = exptime
-        table['ppc_nframes'] = nframes
-        table['ppc_pfsDesignId'] = pfsDesignId
-
         fn = self.__get_ppcList_path()
         os.makedirs(os.path.dirname(fn), exist_ok=True)
         table.write(fn)
@@ -285,132 +293,151 @@ class ExportScript(TargetingScript):
 
     def __get_targets_path(self, target_type, field_code):
         return os.path.join(
-            self.__outdir,
+            self._outdir,
             f'runs/{self.__obs_run}/targets/{self.__obs_wg}/{str(target_type).lower()}',
             f'{field_code}.ecsv')
 
-    def __write_assignments(self, pointings, assignments_all):
+    def __write_assignments(self, designs, assignments):
 
         for target_type in [ TargetType.SCIENCE, TargetType.FLUXSTD, TargetType.SKY ]:
-            vidx = 0
-            for pidx in range(len(pointings)):
-                for vi in range(pointings[pidx].nvisits):
-                    field_code = self.__get_field_code(pidx, vi)
+            for i, (stage, pidx, vidx) in designs[['stage', 'pointing_idx', 'visit_idx']].iterrows():
+                field_code = self.__get_field_code(stage, pidx, vidx)
 
-                    # Get the list of targets for this pointing and visit
-                    mask = ((assignments_all['target_type'] == target_type) &
-                            (assignments_all['pointing_idx'] == pidx) &
-                            (assignments_all['visit_idx'] == vidx))
+                table = Table()
+                
+                # Target list meta data
 
-                    assert mask.sum() > 0
+                mask = ((designs['stage'] == stage) &
+                        (designs['pointing_idx'] == pidx) &
+                        (designs['visit_idx'] == vidx))
 
-                    table = Table()
+                table.meta['ppc_code'] = field_code
+                table.meta['ppc_ra'] = designs[mask]['ra'].item()
+                table.meta['ppc_dec'] = designs[mask]['dec'].item()
+                table.meta['ppc_pa'] = designs[mask]['posang'].item()
 
-                    # Target list meta data
+                # Get the list of targets for this pointing and visit
+                mask = ((assignments['target_type'] == target_type) &
+                        (assignments['stage'] == stage) &
+                        (assignments['pointing_idx'] == pidx) &
+                        (assignments['visit_idx'] == vidx))
 
-                    table.meta['ppc_code'] = field_code
-                    table.meta['ppc_ra'] = pointings[pidx].ra
-                    table.meta['ppc_dec'] = pointings[pidx].dec
-                    table.meta['ppc_pa'] = pointings[pidx].posang
+                assert mask.sum() > 0
 
-                    # Target list columns
+                # Target list columns
 
-                    obj_id = np.array(assignments_all['targetid'][mask], dtype=np.int64)
-                    ra = np.array(assignments_all['RA'][mask], dtype=np.float64)
-                    dec = np.array(assignments_all['Dec'][mask], dtype=np.float64)
-                    pmra = np.array(assignments_all['pmra'][mask].fillna(0.0), dtype=np.float64)
-                    pmdec = np.array(assignments_all['pmdec'][mask].fillna(0.0), dtype=np.float64)
-                    parallax = np.array(assignments_all['parallax'][mask].fillna(1.0e-5), dtype=np.float64)
-                    epoch = np.array([f'J{e:0.2f}' for e in assignments_all['epoch'][mask] ], dtype=str)
-                    tract = np.array(assignments_all['tract'][mask].fillna(-1), dtype=np.int64)
-                    patch = np.array(assignments_all['patch'][mask].fillna('-1,-1'), dtype=str)
-                    # catalog_id = 
-                    target_type_id = np.array(assignments_all['target_type'][mask], dtype=np.int32)
+                obj_id = np.array(assignments['targetid'][mask], dtype=np.int64)
+                ra = np.array(assignments['RA'][mask], dtype=np.float64)
+                dec = np.array(assignments['Dec'][mask], dtype=np.float64)
+                pmra = np.array(assignments['pmra'][mask].fillna(0.0), dtype=np.float64)
+                pmdec = np.array(assignments['pmdec'][mask].fillna(0.0), dtype=np.float64)
+                parallax = np.array(assignments['parallax'][mask].fillna(1.0e-5), dtype=np.float64)
+                epoch = np.array([f'J{e:0.2f}' for e in assignments['epoch'][mask] ], dtype=str)
+                tract = np.array(assignments['tract'][mask].fillna(-1), dtype=np.int64)
+                patch = np.array(assignments['patch'][mask].fillna('-1,-1'), dtype=str)
+                # catalog_id = 
+                target_type_id = np.array(assignments['target_type'][mask], dtype=np.int32)
 
-                    if target_type == TargetType.SCIENCE and self.__input_catalog_id is not None:
-                        input_catalog_id = np.full(mask.sum(), self.__input_catalog_id, dtype=np.int64)
+                if target_type == TargetType.SCIENCE and self.__input_catalog_id is not None:
+                    input_catalog_id = np.full(mask.sum(), self.__input_catalog_id, dtype=np.int64)
+                else:
+                    input_catalog_id = np.array(assignments['catid'][mask], dtype=np.int64)
+
+                ob_code = np.array(assignments['obcode'][mask], dtype=str)
+                
+                if self.__proposal_id is not None:
+                    proposal_id = np.array(mask.sum() * [self.__proposal_id], dtype=str)
+                else:
+                    proposal_id = np.array(assignments['proposalid'][mask], dtype=str)
+                
+                if target_type == TargetType.SCIENCE:
+                    priority = np.array(assignments['priority'][mask], dtype=np.int32)
+                else:
+                    priority = np.full(mask.sum(), -1, dtype=np.int32)
+
+                if target_type == TargetType.FLUXSTD:
+                    if 'prob_f_star' in assignments:
+                        prob_f_star = np.array(assignments['prob_f_star'][mask], dtype=float)
                     else:
-                        input_catalog_id = np.array(assignments_all['catid'][mask], dtype=np.int64)
+                        prob_f_star = np.full(mask.sum(), 1, dtype=float)
+                else:
+                    prob_f_star = np.full(mask.sum(), -1, dtype=float)
 
-                    ob_code = np.array(assignments_all['obcode'][mask], dtype=str)
-                    
-                    if self.__proposal_id is not None:
-                        proposal_id = np.array(mask.sum() * [self.__proposal_id], dtype=str)
+                effective_exptime = np.array(assignments['exp_time'][mask].fillna(0.0), dtype=np.float32)
+                cobraid = np.array(assignments['cobraid'][mask], dtype=np.int32)
+                pfi_x = np.array(assignments['fp_x'][mask], dtype=np.float64)
+                pfi_y = np.array(assignments['fp_y'][mask], dtype=np.float64)
+
+                # Group available fluxes into bands with filter names for each target
+                filter, psf_flux, psf_flux_err = self.__get_flux_by_band(assignments[mask])                    
+
+                # Put together the table
+
+                table['obj_id'] = obj_id
+                table['ra'] = ra
+                table['dec'] = dec
+                table['pmra'] = pmra
+                table['pmdec'] = pmdec
+                table['parallax'] = parallax
+                table['epoch'] = epoch
+                table['tract'] = tract
+                table['patch'] = patch
+                # table['catalog_id'] = catalog_id
+                table['target_type_id'] = target_type_id
+                table['input_catalog_id'] = input_catalog_id
+                table['ob_code'] = ob_code
+                table['proposal_id'] = proposal_id
+                table['priority'] = priority
+                table['prob_f_star'] = prob_f_star
+                table['effective_exptime'] = effective_exptime
+
+                for b in filter:
+                    if np.any([ f is not None for f in filter[b] ]):
+                        table[f'filter_{b}'] = filter[b]
+                        table[f'psf_flux_{b}'] = psf_flux[b]
+                        table[f'psf_flux_error_{b}'] = psf_flux_err[b]
                     else:
-                        proposal_id = np.array(assignments_all['proposalid'][mask], dtype=str)
-                    
-                    if target_type == TargetType.SCIENCE:
-                        priority = np.array(assignments_all['priority'][mask], dtype=np.int32)
-                    else:
-                        priority = np.full(mask.sum(), -1, dtype=np.int32)
+                        table[f'filter_{b}'] = np.array(mask.sum() * [''], dtype=str)
+                        table[f'psf_flux_{b}'] = np.zeros(mask.sum(), dtype=float)
+                        table[f'psf_flux_error_{b}'] = np.zeros(mask.sum(), dtype=float)
 
-                    if target_type == TargetType.FLUXSTD:
-                        if 'prob_f_star' in assignments_all:
-                            prob_f_star = np.array(assignments_all['prob_f_star'][mask], dtype=float)
-                        else:
-                            prob_f_star = np.full(mask.sum(), 1, dtype=float)
-                    else:
-                        prob_f_star = np.full(mask.sum(), -1, dtype=float)
+                table['cobraId'] = cobraid
+                table['pfi_X'] = pfi_x
+                table['pfi_Y'] = pfi_y
 
-                    effective_exptime = np.array(assignments_all['exp_time'][mask].fillna(0.0), dtype=np.float32)
-                    cobraid = np.array(assignments_all['cobraid'][mask], dtype=np.int32)
-                    pfi_x = np.array(assignments_all['fp_x'][mask], dtype=np.float64)
-                    pfi_y = np.array(assignments_all['fp_y'][mask], dtype=np.float64)
+                fn = self.__get_targets_path(target_type, field_code)
+                os.makedirs(os.path.dirname(fn), exist_ok=True)
+                table.write(fn)
 
-                    # Group available fluxes into bands with filter names for each target
-                    filter, psf_flux, psf_flux_err = self.__get_flux_by_band(assignments_all[mask])                    
-
-                    # Put together the table
-
-                    table['obj_id'] = obj_id
-                    table['ra'] = ra
-                    table['dec'] = dec
-                    table['pmra'] = pmra
-                    table['pmdec'] = pmdec
-                    table['parallax'] = parallax
-                    table['epoch'] = epoch
-                    table['tract'] = tract
-                    table['patch'] = patch
-                    # table['catalog_id'] = catalog_id
-                    table['target_type_id'] = target_type_id
-                    table['input_catalog_id'] = input_catalog_id
-                    table['ob_code'] = ob_code
-                    table['proposal_id'] = proposal_id
-                    table['priority'] = priority
-                    table['prob_f_star'] = prob_f_star
-                    table['effective_exptime'] = effective_exptime
-
-                    for b in filter:
-                        if np.any([ f is not None for f in filter[b] ]):
-                            table[f'filter_{b}'] = filter[b]
-                            table[f'psf_flux_{b}'] = psf_flux[b]
-                            table[f'psf_flux_error_{b}'] = psf_flux_err[b]
-                        else:
-                            table[f'filter_{b}'] = np.array(mask.sum() * [''], dtype=str)
-                            table[f'psf_flux_{b}'] = np.zeros(mask.sum(), dtype=float)
-                            table[f'psf_flux_error_{b}'] = np.zeros(mask.sum(), dtype=float)
-
-                    table['cobraId'] = cobraid
-                    table['pfi_X'] = pfi_x
-                    table['pfi_Y'] = pfi_y
-
-                    fn = self.__get_targets_path(target_type, field_code)
-                    os.makedirs(os.path.dirname(fn), exist_ok=True)
-                    table.write(fn)
-
-                    vidx += 1
 
     def __get_pfsDesign_path(self):
-        return os.path.join(self.__outdir, f'runs/{self.__obs_run}/pfs_designs/{self.__obs_wg}')
+        return os.path.join(self._outdir, f'runs/{self.__obs_run}/pfs_designs/{self.__obs_wg}')
 
-    def __copy_pfsDesign(self):
-        dir = self.__get_pfsDesign_path()
-        os.makedirs(dir, exist_ok=True)
-        files = glob(os.path.join(self.__indir, 'pfsDesign*.fits'))
-        for fn in files:
-            logger.info(f'Copying {fn} to {dir}')
-            # Copy the file to the output directory
-            shutil.copy(fn, dir)
+    def __copy_pfsDesigns(self, designs):
+
+        # Create directory for output files
+        outdir = self.__get_pfsDesign_path()
+        os.makedirs(outdir, exist_ok=True)
+
+        for i, (stage, pidx, vidx, pfsDesignId) in designs[['stage', 'pointing_idx', 'visit_idx', 'pfsDesignId']].iterrows():
+            # Find the design in one of the input directories
+            fn = PfsDesign.fileNameFormat % (pfsDesignId)
+            dir = None
+            for indir in self._indir:
+                if os.path.isfile(os.path.join(indir, fn)):
+                    dir = indir
+                    break
+
+            if dir is None:
+                raise FileNotFoundError(f'Design file {fn} not found.')
+
+            # Load the design file and override name
+            d = PfsDesign.read(pfsDesignId, dirName=dir)
+            d.designName = self.__get_field_code(stage, pidx, vidx)
+
+            # Save the design to the output directory
+            logger.info(f'Copying {fn} to {outdir}')
+            d.write(dirName=outdir)
 
 if __name__ == '__main__':
     script = ExportScript()

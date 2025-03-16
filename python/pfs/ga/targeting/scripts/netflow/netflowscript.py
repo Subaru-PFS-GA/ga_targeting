@@ -349,9 +349,6 @@ class NetflowScript(TargetingScript):
         logger.info(f'Saving target assignment summary to `{path}`.')
         summary.to_feather(path)
     
-    def _get_fiber_assignments_all_path(self):
-        return os.path.join(self._outdir, f'{self._config.field.key}_assignments_all.feather')
-
     def __append_flux_filter_lists(self, fiber_assignments, target_lists):
         """
         Join the assignments with the target lists to append the fluxes that will
@@ -499,7 +496,8 @@ class NetflowScript(TargetingScript):
                         assigned_targets_all = at_all.reset_index()
 
                         # Append the rest of the rows
-                        assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[~mask][columns] ], ignore_index=True)
+                        if len(assigned_targets[~mask]) > 0:
+                            assigned_targets_all = pd.concat([ assigned_targets_all, assigned_targets[~mask][columns] ], ignore_index=True)
 
         # Sky positions are never cross-matched, so simply append them to the assigned targets list
         for k, assigned_targets in fiber_assignment_lists.items():
@@ -551,7 +549,7 @@ class NetflowScript(TargetingScript):
         designs = []
 
         for visit in netflow.visits:
-            design_name = f'{self._config.field.name} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+            design_name = f'{self._config.field.name} S{visit.pointing.stage:03d} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
             d = Design.create_pfsDesign_visit(visit, assignments_all,
                                               design_name=design_name,
                                               arms=self._config.field.arms)
