@@ -42,7 +42,6 @@ class ExportScript(TargetingScript):
         self.__proposal_id = None           # Overrides whatever proposalId is used during fiber assignment
         
         self.__input_args = None            # arguments loaded from the input directory
-        self.__nvisits = None
 
     def _add_args(self):
         super()._add_args()
@@ -90,11 +89,6 @@ class ExportScript(TargetingScript):
 
         if self.is_arg('m31', self.__input_args):
             self._field = M31_FIELDS[self.get_arg('m31', self.__input_args)]
-
-        self.__nvisits = self.get_arg('nvisits', self.__input_args, self.__nvisits)
-
-        if self.__nvisits is not None:
-            self._config.field.nvisits = self.__nvisits
 
     def __find_last_dumpfile(self, pattern):
         """
@@ -325,8 +319,11 @@ class ExportScript(TargetingScript):
                 assert mask.sum() > 0
 
                 # Target list columns
+                if target_type == TargetType.SCIENCE:
+                    obj_id = (self._field.id_prefix | np.array(assignments['__target_idx'][mask], dtype=np.int64))
+                else:
+                    obj_id = np.array(assignments['targetid'][mask], dtype=np.int64)
 
-                obj_id = np.array(assignments['targetid'][mask], dtype=np.int64)
                 ra = np.array(assignments['RA'][mask], dtype=np.float64)
                 dec = np.array(assignments['Dec'][mask], dtype=np.float64)
                 pmra = np.array(assignments['pmra'][mask].fillna(0.0), dtype=np.float64)

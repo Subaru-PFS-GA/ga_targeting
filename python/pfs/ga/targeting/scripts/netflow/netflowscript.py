@@ -550,9 +550,9 @@ class NetflowScript(TargetingScript):
 
         for visit in netflow.visits:
             design_name = f'{self._config.field.name} S{visit.pointing.stage:03d} P{visit.pointing_idx:03d}/{len(netflow.pointings):03d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
-            d = Design.create_pfsDesign_visit(visit, assignments_all,
-                                              design_name=design_name,
-                                              arms=self._config.field.arms)
+            d = self._create_pfsDesign_visit(visit, assignments_all,
+                                             design_name=design_name,
+                                             arms=self._config.field.arms)
             designs.append(d)
 
             logger.info(f'Generated design {d.pfsDesignId:016x} for visit {visit.visit_idx} with name `{d.designName}`.')
