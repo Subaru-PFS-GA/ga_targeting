@@ -433,7 +433,7 @@ class Netflow():
                 cidx = int(m.group(2))
                 tidx = int(m.group(3))
                 target_class = self.__target_cache.target_class[tidx]
-                self.__variables.Cv_i[(cidx, vidx)].append(f)
+                self.__variables.Cv_i[(cidx, vidx)].append((f, tidx))
                 self.__variables.Tv_o[(tidx, vidx)].append((f, cidx))
                 for cg_name, options in self.__netflow_options.cobra_groups.items():
                     if target_class in options.target_classes:
@@ -2079,7 +2079,7 @@ class Netflow():
             target_class = self.__target_cache.target_class[ti]
 
             # TODO: consider creating a separate list for each visit
-            self.__variables.Cv_i[(cidx, visit.visit_idx)].append(f)
+            self.__variables.Cv_i[(cidx, visit.visit_idx)].append((f, ti))
             self.__variables.Tv_o[(ti, visit.visit_idx)].append((f, cidx))
 
             # Save the variable to the list of each cobra group to which it's relevant
@@ -2098,7 +2098,7 @@ class Netflow():
         if fiber_non_allocation_cost != 0:
             # TODO: consider storing Cv_i organized by visit instead of cobra as well
             relevant_vars = [ var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == visit.visit_idx ]
-            relevant_vars = [ item for sublist in relevant_vars for item in sublist ]
+            relevant_vars = [ var for sublist in relevant_vars for (var, ti) in sublist ]
             self.__add_cost(fiber_non_allocation_cost *
                             (self.__bench.cobras.nCobras - self.__problem.sum(relevant_vars)))
             
@@ -2386,7 +2386,7 @@ class Netflow():
                 constr0 = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
                            [ T_i ] + T_o + [ T_sink ], '<=', done_visits)
 
-                # The total number of outgoind edges must not be larger, together with the sink,
+                # The total number of outgoing edges must not be larger, together with the sink,
                 # than the number of visits. This is true regardless how many visits have been done so far,
                 # so done_visits doesn't play a role here.
                 # constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
@@ -2411,10 +2411,11 @@ class Netflow():
 
     def __create_Cv_i_constraints(self):
         # Every cobra can observe at most one target per visit
-        for (cidx, vidx), inflow in self.__variables.Cv_i.items():
+        for (cidx, vidx), vars in self.__variables.Cv_i.items():
+            vars = [ var for (var, tidx) in vars ]
             name = self.__make_name("Cv_i_sum", cidx, vidx)
             # constr = self.__problem.sum([ f for f in inflow ]) <= 1
-            constr = ([1] * len(inflow), inflow, '<=', 1)
+            constr = ([1] * len(vars), vars, '<=', 1)
             self.__constraints.Cv_i_sum[(cidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -2487,8 +2488,8 @@ class Netflow():
         if not ignore_reserved_fibers and num_reserved_fibers > 0:
             max_assigned_fibers = self.__bench.cobras.nCobras - num_reserved_fibers
             for vidx in range(nvisits):
-                variables = [var for ((ci, vi), var) in self.__variables.Cv_i.items() if vi == vidx]
-                variables = [item for sublist in variables for item in sublist]
+                variables = [ vars for ((ci, vi), vars) in self.__variables.Cv_i.items() if vi == vidx ]
+                variables = [ var for sublist in variables for (var, tidx) in sublist ]
 
                 name = self.__make_name("Cv_i_max", vidx)
                 # constr = self.__problem.sum(variables) <= max_assigned_fibers
@@ -2550,6 +2551,8 @@ class Netflow():
                         _, _, tidx, cidx, vidx = k1.split("_")
                         set_assigment(int(tidx), int(cidx), int(vidx))
 
+        for vidx in range(len(self.__target_assignments)):
+            assert not np.any(np.diff(np.sort([ v for k, v in self.__target_assignments[vidx].items() ])) == 0)
 
     def update_done_visits(self):
         """
@@ -2762,6 +2765,7 @@ class Netflow():
                 unassigned = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
                 # pd_append_column(unassigned, 'key', None, 'string')
                 # pd_append_column(unassigned, 'targetid', -1, np.int64)
+                pd_append_column(unassigned, 'stage', visit.pointing.stage, np.int32)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
                 pd_append_column(unassigned, 'target_idx', -1, np.int32)
@@ -2786,6 +2790,7 @@ class Netflow():
                 engineering = pd.DataFrame({ 'fiberid': fm.fiberId[eng_fiberidx] })
                 # pd_append_column(engineering, 'key', None, 'string')
                 # pd_append_column(engineering, 'targetid', -1, np.int64)
+                pd_append_column(engineering, 'stage', visit.pointing.stage, np.int32)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(engineering, 'visit_idx', vidx, np.int32)
                 pd_append_column(engineering, 'target_idx', -1, np.int32)
@@ -2822,6 +2827,7 @@ class Netflow():
             targets = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
             # pd_append_column(targets, 'key', self.__target_cache.key[tidx], 'string')
             # pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
+            pd_append_column(targets, 'stage', visit.pointing.stage, np.int32)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
             pd_append_column(targets, 'visit_idx', vidx, np.int32)
             pd_append_column(targets, 'target_idx', self.__target_cache.target_idx[tidx], np.int32)
@@ -2856,8 +2862,7 @@ class Netflow():
 
         # Include all columns from the target list data frame, if requested
         # Convert integer columns to nullable to avoid float conversion in join
-        if include_target_columns:
-                
+        if include_target_columns:  
             assignments = assignments.join(pd_to_nullable(self.__targets), on='target_idx', how='left')
 
         # Make sure float columns contain NaN instead of None
