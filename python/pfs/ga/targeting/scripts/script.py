@@ -546,7 +546,22 @@ class Script():
         self.__start_profiler()
 
         logger.info(f'Starting execution of {self.get_command_name()}.')
-        self.run()
+
+        try:
+            self.run()
+        except Exception as ex:
+            # Log the exception first, it will write the stack trace to the log
+            logger.exception('Unhandled exception occured.')
+
+            # If running in the debugger, break here so that we can go back and
+            # check the error
+            try:
+                import debugpy
+                if debugpy.is_client_connected:
+                    raise ex
+            except ImportError:
+                pass
+
         logger.info(f'Finished execution of {self.get_command_name()}.')
 
         self.__stop_profiler()
