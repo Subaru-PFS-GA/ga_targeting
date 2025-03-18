@@ -17,7 +17,7 @@ extra_columns = {
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "PFS_SSP_GA_S25A_{name}_{{targetid:d}}_{resolution}",
+        pattern = "SSP_GA_S25A_{field}_{target_list}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
@@ -41,32 +41,39 @@ config = dict(
             # Very likely members on the RGB + DEIMOS stars
             "sci_P0": {
                 "prefix": "sci",
-                "non_observation_cost": 1000,
-                "partial_observation_cost": 100000.0
+                # "non_observation_cost": 1000,
+                "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0,
+                # "max_targets": 150,
             },
             # Bright p_member > 0.7
             "sci_P1": {
                 "prefix": "sci",
-                "non_observation_cost": 775,
-                "partial_observation_cost": 100000.0
+                 # "non_observation_cost": 775,
+                 "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0,
+                # "max_targets": 300,
             },
             # Bright p_member > 0.0
             "sci_P2": {
                 "prefix": "sci",
                 "non_observation_cost": 600,
-                "partial_observation_cost": 100000.0
+                "partial_observation_cost": 100000.0,
+                # "max_targets": 400,
             },
             # BHB + AGB + ToRGB
             "sci_P3": {
                 "prefix": "sci",
                 "non_observation_cost": 465,
-                "partial_observation_cost": 100000.0
+                "partial_observation_cost": 100000.0,
+                # "max_targets": 800,
             },
             # Blue Stragglers
             "sci_P4": {
                 "prefix": "sci",
                 "non_observation_cost": 360,
-                "partial_observation_cost": 100000.0
+                "partial_observation_cost": 100000.0,
+                # "max_targets": 300,
             },
             # Anc 0, Pace, Sestito
             "sci_P5": {
@@ -101,7 +108,7 @@ config = dict(
         },
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 0,
+                min_targets = 8,
             )
         }
     ),
@@ -335,6 +342,76 @@ config = dict(
                 }
             )
         ),
+
+        # Use the PS1 x GAIA sample as a fall-back for empty fibers
+        # This entry also add PS1 and GAIA photometry to all other objects
+        "gaia": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/PS1_GAIA_point_source_Draco_2_dobos.csv",
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'radial_velocity': 'rv',
+                'ref_epoch': 'epoch',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 9,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['rPSFMag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        flux = 'phot_g_mean_flux',
+                        flux_err = 'phot_g_mean_flux_error'
+                    ),
+                    "bp_gaia": dict(
+                        flux = 'phot_bp_mean_flux',
+                        flux_err = 'phot_bp_mean_flux_error'
+                    ),
+                    "rp_gaia": dict(
+                        flux = 'phot_rp_mean_flux',
+                        flux_err = 'phot_rp_mean_flux_error'
+                    ),
+                    "g_ps1": dict(
+                        mag = 'gPSFMag',
+                        mag_err = 'gPSFMagErr',
+                    ),
+                    "r_ps1": dict(
+                        mag = 'rPSFMag',
+                        mag_err = 'rPSFMagErr',
+                    ),
+                    "i_ps1": dict(
+                        mag = 'iPSFMag',
+                        mag_err = 'iPSFMagErr',
+                    ),
+                    "z_ps1": dict(
+                        mag = 'zPSFMag',
+                        mag_err = 'zPSFMagErr',
+                    ),
+                    "y_ps1": dict(
+                        mag = 'yPSFMag',
+                        mag_err = 'yPSFMagErr',
+                    ),
+                },
+                limits = {
+                    'gaia_rp': [16, 23],
+                }
+            )
+        ),
+
+
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/draco/sky_draco.feather",
             reader_args = dict(),
