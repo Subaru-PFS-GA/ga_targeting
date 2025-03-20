@@ -61,6 +61,7 @@ class GaiaReader(CatalogSerializer):
         :rad: `Angle` or `Number`: Cone search radius, in arc min if `Number`"""
 
         # TODO: bring out parameters like data release etc.
+        # TODO: apply filters on query lever rather than post-filtering
 
         pos = normalize_pos(pos)
         rad = normalize_angle(rad, u.arcmin)
@@ -74,6 +75,7 @@ class GaiaReader(CatalogSerializer):
                 ra, ra_error, dec, dec_error, ref_epoch,
                 parallax, parallax_error,
                 pm, pmra, pmra_error, pmdec, pmdec_error,
+                radial_velocity, radial_velocity_error,
                 phot_g_mean_flux, phot_g_mean_flux_error, phot_g_mean_mag,
                 phot_bp_mean_flux, phot_bp_mean_flux_error, phot_bp_mean_mag,
                 phot_rp_mean_flux, phot_rp_mean_flux_error, phot_rp_mean_mag
@@ -99,6 +101,8 @@ class GaiaReader(CatalogSerializer):
                 'pmra_error': 'err_pmra',
                 'pmdec': 'pmdec',
                 'pmdec_error': 'err_pmdec',
+                'radial_velocity': 'rv',
+                'radial_velocity_error': 'err_rv',
                 'phot_g_mean_mag': 'gaia_g',
                 'phot_g_mean_flux': 'flux_gaia_g',
                 'phot_g_mean_flux_error': 'err_flux_gaia_g',

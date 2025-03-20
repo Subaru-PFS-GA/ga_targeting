@@ -208,11 +208,11 @@ class ImportScript(TargetingScript):
 
         # Substitute these fields into column patterns
         field_info = dict(
-            name=self._config.field.key,               # Field short name, e.g. 'umi'
-            key=key,                                    # Target list key, e.g. 'dsph' or 'fluxstd'
+            field=self._config.field.key,               # Field short name, e.g. 'umi'
+            target_list=key,                            # Target list key, e.g. 'hsc' or 'fluxstd'
             obs_time=self._config.field.obs_time,
             resolution=self._config.field.resolution,
-            prefix=self._config.targets[key].prefix,
+            prefix=self._config.targets[key].prefix,    # Prefix, e.g. sci, cal or sky
             catid=self._config.targets[key].catid,
         )
 

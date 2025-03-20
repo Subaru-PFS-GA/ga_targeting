@@ -2414,7 +2414,7 @@ class Netflow():
         for (cidx, vidx), vars in self.__variables.Cv_i.items():
             vars = [ var for (var, tidx) in vars ]
             name = self.__make_name("Cv_i_sum", cidx, vidx)
-            # constr = self.__problem.sum([ f for f in inflow ]) <= 1
+            # constr = self.__problem.sum([ f for f in vars ]) <= 1
             constr = ([1] * len(vars), vars, '<=', 1)
             self.__constraints.Cv_i_sum[(cidx, vidx)] = constr
             self.__add_constraint(name, constr)

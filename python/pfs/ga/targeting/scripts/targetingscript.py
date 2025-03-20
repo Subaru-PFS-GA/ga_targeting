@@ -103,9 +103,12 @@ class TargetingScript(Script):
         pointings = []
         for p in pp:   
             if stage is None or p.stage in stage:
-                p.obs_time = obs_time
-                p.exp_time = exp_time
-                p.nvisits = nvisits
+                if obs_time is not None:
+                    p.obs_time = obs_time
+                if exp_time is not None:
+                    p.exp_time = exp_time
+                if nvisits is not None:
+                    p.nvisits = nvisits
                 pointings.append(p)
 
         logger.info(f'Found {len(pointings)} pointings for observation stage {stage}. '
@@ -229,7 +232,10 @@ class TargetingScript(Script):
         sci_mask = target_type == TargetType.SCIENCE
         target_idx = np.array(fiber_assignments['__target_idx'].fillna(-1).astype(np.int64))
         obj_id = np.array(fiber_assignments['targetid'].fillna(-1).astype(np.int64))
-        obj_id[sci_mask] = (self._field.id_prefix | target_idx[sci_mask])
+        if self._field is not None:
+            obj_id[sci_mask] = (self._field.id_prefix | target_idx[sci_mask])
+        else:
+            obj_id[sci_mask] = target_idx[sci_mask]
 
         kwargs = dict(
             designName = design_name,

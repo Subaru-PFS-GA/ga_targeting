@@ -137,7 +137,17 @@ class Observation(Catalog):
 
     observed = property(__get_observed)
 
+    def __match_magnitude(self, magnitude: Magnitude):
+        p = magnitude.photometry.name
+        m = magnitude.filter
+        if p in self.photometry and m in self.photometry[p].magnitudes:
+            return self.photometry[p].magnitudes[m]
+        else:
+            return magnitude
+
     def has_magnitude(self, magnitude: Magnitude, observed=True, dered=True):
+        magnitude = self.__match_magnitude(magnitude)
+
         if magnitude.columns is not None and len(magnitude.columns) > 0:
             return self.has_magnitude_by_column_name(magnitude, observed=observed, dered=dered)
         else:
@@ -173,6 +183,8 @@ class Observation(Catalog):
         return mag is not None or flux is not None
     
     def get_magnitude(self, magnitude: Magnitude, observed=None, dered=None, magnitude_type=None, mask=None):
+        magnitude = self.__match_magnitude(magnitude)
+
         if magnitude.columns is not None and len(magnitude.columns) > 0:
             return self.get_magnitude_by_column(magnitude, observed=observed, dered=dered, magnitude_type=magnitude_type, mask=mask)
         else:

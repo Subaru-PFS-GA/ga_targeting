@@ -38,6 +38,10 @@ class Pointing():
 
     def __repr__(self):
         arglist = f'{self.ra:0.4f}, {self.dec:0.4f}, posang={self.posang:0.4f}'
+        if self.__exp_time is not None:
+            arglist += f', exp_time={self.__exp_time}'
+        if self.__obs_time is not None:
+            arglist += f', obs_time={self.__obs_time}'
         if self.__stage is not None:
             arglist += f', stage={self.__stage}'
         if self.__priority is not None:

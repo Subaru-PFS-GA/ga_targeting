@@ -7,6 +7,8 @@ def safe_deep_copy(orig, **kwargs):
         return { k: safe_deep_copy(i, **kwargs) for k, i in orig.items() }
     elif orig is not None and hasattr(orig, 'copy'):
         return orig.copy(**kwargs)
+    elif isinstance(orig, str):
+        return orig
     elif orig is None:
         return None
     else:

@@ -29,6 +29,9 @@ class ReadOnlyDict():
 
     def __str__(self):
         return self.__d.__str__()
+
+    def __repr__(self):
+        return self.__d.__repr__()
 	
     def clear(self):
         raise RuntimeError("The dictionary is read-only.")

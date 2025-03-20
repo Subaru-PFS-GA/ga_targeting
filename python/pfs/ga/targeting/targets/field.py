@@ -165,8 +165,11 @@ class Field():
     def get_center(self):
         return Pointing(self.pos.ra, self.pos.dec, posang=0.0)
 
-    def get_center_pointing(self, posang=None):
-        return Pointing(self.__pos, posang=posang)
+    def get_center_pointing(self, posang=None, include_motion=True):
+        if include_motion:
+            return Pointing(self.__pos, posang=posang)
+        else:
+            return Pointing(self.__pos.ra, self.__pos.dec, posang=posang)
 
     def get_field_config(self):
         raise NotImplementedError()

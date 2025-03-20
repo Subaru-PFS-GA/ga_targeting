@@ -8,6 +8,7 @@ from matplotlib.cm import get_cmap
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Colormap, Normalize
 from sklearn.neighbors import KDTree
+from scipy.spatial import distance_matrix
 
 import pfs.utils
 from pfs.utils.coordinates import DistortionCoefficients as DCoeff
@@ -377,7 +378,7 @@ class SubaruPFI(Instrument, FiberAllocator):
     def radec_to_fp_pos(self,
                         ra, dec,
                         pointing,
-                        epoch=2000.0, pmra=None, pmdec=None, parallax=None, rv=None):
+                        epoch=2016.0, pmra=None, pmdec=None, parallax=None, rv=None):
         
         """
         Convert celestial coordinate to focal plane positions.
@@ -1808,16 +1809,43 @@ class SubaruPFI(Instrument, FiberAllocator):
 
     def plot_corners(self, ax, **kwargs):
         pass
-    
+
     def generate_cobra_location_labels(self, ntheta=6):
+        return self.__generate_cobra_location_labels_voronoi(ntheta=ntheta)
+
+    def __generate_cobra_location_labels_voronoi(self, ntheta=None):
+
+        # Get the focal plane coordinates of the cobras
+        uv = np.stack([self.__bench.cobras.centers.real, self.__bench.cobras.centers.imag], axis=-1)
+
+        # Put down some points in the focal plane and flag the cobras with the index of the closest point
+
+        points = []
+        points.append([[0, 0]])
+
+        phi = np.radians(np.linspace(0, 360, 6, endpoint=False) + 15 )
+        points.append(100 * np.stack([np.cos(phi), np.sin(phi)], axis=-1))
+
+        phi = np.radians(np.linspace(0, 360, 13, endpoint=False) - 15)
+        points.append(175 * np.stack([np.cos(phi), np.sin(phi)], axis=-1))
+
+        xy = np.concatenate(points, axis=0)
+
+        d = distance_matrix(xy, uv)
+
+        labels = np.argmin(d, axis=0)
+
+        return labels
+    
+    def __generate_cobra_location_labels_sections(self, ntheta=6):
         """
         Generate integer labels for each cobra that organize the cobras into groups that
         are uniform in the focal plane.
         
         Parameters
         ----------
-        ngroups : int
-            The number of groups to divide the cobras into, for each spectrograph.
+        ntheta : int
+            The number of groups to divide the circle into.
         """
 
         # Get the focal plane coordinates of the cobras

@@ -58,6 +58,8 @@ class ExportScript(TargetingScript):
         self.add_arg('--input-catalog-id', type=int, help='Overrides whatever catId is used during fiber assignment.')
         self.add_arg('--proposal-id', type=str, help='Overrides whatever proposalId is used during fiber assignment.')
 
+        self.add_arg('--skip-notebooks', action='store_true', help='Skip execution of evaluation notebooks.')    
+
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
 

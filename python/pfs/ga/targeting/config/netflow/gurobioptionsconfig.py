@@ -3,7 +3,7 @@ from ..config import Config
 class GurobiOptionsConfig(Config):
     def __init__(self):
         # Random seed
-        self.seed = 0
+        self.seed = None
 
         # Agressiveness of presolve which tries to eliminate variables from the LP problem
         # -1 means automatic, which is the best choice to prevent the presolver from
