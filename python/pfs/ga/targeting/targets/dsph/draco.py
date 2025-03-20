@@ -50,13 +50,23 @@ class Draco(DSphGalaxy):
         # Aligned pointings
         pointings = {
             SubaruPFI: [
+                # COMPACT POINTINGS WITH LARGE OVERLAP
+                # # major axis
+                # Pointing.from_relative_pos(pos, sep=0.4, dir=0.0, posang=180.0, stage=0, priority=1),
+                # Pointing.from_relative_pos(pos, sep=-0.4, dir=0.0, posang=180.0, stage=0, priority=1),
+    
+                # # minor axis
+                # Pointing.from_relative_pos(pos, sep=0.15, dir=90.0, posang=150.0, stage=1, priority=4),
+                # Pointing.from_relative_pos(pos, sep=-0.15, dir=90.0, posang=150.0, stage=1, priority=4),
+
+                # LOOSER POINTINGS WITH LARGER AREA
                 # major axis
-                Pointing.from_relative_pos(pos, sep=0.47, dir=0.0, posang=30.0, stage=0, priority=1),
-                Pointing.from_relative_pos(pos, sep=-0.47, dir=0.0, posang=30.0, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=0.47, dir=0.0, posang=210.0, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.47, dir=0.0, posang=210.0, stage=0, priority=1),
     
                 # minor axis
-                Pointing.from_relative_pos(pos, sep=0.25, dir=90.0, posang=0.0, stage=1, priority=4),
-                Pointing.from_relative_pos(pos, sep=-0.25, dir=90.0, posang=0.0, stage=1, priority=4),
+                Pointing.from_relative_pos(pos, sep=0.25, dir=90.0, posang=180.0, stage=1, priority=4),
+                Pointing.from_relative_pos(pos, sep=-0.25, dir=90.0, posang=180.0, stage=1, priority=4),
             ]
         }
 

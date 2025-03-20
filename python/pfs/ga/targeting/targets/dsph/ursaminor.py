@@ -51,20 +51,20 @@ class UrsaMinor(DSphGalaxy):
         pointings = {
             SubaruPFI: [
                 # Inner pointings along the minor axis
-                Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=-20, stage=1, priority=2),
-                Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=-20, stage=1, priority=2),
+                Pointing.from_relative_pos(pos, sep=0.35, dir=50, posang=220, stage=1, priority=2),
+                Pointing.from_relative_pos(pos, sep=-0.35, dir=50, posang=220, stage=1, priority=2),
 
                 # Rotated outer pointings along the minor axis
-                Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=-50, stage=3, priority=8),
-                Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=-50, stage=3, priority=8),
+                Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=190, stage=3, priority=8),
+                Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=190, stage=3, priority=8),
 
                 # Inner pointings along the major axis
-                Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=-20, stage=0, priority=1),
-                Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=-20, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=220, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=220, stage=0, priority=1),
 
                 # Outer pointings along the major axis
-                Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=-20, stage=2, priority=4),
-                Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=-20, stage=2, priority=4),
+                Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=190, stage=2, priority=4),
+                Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=190, stage=2, priority=4),
             ]
         }
 
@@ -116,7 +116,7 @@ class UrsaMinor(DSphGalaxy):
         # instead of i2_hsc.
         filter_map = {
             # 'r_hsc': 'r2_hsc',
-            # 'i_hsc': 'i2_hsc',
+            'i_hsc': 'i_old_hsc',
         }
 
         return filter_map
