@@ -30,19 +30,19 @@ config = dict(
         target_classes = {
             'sky': dict(
                 prefix = 'sky',
-                min_targets = 240,
-                max_targets = 320,
+                min_targets = 400,
+                max_targets = 420,
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 40,
+                min_targets = 60,
                 max_targets = 240,
             ),
             # Very likely members on the RGB + DEIMOS stars
             "sci_P0": {
                 "prefix": "sci",
                 # "non_observation_cost": 1000,
-                "non_observation_cost": 600,
+                "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0,
                 # "max_targets": 150,
             },
@@ -50,14 +50,14 @@ config = dict(
             "sci_P1": {
                 "prefix": "sci",
                  # "non_observation_cost": 775,
-                 "non_observation_cost": 600,
+                 "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0,
                 # "max_targets": 300,
             },
             # Bright p_member > 0.0
             "sci_P2": {
                 "prefix": "sci",
-                "non_observation_cost": 600,
+                "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0,
                 # "max_targets": 400,
             },
@@ -108,7 +108,7 @@ config = dict(
         },
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 8,
+                min_targets = 3,
             )
         }
     ),
