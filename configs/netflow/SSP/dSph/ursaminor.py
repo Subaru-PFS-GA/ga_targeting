@@ -13,49 +13,47 @@ CATID_SCIENCE_GE = 10093
 
 extra_columns = {
     'proposalid': dict(
-        # pattern = "SSP_GA_{obs_time:%Y%m%d}_{name}",
         constant = PROPOSALID,
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "PFS_SSP_GA_S25A_{name}_{{targetid:d}}_{resolution}",
+        pattern = "SSP_GA_S25A_{field}_{target_list}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
 
 config = dict(
-    # pointings = [
-    #     dict(ra=229.2, dec=67.90, posang=0),
-    # ],
     # Override the minimum number of calibration targets
     netflow_options = dict(
         target_classes = {
             'sky': dict(
                 prefix = 'sky',
-                min_targets = 240,
-                max_targets = 320,
+                min_targets = 400,
+                max_targets = 420,
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 40,
+                min_targets = 60,
                 max_targets = 240,
             ),
             # Very likely members on the RGB + DEIMOS stars
             "sci_P0": {
                 "prefix": "sci",
+                # "non_observation_cost": 1000,
                 "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0
             },
             # Bright p_member > 0.7
             "sci_P1": {
                 "prefix": "sci",
-                "non_observation_cost": 775,
+                # "non_observation_cost": 775,
+                "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0
             },
             # Bright p_member > 0.0
             "sci_P2": {
                 "prefix": "sci",
-                "non_observation_cost": 600,
+                "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0
             },
             # BHB + AGB + ToRGB
@@ -110,7 +108,7 @@ config = dict(
     targets = {
         "hsc": dict(
             # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/ursaminor_nb_3/hsc_umi_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/SSP/ursaminor_003/hsc_umi_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -342,6 +340,75 @@ config = dict(
                 }
             )
         ),
+
+        # Use the PS1 x GAIA sample as a fall-back for empty fibers
+        # This entry also add PS1 and GAIA photometry to all other objects
+        "gaia": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/PS1_GAIA_point_source_Ursaminor_2_dobos.csv",
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'radial_velocity': 'rv',
+                'ref_epoch': 'epoch',
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 9,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['rPSFMag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            photometry = dict(
+                filters = {
+                    "g_gaia": dict(
+                        flux = 'phot_g_mean_flux',
+                        flux_err = 'phot_g_mean_flux_error'
+                    ),
+                    "bp_gaia": dict(
+                        flux = 'phot_bp_mean_flux',
+                        flux_err = 'phot_bp_mean_flux_error'
+                    ),
+                    "rp_gaia": dict(
+                        flux = 'phot_rp_mean_flux',
+                        flux_err = 'phot_rp_mean_flux_error'
+                    ),
+                    "g_ps1": dict(
+                        mag = 'gPSFMag',
+                        mag_err = 'gPSFMagErr',
+                    ),
+                    "r_ps1": dict(
+                        mag = 'rPSFMag',
+                        mag_err = 'rPSFMagErr',
+                    ),
+                    "i_ps1": dict(
+                        mag = 'iPSFMag',
+                        mag_err = 'iPSFMagErr',
+                    ),
+                    "z_ps1": dict(
+                        mag = 'zPSFMag',
+                        mag_err = 'zPSFMagErr',
+                    ),
+                    "y_ps1": dict(
+                        mag = 'yPSFMag',
+                        mag_err = 'yPSFMagErr',
+                    ),
+                },
+                limits = {
+                    'gaia_rp': [16, 23],
+                }
+            )
+        ),
+
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sky_ursaminor.feather",
             reader_args = dict(),
