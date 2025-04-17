@@ -15,7 +15,7 @@ from .dsphgalaxy import DSphGalaxy
 
 class Bootes(DSphGalaxy):
     def __init__(self):
-        ID = 'booi'
+        ID = 'bootes'
         name = 'Bootes I'
 
         pos = [ 210.025, 14.5 ] * u.deg                       # Evan

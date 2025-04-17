@@ -549,7 +549,11 @@ class NetflowScript(TargetingScript):
         designs = []
 
         for visit in netflow.visits:
-            design_name = f'{self._config.field.name} S{visit.pointing.stage:01d} P{visit.pointing_idx:02d}/{len(netflow.pointings):02d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+            if visit.pointing.stage is not None:
+                design_name = f'{self._config.field.name} S{visit.pointing.stage:01d} P{visit.pointing_idx:02d}/{len(netflow.pointings):02d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+            else:
+                design_name = f'{self._config.field.name} P{visit.pointing_idx:02d}/{len(netflow.pointings):02d} V{visit.visit_idx:02d}/{len(netflow.visits):02d}'
+
             d = self._create_pfsDesign_visit(visit, assignments_all,
                                              design_name=design_name,
                                              arms=self._config.field.arms)

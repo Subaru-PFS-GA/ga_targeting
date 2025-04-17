@@ -111,9 +111,12 @@ class TargetingScript(Script):
                     p.nvisits = nvisits
                 pointings.append(p)
 
-        logger.info(f'Found {len(pointings)} pointings for observation stage {stage}. '
-                    f'Number of visits is {nvisits} with exposure time {exp_time} s. '
-                    f'Observation time is {obs_time} UTC.')
+        if len(pointings) == 0:
+            raise ValueError(f'No pointings found, cannot continue.')
+        else:
+            logger.info(f'Found {len(pointings)} pointings for observation stage {stage}. '
+                        f'Number of visits is {nvisits} with exposure time {exp_time} s. '
+                        f'Observation time is {obs_time} UTC.')
             
         return pointings
 

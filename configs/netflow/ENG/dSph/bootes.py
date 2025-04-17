@@ -1,8 +1,21 @@
-from datetime import datetime, timedelta
-from pfs.ga.targeting.targets.dsph import Fornax
-from pfs.ga.targeting.instrument import SubaruHSC
+from datetime import datetime
 
-DATA_DIR = '/datascope/subaru'
+PROPOSALID = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}"
+CATID_SKY_GAIA = 1006
+CATID_SKY_PS1 = 1007
+CATID_FLUXSTD = 3006
+CATID_SCIENCE_GA = 10088
+
+extra_columns = {
+    'proposalid': dict(
+        constant = PROPOSALID,
+        dtype = 'string',
+    ),
+    'obcode': dict(
+        pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{field}_{{targetid:d}}_{resolution}",
+        dtype = 'string'
+    )
+}
 
 config = dict(
     field = dict(
@@ -12,27 +25,35 @@ config = dict(
         exp_time = 6 * 30 * 60, # sec
     ),
     pointings = [
-        dict(ra=210.025, dec=14.5, posang=30),
+        dict(ra=210.025, dec=14.5, posang=30, exp_time=6 * 30 * 60),
     ],
+    # Override the minimum number of calibration targets
+    netflow_options = dict(
+        target_classes = {
+            'cal': dict(
+                min_targets = 200,
+                max_targets = 300,
+            )
+        },
+        cobra_groups = {
+            'cal_location': dict(
+                min_targets = 0,
+                max_targets = 20,
+            )
+        },
+        epoch = 2016.0,
+    ),
     targets = {
         "dsph": dict(
-            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/bootesi_obs.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/bootesi/bootesi_obs.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
             prefix = "sci",
-            epoch = "J2000.0",
-            catid = 10088,
-            extra_columns = {
-                'proposalid': dict(
-                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-                    dtype = 'string',
-                ),
-                'obcode': dict(
-                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
-                    dtype = 'string'
-                )
-            },
+            frame='icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
             photometry = dict(
                 filters = {
                     "g_hsc": dict(
@@ -47,7 +68,7 @@ config = dict(
             ),
         ),
         "sky": dict(
-            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/sky_bootesi.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/bootesi/sky_bootesi.feather",
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
@@ -55,10 +76,11 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "sky",
-            catid = 1007,
+            catid = CATID_SKY_PS1,
+            extra_columns = extra_columns,
         ),
         "fluxstd": dict(
-            path = f"{DATA_DIR}/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/bootesi/fluxstd_bootesi.feather",
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
@@ -66,17 +88,10 @@ config = dict(
                 'dec': 'Dec',
             },
             prefix = "cal",
-            catid = 3006,
-            extra_columns = {
-                'proposalid': dict(
-                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
-                    dtype = 'string',
-                ),
-                'obcode': dict(
-                    pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
-                    dtype = 'string'
-                )
-            },
+            frame = 'icrs',
+            epoch = 2016.0,
+            catid = CATID_FLUXSTD,
+            extra_columns = extra_columns,
             photometry = dict(
                 bands = {
                     b: dict(
@@ -93,19 +108,4 @@ config = dict(
             ),
         ),
     },
-    # Override the minimum number of calibration targets
-    netflow_options = dict(
-        target_classes = {
-            'cal': dict(
-                min_targets = 200,
-                max_targets = 300,
-            )
-        },
-        cobra_groups = {
-            'cal_location': dict(
-                min_targets = 15,
-                max_targets = 20,
-            )
-        }
-    )
 )

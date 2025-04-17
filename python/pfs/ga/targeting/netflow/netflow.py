@@ -624,22 +624,17 @@ class Netflow():
         return fpp
 
     def __get_black_dot_config(self):
-        black_dot_penalty = self.__netflow_options.black_dot_penalty
+        black_dot_penalty = self.__get_netflow_option(self.__netflow_options.black_dot_penalty, None)
         
-        if black_dot_penalty is not None:
-            center, radius = self.__get_closest_black_dots()
-            black_dots = SimpleNamespace(
-                # Closest black dots for each cobra
-                black_dot_center = center,
-                black_dot_radius = radius,
-                black_dot_penalty = black_dot_penalty
-            )
+        center, radius = self.__get_closest_black_dots()
+        black_dots = SimpleNamespace(
+            # Closest black dots for each cobra
+            black_dot_center = center,
+            black_dot_radius = radius,
+            black_dot_penalty = black_dot_penalty
+        )
 
-            logger.info('Successfully loaded black dot configuration.')
-        else:
-            black_dots = None
-
-            logger.warning('Black dot penalty is not set. Not loading black dot configuration.')
+        logger.info('Successfully loaded black dot configuration.')
 
         return black_dots
     
@@ -1412,12 +1407,17 @@ class Netflow():
         # Since targeting is done in fix quanta in time, make sure all pointings and visits
         # have the same exposure time
 
-        self.__visit_exp_time = None
+        exp_time = None
         for p in self.__pointings:
-            if self.__visit_exp_time is None:
-                self.__visit_exp_time = p.exp_time.to_value('s')
-            elif self.__visit_exp_time != p.exp_time.to_value('s'):
+            if exp_time is None:
+                exp_time = p.exp_time.to_value('s')
+            elif exp_time != p.exp_time.to_value('s'):
                 raise NetflowException("Exposure time of every pointing and visit should be the same.")
+
+        if exp_time is None:
+            raise NetflowException("No exposure time provided for the pointings.")
+
+        self.__visit_exp_time = exp_time
             
     def __calculate_target_visits(self):
         """
@@ -2064,7 +2064,7 @@ class Netflow():
             cost += cobra_move_cost(dist)
         
         # Cost of closest black dots for each cobra
-        if self.__black_dots is not None:
+        if self.__black_dots.black_dot_penalty is not None:
             dist = self.__get_closest_black_dot_distance(cidx, fp_pos)
             cost += self.__black_dots.black_dot_penalty(dist)
 
@@ -2760,12 +2760,13 @@ class Netflow():
         for vidx, visit in enumerate(self.__visits):
             # Unassigned cobras
             cidx = np.where(self.__cobra_assignments[vidx] == -1)[0]
+            stage = visit.pointing.stage if visit.pointing.stage is not None else -1
 
             if include_unassigned_fibers:
                 unassigned = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
                 # pd_append_column(unassigned, 'key', None, 'string')
                 # pd_append_column(unassigned, 'targetid', -1, np.int64)
-                pd_append_column(unassigned, 'stage', visit.pointing.stage, np.int32)
+                pd_append_column(unassigned, 'stage', stage, np.int32)
                 pd_append_column(unassigned, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(unassigned, 'visit_idx', vidx, np.int32)
                 pd_append_column(unassigned, 'target_idx', -1, np.int32)
@@ -2790,7 +2791,7 @@ class Netflow():
                 engineering = pd.DataFrame({ 'fiberid': fm.fiberId[eng_fiberidx] })
                 # pd_append_column(engineering, 'key', None, 'string')
                 # pd_append_column(engineering, 'targetid', -1, np.int64)
-                pd_append_column(engineering, 'stage', visit.pointing.stage, np.int32)
+                pd_append_column(engineering, 'stage', stage, np.int32)
                 pd_append_column(engineering, 'pointing_idx', visit.pointing_idx, np.int32)
                 pd_append_column(engineering, 'visit_idx', vidx, np.int32)
                 pd_append_column(engineering, 'target_idx', -1, np.int32)
@@ -2827,7 +2828,7 @@ class Netflow():
             targets = pd.DataFrame({ 'fiberid': fm.fiberId[sci_fiberidx][cidx] })
             # pd_append_column(targets, 'key', self.__target_cache.key[tidx], 'string')
             # pd_append_column(targets, 'targetid', self.__target_cache.id[tidx], np.int64)
-            pd_append_column(targets, 'stage', visit.pointing.stage, np.int32)
+            pd_append_column(targets, 'stage', stage, np.int32)
             pd_append_column(targets, 'pointing_idx', visit.pointing_idx, np.int32)
             pd_append_column(targets, 'visit_idx', vidx, np.int32)
             pd_append_column(targets, 'target_idx', self.__target_cache.target_idx[tidx], np.int32)

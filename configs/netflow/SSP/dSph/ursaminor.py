@@ -1,8 +1,3 @@
-import numpy as np
-from datetime import datetime, timedelta
-
-from pfs.ga.targeting.instrument import SubaruHSC
-
 PROPOSALID = 'S25A-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
