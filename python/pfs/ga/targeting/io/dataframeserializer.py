@@ -204,9 +204,12 @@ class DataFrameSerializer():
 
         format = self.__get_format(filename, format)
 
-        if format == ".csv" or format == ".ecsv":
+        if format == ".csv":
             read_func = self.__read_csv
             write_func = self.__write_csv
+        elif format == '.ecsv':
+            read_func = self.__read_ecsv
+            write_func = self.__write_ecsv
         elif format == ".feather":
             read_func = self.__read_feather
             write_func = self.__write_feather
@@ -348,6 +351,14 @@ class DataFrameSerializer():
         return df
 
     def __write_fits(self, df: pd.DataFrame, filename: str, dataset=None, mask=None, **kwargs):
+        raise NotImplementedError()
+
+    def __read_ecsv(self, filename: str, dataset=None, mask=None, **kwargs) -> pd.DataFrame:
+        df = Table.read(filename).to_pandas()
+        df = self.__apply_mask(df, mask)
+        return df
+
+    def __write_ecsv(self, df: pd.DataFrame, filename: str, dataset=None, mask=None, **kwargs):
         raise NotImplementedError()
 
     def read(self, filename: str, dataset=None, format=None, mask=None, **kwargs) -> pd.DataFrame:
