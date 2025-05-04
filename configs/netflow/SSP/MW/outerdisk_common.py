@@ -7,7 +7,7 @@ import pfs.ga.targeting
 config = dict(
     field = dict(
         arms = ['b', 'm', 'n'],
-        nvisits = 1,
+        nvisits = 6,
         resolution = 'm'
     ),
     instrument_options = dict(
@@ -80,7 +80,7 @@ config = dict(
             'cal_location': dict(
                 # groups = np.random.randint(4, size=2394),
                 target_classes = [ 'cal' ],
-                min_targets = 10,
+                min_targets = 5,
                 max_targets = 60,
                 non_observation_cost = 1000,
             ),
