@@ -1,8 +1,10 @@
-import os
-from datetime import datetime, timedelta
-import numpy as np
+from datetime import datetime
 
-import pfs.ga.targeting
+PROPOSALID = "SSP_GA_ENG_{obs_time:%Y%m%d}_{field}"
+CATID_SKY_GAIA = 1006
+CATID_SKY_PS1 = 1007
+CATID_FLUXSTD = 3006
+CATID_SCIENCE_GA = 10088
 
 path = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l180_b25_ENG/ga_targets_outerdisk_l180_b25_ENG_bright-v2.csv'
 
@@ -16,11 +18,11 @@ column_map = {
 
 extra_columns = {
     'proposalid': dict(
-        pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}",
+        pattern = PROPOSALID,
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{name}_{{targetid:d}}_{resolution}",
+        pattern = "SSP_GA_ENG_{obs_time:%Y%m%d}_{field}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
@@ -42,7 +44,7 @@ config = dict(
             column_map = column_map,
             prefix = "sci",
             # epoch = "J2000.0",
-            catid = 10088,
+            catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
@@ -58,7 +60,7 @@ config = dict(
             column_map = column_map,
             prefix = "sci",
             # epoch = "J2000.0",
-            catid = 10088,
+            catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
@@ -77,7 +79,7 @@ config = dict(
                 'dec': 'Dec'
             },
             prefix = "sky",
-            catid = 1007,
+            catid = CATID_SKY_PS1,
             extra_columns = extra_columns,
         ),
         "fluxstd": dict(
@@ -97,7 +99,7 @@ config = dict(
             },
             mask = 'lambda df: df["prob_f_star"] > 0.5',
             prefix = "cal",
-            catid = 3006,
+            catid = CATID_FLUXSTD,
             extra_columns = extra_columns,
             photometry = dict(
                 bands = {
