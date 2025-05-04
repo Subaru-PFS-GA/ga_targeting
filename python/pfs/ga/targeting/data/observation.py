@@ -405,6 +405,9 @@ class Observation(Catalog):
             If True, recalculate the flux even if it is already available.
         """
 
+        # TODO: check if this function is ever used, otherwise remove it and keep
+        #       calculate_flux_filters_bands only
+
         for p in self.photometry.values():
             for m in p.magnitudes.values():
                 if m.get_name('obs_') in self.__data and (force or m.get_name('obs_flux_') not in self.__data):
@@ -419,7 +422,20 @@ class Observation(Catalog):
                             flux_err = flux * np.array(mag_err) * np.log(10) / 2.5
                             self.__data[m.get_name('err_flux_')] = flux_err
 
-    def calculate_flux_filters(self, filters, unit=u.nJy):
+    def calculate_flux_filters_bands(self, unit=u.nJy):
+        for p, phot in self.photometry.items():
+            for m, mag in phot.magnitudes.items():
+                if mag.columns is not None:
+                    self.__calculate_flux_filter(mag, unit=unit)
+
+                    # if 'filter' not in mag.columns:
+                    #     # If the `filter` name is not in a column, treat it as a 'filter'
+                    #     self.__calculate_flux_filter(mag, unit=unit)
+                    # else:
+                    #     # If the `filter` name is in a column, treat it as a 'band'
+                    #     self.__calculate_flux_band(mag, unit=unit)
+
+    def __calculate_flux_filter(self, magnitude: Magnitude, unit=u.nJy):
         """
         Calculate flux in filters. This is necessary to fill in missing data for
         the design files.
@@ -428,116 +444,71 @@ class Observation(Catalog):
         # TODO: column names are inconsistent with the version of this function that
         #       works with photometry objects
 
-        for filter, columns in filters.items():
-            any_flux = None         # First available flux value for a filter
-            any_flux_err = None     # First available flux error for a filter
-            any_flux_key = None     # Key of the first available flux column
-            for prefix in ['', 'psf_', 'fiber_', 'total_']:
-                flux_key = prefix + 'flux'
-                flux_err_key = prefix + 'flux_err'
-                mag_key = prefix + 'mag'
-                mag_err_key = prefix + 'mag_err'
+        filter = magnitude.get_name()
+        columns = magnitude.columns
+        filter_value = columns['filter_value'] if 'filter_value' in columns else None
+        band = columns['band'] if 'band' in columns else None
 
-                flux_col_canonical = f'{filter}_{prefix}flux'
-                flux_err_col_canonical = f'{filter}_{prefix}flux_err'
+        if filter_value is not None:
+            mask = self.__data[columns['filter']] == filter_value
+        else:
+            mask = None
 
-                flux_col = columns[flux_key] if flux_key in columns else None
-                flux_err_col = columns[flux_err_key] if flux_err_key in columns else None
-                mag_col = columns[mag_key] if mag_key in columns else None
-                mag_err_col = columns[mag_err_key] if mag_err_key in columns else None
+        any_flux = None         # First available flux value for a filter
+        any_flux_err = None     # First available flux error for a filter
+        any_flux_key = None     # Key of the first available flux column
+        for prefix in ['', 'psf_', 'fiber_', 'total_']:
+            flux_key = prefix + 'flux'
+            flux_err_key = prefix + 'flux_err'
+            mag_key = prefix + 'mag'
+            mag_err_key = prefix + 'mag_err'
 
-                # Calculate flux from the magnitude
-                flux = None
-                flux_err = None
-                if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list `{self.name}`.')
+            flux_col_canonical = f'{filter}_{prefix}flux'
+            flux_err_col_canonical = f'{filter}_{prefix}flux_err'
 
-                    if mag_col is not None:
-                        # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter `{filter}`.')
+            flux_col = columns[flux_key] if flux_key in columns else None
+            flux_err_col = columns[flux_err_key] if flux_err_key in columns else None
+            mag_col = columns[mag_key] if mag_key in columns else None
+            mag_err_col = columns[mag_err_key] if mag_err_key in columns else None
 
-                        mag = self.__data[mag_col]
-                        mag_err = self.__data[mag_err_col] if mag_err_col is not None else None
+            # Calculate flux from the magnitude
+            flux = None
+            flux_err = None
+            if flux_col is None:
+                logger.warning(f'Missing flux column `{flux_key}` in target list `{self.name}`.')
 
-                        flux = (np.array(mag) * u.ABmag).to_value(unit)
-                        if mag_err is not None:
-                            flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
-                    elif any_flux is not None:
-                        # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter `{filter}`.')
-                        flux = any_flux
-                        flux_err = any_flux_err
-                else:
-                    flux = self.__data[flux_col]
-                    if flux_err_col is not None:
-                        flux_err = self.__data[flux_err_col]
+                if mag_col is not None:
+                    # The magnitude is available to calculate the flux from
+                    logger.info(f'Calculating `{flux_key}` from `{mag_key}` in filter `{filter}`.')
 
-                # Save the flux to the target list with canonical column name
-                self.__data[flux_col_canonical] = flux if flux is not None else np.nan
-                self.__data[flux_err_col_canonical] = flux_err if flux_err is not None else np.nan
+                    mag = self.__data[mag_col]
+                    mag_err = self.__data[mag_err_col] if mag_err_col is not None else None
 
-                if any_flux is None:
-                    any_flux = self.__data[flux_col_canonical]
-                    any_flux_err = self.__data[flux_err_col_canonical]
-                    any_flux_key = flux_key
-    
-    def calculate_flux_bands(self, bands, unit=u.nJy):
-        """
-        Calculate flux in filters. This is necessary to fill in missing data for
-        the design files.
-        """
+                    flux = (np.array(mag) * u.ABmag).to_value(unit)
+                    if mag_err is not None:
+                        flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
+                elif any_flux is not None:
+                    # No magnitude is available, copy flux with another prefix
+                    logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in filter `{filter}`.')
+                    flux = any_flux
+                    flux_err = any_flux_err
+            else:
+                flux = self.__data[flux_col]
+                if flux_err_col is not None:
+                    flux_err = self.__data[flux_err_col]
 
-        for band, columns in bands.items():
-            any_flux = None
-            any_flux_err = None
-            any_flux_key = None
-            for prefix in ['', 'psf_', 'fiber_', 'total_']:
-                # Column keys
-                flux_key = prefix + 'flux'
-                flux_err_key = prefix + 'flux_err'
-                mag_key = prefix + 'mag'
-                mag_err_key = prefix + 'mag_err'
+            # Apply the mask
+            if mask is not None:
+                if flux is not None:
+                    flux[~mask] = np.nan
+                if flux_err is not None:
+                    flux_err[~mask] = np.nan
 
-                # Column names
-                flux_col = columns[flux_key] if flux_key in columns else None
-                flux_err_col = columns[flux_err_key] if flux_err_key in columns else None
-                mag_col = columns[mag_key] if mag_key in columns else None
-                mag_err_col = columns[mag_err_key] if mag_err_key in columns else None
+            # Save the flux to the target list with canonical column name
+            self.__data[flux_col_canonical] = flux if flux is not None else np.nan
+            self.__data[flux_err_col_canonical] = flux_err if flux_err is not None else np.nan
 
-                flux_col_canonical = f'{prefix}flux_{band}'
-                flux_err_col_canonical = f'{prefix}flux_err_{band}'
-
-                # Calculate flux from the magnitude
-                flux = None
-                flux_err = None
-                if flux_col is None:
-                    logger.warning(f'Missing flux column `{flux_key}` in target list `{self.name}`.')
-
-                    if mag_col is not None:
-                        # The magnitude is available to calculate the flux from
-                        logger.info(f'Calculating `{flux_key}` from `{mag_key}` in band `{band}`.')
-
-                        mag = self.__data[mag_col]
-                        mag_err = self.__data[mag_err_col] if mag_err_col is not None else None
-
-                        flux = (np.array(mag) * u.ABmag).to_value(unit)
-                        if mag_err is not None:
-                            flux_err = 0.4 * np.log(10) * flux * np.array(mag_err)
-                    elif any_flux is not None:
-                        # No magnitude is available, copy flux with another prefix
-                        logger.info(f'Copying `{flux_key}` from `{any_flux_key}` in band `{filter}`.')
-                        flux = any_flux
-                        flux_err = any_flux_err
-                else:
-                    flux = self.__data[flux_col]
-                    if flux_err_col is not None:
-                        flux_err = self.__data[flux_err_col]
-
-                # Save the flux to the target list with canonical column name
-                self.__data[flux_col_canonical] = flux if flux is not None else np.nan
-                self.__data[flux_err_col_canonical] = flux_err if flux_err is not None else np.nan
-
-                if any_flux is None:
-                    any_flux = self.__data[flux_col_canonical]
-                    any_flux_err = self.__data[flux_err_col_canonical]
-                    any_flux_key = flux_key
+            if any_flux is None:
+                any_flux = self.__data[flux_col_canonical]
+                any_flux_err = self.__data[flux_err_col_canonical]
+                any_flux_key = flux_key

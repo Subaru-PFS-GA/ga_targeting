@@ -164,8 +164,6 @@ class ImportScript(TargetingScript):
         return target_lists
 
     def __calculate_target_list_flux(self, key, target_list):
-        # TODO: this should go under the Observation class, maybe
-
         # Calculate the missing flux columns
         # If no psf, fiber, total, etc. flux/magnitude is available, just copy the values
 
@@ -174,29 +172,7 @@ class ImportScript(TargetingScript):
         # a list, we assume that the filter names are stored in a filter column. This latter is
         # typical for flux standard lists.
 
-        photometry = self._config.targets[key].photometry
-
-        if photometry is not None and photometry.filters is not None:
-            return self.__calculate_target_list_flux_filters(key, target_list)
-        elif photometry is not None and  photometry.bands is not None:
-            return self.__calculate_target_list_flux_bands(key, target_list)
-        else:
-            # No fluxes or magnitudes available (sky)
-            pass
-
-    def __calculate_target_list_flux_filters(self, key, target_list):
-        """
-        Calculate the missing flux values from other columns that are available
-        """
-
-        target_list.calculate_flux_filters(self._config.targets[key].photometry.filters)
-
-    def __calculate_target_list_flux_bands(self, key, target_list):
-        """
-        Calculate the missing flux values from other columns that are available
-        """
-
-        target_list.calculate_flux_bands(self._config.targets[key].photometry.bands)
+        target_list.calculate_flux_filters_bands()
 
     def __append_target_list_extra_columns(self, key, target_list):
         """

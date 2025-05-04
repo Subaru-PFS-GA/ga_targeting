@@ -87,22 +87,62 @@ class CatalogSerializer():
         Generate the photometry objects based on the columns defined in the
         `filters` and `bands` columns of the data frame.
         """
-    
+
+        def is_filter_good(f, filter):
+            # Check if the filter has a column for any type of photometry
+            for prefix in [ '', 'psf_', 'fiber_', 'total_' ]:
+                for type in [ 'flux', 'mag' ]:
+                    k = f'{prefix}{type}'
+                    if k in filter:
+                        if filter[k] not in df.columns:
+                            raise ValueError(f'Column {filter[k]} not found in dataframe.')
+
+                        if (~df[filter[k]].isna()).any():
+                            return True
+                            
+            return False
+
+        def is_band_filter_good(f, band):
+            # Only include the filter if there are number available in the column
+            # Ignore columns with all NaN values
+            for prefix in [ '', 'psf_', 'fiber_', 'total_' ]:
+                for type in [ 'flux', 'mag' ]:
+                    k = f'{prefix}{type}'
+                    if k in band:
+                        if band[k] not in df.columns:
+                            raise ValueError(f'Column {band[k]} not found in dataframe.')
+
+                        if (~df[band[k]].isna()).any():
+                            filters[f] = band
+                            return True
+                        
+            return False
+
+        filters = {}
+
+        # Start with "one column per filter".
         if self.__filters is not None:
             # Filter names are listed explicitly in the `filters` attribute.
-            filters = self.__filters
-        elif self.__bands is not None:
+            for f, filter in self.__filters.items():
+                if is_filter_good(f, filter):
+                    filters[f] = filter
+        
+        # Update with the "one column per band", filter names in a column.
+        if self.__bands is not None:
             # The filter names are in a dataframe column. Get the unique values of this
             # column for each band and try to separate the filters into several photometric
             # systems.
             
-            # Collect all unique filter names
-            # TODO: collect column names from config for each band
-            filters = {}
+            # Collect all unique filter names for each band
             for b, band in self.__bands.items():
                 for f in df[band['filter']].unique():
-                    filters[f] = band
-        else:
+                    if is_band_filter_good(f, band):
+                        band = band.copy()
+                        band['filter_value'] = f
+                        band['band'] = b
+                        filters[f] = band
+                                    
+        if len(filters) == 0:
             # No photometry information available
             return None
 
