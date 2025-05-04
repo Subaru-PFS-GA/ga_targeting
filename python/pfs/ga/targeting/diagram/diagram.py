@@ -27,12 +27,16 @@ class Diagram():
 
         # Override limits with user-specified limits
 
-        ax.set_xlim(self.__axes[0].limits)
+        xlim = self.__axes[0].limits
+        if xlim is not None and xlim != (None, None):
+            ax.set_xlim(xlim)
         ax.set_xlabel(self.__axes[0].label)
         if self.__axes[0].invert and not ax.xaxis_inverted():
             ax.invert_xaxis()
 
-        ax.set_ylim(self.__axes[1].limits)
+        ylim = self.__axes[1].limits
+        if ylim is not None and ylim != (None, None):
+            ax.set_ylim(self.__axes[1].limits)
         ax.set_ylabel(self.__axes[1].label)
         if self.__axes[1].invert and not ax.yaxis_inverted():
             ax.invert_yaxis()
@@ -60,9 +64,10 @@ class Diagram():
 
         l = ax.scatter(x[mask][s], y[mask][s], color=color, c=c, s=size, **style)
 
-        bbox = l.get_datalim(ax.transData)
-        [[x0, y0], [x1, y1]] = bbox.get_points()
-        self.__update_datalim([x0, x1], [y0, y1], scalex, scaley)
+        if scalex or scaley:
+            bbox = l.get_datalim(ax.transData)
+            [[x0, y0], [x1, y1]] = bbox.get_points()
+            self.__update_datalim([x0, x1], [y0, y1], scalex, scaley)
 
         self.apply(ax)
 

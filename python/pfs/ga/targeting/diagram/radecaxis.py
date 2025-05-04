@@ -1,8 +1,8 @@
 from .axis import Axis
 
 class RaDecAxis(Axis):
-    def __init__(self, coord, limits=None, orig=None):
-        super(RaDecAxis, self).__init__(limits=limits, orig=orig)
+    def __init__(self, coord, limits=None, invert=None, orig=None):
+        super(RaDecAxis, self).__init__(limits=limits, invert=invert, orig=orig)
 
         if not isinstance(orig, RaDecAxis):
             self.__coord = coord

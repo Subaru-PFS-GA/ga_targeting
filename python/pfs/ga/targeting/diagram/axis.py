@@ -1,15 +1,15 @@
 import numpy as np
 
 class Axis():
-    def __init__(self, limits=None, label=None, orig=None):
+    def __init__(self, limits=None, label=None, invert=None, orig=None):
         if not isinstance(orig, Axis):
             self.__limits = limits or (None, None)
             self.__label = label
-            self.__invert = False
+            self.__invert = invert if invert is not None else False
         else:
             self.__limits = limits or orig.__limits
             self.__label = label or orig.__label
-            self.__invert = orig.invert
+            self.__invert = invert if invert is not None else orig.invert
 
     def __get_limits(self):
         return self.__limits

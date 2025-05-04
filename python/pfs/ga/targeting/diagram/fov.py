@@ -14,7 +14,9 @@ class FOV(SpatialDiagram):
     """
 
     def __init__(self, projection=None, orig=None):
-        axes = [RaDecAxis('RA'), RaDecAxis('Dec')]
+        ra = RaDecAxis('RA', invert=True)
+        dec = RaDecAxis('Dec')
+        axes = [ ra, dec ]
         super().__init__(axes, projection=projection, orig=orig)
 
         self._validate()
@@ -28,7 +30,6 @@ class FOV(SpatialDiagram):
     def apply(self, ax: plt.Axes):
         super().apply(ax)
         ax.set_aspect('equal', adjustable='datalim')
-        ax.xaxis.set_inverted(True)
 
     def plot_radial_profile(self, ax: plt.Axes, profile, R=1, **kwargs):
         # TODO: add default style
