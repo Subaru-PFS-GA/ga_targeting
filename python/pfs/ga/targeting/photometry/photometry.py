@@ -2,19 +2,33 @@ from ..util import *
 from .magnitude import Magnitude
 
 class Photometry():
-    def __init__(self, name=None, latex=None, orig=None):
+    def __init__(self, name=None, latex=None, magnitudes=None, colors=None, orig=None):
         if not isinstance(orig, Photometry):
             self.__name = name
             self.__latex = latex
-            self.__magnitudes = {}
-            self.__colors = []
+            self.__magnitudes = magnitudes if magnitudes is not None else {}
+            self.__colors = colors if colors is not None else []
         else:
             self.__name = name or orig.__name
             self.__latex = latex or orig.__latex
-            self.__magnitudes = safe_deep_copy(orig.__magnitudes)
-            self.__colors = safe_deep_copy(orig.__colors)
+            self.__magnitudes = magnitudes if magnitudes is not None else safe_deep_copy(orig.__magnitudes)
+            self.__colors = colors if colors is not None else safe_deep_copy(orig.__colors)
 
-    # TODO: move to instruments
+        self._update()
+        self._validate()
+
+    def _update(self):
+        for magnitude in self.__magnitudes.values():
+            magnitude._set_photometry(self)
+        for color in self.__colors:
+            for magnitude in color.magnitudes:
+                magnitude._set_photometry(self)
+
+    def _validate(self):
+        pass
+
+    # TODO: move to instruments?
+
     def SDSS():
         p = Photometry('sdss')
         p.append_magnitude(Magnitude('u'))
@@ -81,7 +95,6 @@ class Photometry():
         magnitude._set_photometry(self)
 
     def __get_colors(self):
-        # TODO: make it a dict
         return ReadOnlyList(self.__colors)
 
     colors = property(__get_colors)

@@ -1,23 +1,27 @@
 from ..util import *
 
 class Magnitude():
-    def __init__(self, filter=None, latex=None, orig=None, **kwargs):
-        conversion = kwargs.pop('conversion', None)
-        sky = kwargs.pop('sky', None)
-        sky_sigma = kwargs.pop('sky_sigma', None)
-        zero = kwargs.pop('zero', None)
-        softening = kwargs.pop('softening', None)
+    def __init__(self,
+                 filter=None,
+                 latex=None,
+                 conversion=None,
+                 sky=None,
+                 sky_sigma=None,
+                 zero=None,
+                 softening=None,
+                 columns=None,
+                 orig=None):
 
         if not isinstance(orig, Magnitude):
             self.__photometry = None
             self.__filter: str = filter
-            self.__latex : str = latex
+            self.__latex: str = latex
             self.__conversion: float = conversion or 1e6
             self.__sky: float = sky or 0
             self.__sky_sigma: float = sky_sigma or 0
             self.__zero: float = zero or 0
             self.__softening: float = softening or 0
-            self.__columns: dict = {}
+            self.__columns: dict = columns or {}
         else:
             self.__photometry = orig.__photometry
             self.__filter: str = filter or safe_deep_copy(orig.__filter)
@@ -27,12 +31,16 @@ class Magnitude():
             self.__sky_sigma: float = sky_sigma or orig.__sky_sigma
             self.__zero: float = zero or orig.__zero
             self.__softening: float = softening or orig.__softening
-            self.__columns: dict = orig.__columns
+            self.__columns: dict = columns or orig.__columns
 
+        self._update()
         self._validate()
 
     def __repr__(self):
         return f'Magnitude(filter=\'{self.__filter}\')'
+
+    def _update(self):
+        pass
 
     def _validate(self):
         pass
@@ -109,21 +117,21 @@ class Magnitude():
 
     sky = property(__get_sky, __set_sky)
 
-    def __get_sky_error(self) -> float:
+    def __get_sky_sigma(self) -> float:
         """
         Gets the typical error of sky counts.
         """
 
         return self.__sky_sigma
 
-    def __set_sky_error(self, value: float):
+    def __set_sky_sigma(self, value: float):
         """
         Sets the typical error of sky counts.
         """
 
         self.__sky_sigma = value
 
-    sky_error = property(__get_sky_error, __set_sky_error)
+    sky_sigma = property(__get_sky_sigma, __set_sky_sigma)
 
     def __get_zero(self) -> float:
         """

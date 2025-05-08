@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.feather as feather
 import h5py
 from astropy.table import Table
 
@@ -46,6 +48,7 @@ class DataFrameSerializer():
     """
 
     # TODO: add pickle, numpy and FITS formats?
+    # TODO: implement mappings, etc when writing to a file, not just when reading
     
     def __init__(self,
                  dataset=None,

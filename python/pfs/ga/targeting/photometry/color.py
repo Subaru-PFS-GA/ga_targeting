@@ -12,10 +12,14 @@ class Color():
         # TODO: what if we have a color from different photometric systems?
         self.__photometry = self.__magnitudes[0].photometry
 
+        self._update()
         self._validate()
 
     def __repr__(self):
         return f'Color({self.__magnitudes[0]}, {self.__magnitudes[1]})'
+
+    def _update(self):
+        pass
 
     def _validate(self):
         if len(self.__magnitudes) != 2:

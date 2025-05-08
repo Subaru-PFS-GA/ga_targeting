@@ -44,7 +44,7 @@ class Catalog(DiagramValueProvider):
         return ReadOnlyDict(self.__photometry)
     
     def _set_photometry(self, value):
-        self.__photometry = value
+        self.__photometry = dict(value)
     
     photometry = property(__get_photometry)
 
