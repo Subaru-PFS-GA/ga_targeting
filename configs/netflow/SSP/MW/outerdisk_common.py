@@ -8,7 +8,9 @@ config = dict(
     field = dict(
         arms = ['b', 'm', 'n'],
         nvisits = 6,
-        resolution = 'm'
+        resolution = 'm',
+        exp_time = 3 * 60 * 60, # sec,
+        id_prefix = 0x8000000000
     ),
     instrument_options = dict(
         layout = 'calibration',
@@ -67,9 +69,33 @@ config = dict(
                 prefix = 'sci',
                 min_targets = None,
                 max_targets = None,
-                non_observation_cost = 50,
+                non_observation_cost = 100,
             ),
             'sci_P5': dict(
+                prefix = 'sci',
+                min_targets = None,
+                max_targets = None,
+                non_observation_cost = 100,
+            ),
+            'sci_P6': dict(
+                prefix = 'sci',
+                min_targets = None,
+                max_targets = None,
+                non_observation_cost = 100,
+            ),
+            'sci_P7': dict(
+                prefix = 'sci',
+                min_targets = None,
+                max_targets = None,
+                non_observation_cost = 100,
+            ),
+            'sci_P8': dict(
+                prefix = 'sci',
+                min_targets = None,
+                max_targets = None,
+                non_observation_cost = 10,
+            ),
+            'sci_P9': dict(
                 prefix = 'sci',
                 min_targets = None,
                 max_targets = None,
@@ -113,9 +139,9 @@ config = dict(
         degenmoves = 0,
         heuristics = 0.5,
         mipfocus = 1,           
-        mipgap = 0.01,
+        mipgap = 0.0001,
         LogToConsole = 0,
-        timelimit = 300 # sec
+        timelimit = 600 # sec
     ),
     debug_options = dict(
         ignore_endpoint_collisions = False,
