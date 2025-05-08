@@ -2,16 +2,16 @@ import os
 from collections.abc import Iterable
 import pandas as pd
 import numpy as np
+import json
 
 from pfs.datamodel import TargetType
 
 from ..config.netflow import NetflowConfig
 from ..io import ObservationSerializer
-from ..netflow import Netflow
-from ..core import Pointing
 from ..instrument import SubaruPFI
 from ..targets.dsph import GALAXIES as DSPH_FIELDS
 from ..targets.m31 import M31_FIELDS
+from ..photometry import PhotometryEncoder, PhotometryDecoder
 from .script import Script
 
 from ..setup_logger import logger
@@ -122,6 +122,11 @@ class TargetingScript(Script):
 
     @staticmethod
     def load_target_list(key, target_list_config, fn=None):
+        """
+        Loads an input target list and performs column mapping as well as the discovery of the
+        available photometric systems.
+        """
+        
         if target_list_config.reader is not None:
             # TODO: implement custom reader function
             raise NotImplementedError()
@@ -163,11 +168,32 @@ class TargetingScript(Script):
         s = ObservationSerializer()
         s.write(target_list, path)
 
+        fn, ext = os.path.splitext(path)
+        path = f'{fn}.json'
+        logger.info(f'Saving photometry info for target list `{key}` to `{path}`.')
+        with open(path, 'w') as f:
+            json.dump(target_list.photometry, f,
+                      indent=4, cls=PhotometryEncoder)
+
     def _load_preprocessed_target_list(self, key, path):
-        logger.info(f'Loading preprocessed target list `{key}` list from `{path}`.')
+        """
+        Load a preprocessed target list. This target list already has column names
+        mapped to internal column names and the flux columns unwrapped so this function
+        is a simplified version of `load_target_list`.
+        """
+
+        logger.info(f'Loading preprocessed target list `{key}` from `{path}`.')
         s = ObservationSerializer()
         target_list = s.read(path)
         target_list.name = key
+
+        fn, ext = os.path.splitext(path)
+        path = f'{fn}.json'
+        logger.info(f'Loading photometry info for target list `{key}` from `{path}`.')
+        with open(path, 'r') as f:
+            phot = json.load(f, cls=PhotometryDecoder)
+            target_list._set_photometry(phot)
+
         return target_list
     
     def _get_design_list_path(self):

@@ -369,57 +369,49 @@ class NetflowScript(TargetingScript):
                 assigned = target_list.data.set_index('__target_idx').join(assigned_target_idx.set_index('__target_idx'), how='inner')
                 assigned.reset_index(inplace=True)
 
-                # Filter names are either defined in the config or can be extracted from the columns
-                # If the config entry is a dictionary, we assume that the keys are the filter names.
-                # If it is a list, we assume that the filter names are stored as values in a column.
+                # Use the photometry metadata to iterate over filters. Create the list of
+                # magnitudes and filter names for each object.
 
-                photometry = self._config.targets[k].photometry
+                # Convert the flux columns into a single column of list objects
+                # Refer to canonical column names in __calculate_target_list_flux_filters
 
-                if photometry is not None and photometry.filters is not None:
-                    # Convert the flux columns into a single column of list objects
-                    # Refer to canonical column names in __calculate_target_list_flux_filters
+                def flux_to_list(row, prefix, postfix):    
+                    fluxes = []
+                    for p, phot in target_list.photometry.items():
+                        for m, mag in phot.magnitudes.items():
+                            if 'filter' in mag.columns and mag.columns['filter'] is not None:
+                                # This is a flux that's stored in a column dedicated to a band so the filter
+                                # name in the `filter` column must match `filter_value`, otherwise the flux
+                                # is not available
+                                if row[mag.columns['filter']] == mag.columns['filter_value']:
+                                    fluxes.append(row[mag.columns[f'{prefix}flux{postfix}']])
+                            else:
+                                # This is a flux that's stored directly in a dedicated column
+                                fluxes.append(row[mag.columns[f'{prefix}flux{postfix}']])
+                    return fluxes
+                
+                def filter_to_list(row):
+                    filters = []
 
-                    def flux_to_list(row, prefix, postfix):    
-                        return [ row[f'{b}_{prefix}flux{postfix}'] for b in photometry.filters.keys() ]
+                    for p, phot in target_list.photometry.items():
+                        for m, mag in phot.magnitudes.items():
+                            if 'filter' in mag.columns and mag.columns['filter'] is not None:
+                                # This is a flux that's stored in a column dedicated to a band so the filter
+                                # name in the `filter_name` column must match `filter_value`, otherwise the flux
+                                # is not available
+                                if row[mag.columns['filter']] == mag.columns['filter_value']:
+                                    filters.append(f'{m}_{p}')
+                            else:
+                                # This is a flux that's stored directly in a dedicated column
+                                filters.append(f'{m}_{p}')
+
+                    return filters
+                
+                for prefix in [ 'psf_', 'fiber_', 'total_' ]:
+                    assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, prefix, ''), axis=1)
+                    assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, prefix, '_err'), axis=1)
                     
-                    def filter_to_list(row):
-                        return list(photometry.filters.keys())
-                    
-                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, prefix, ''), axis=1)
-                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, prefix, '_err'), axis=1)
-                        
-                    assigned['filter'] = assigned.apply(filter_to_list, axis=1)
-                elif photometry is not None and photometry.bands is not None:
-                    # Convert the flux columns into a single column of list objects
-                    # Refer to canonical column names in __calculate_target_list_flux_bands
-
-                    def flux_to_list(row, prefix='psf_flux_'):
-                        fluxes = []
-                        for b in photometry.bands.keys():
-                            if row[f'filter_{b}'] is not None:
-                                fluxes.append(row[f'{prefix}{b}'])
-                        return fluxes
-                    
-                    def filter_to_list(row):
-                        filters = []
-                        for b in photometry.bands.keys():
-                            if row[f'filter_{b}'] is not None:
-                                filters.append(row[f'filter_{b}'])
-                        return filters
-                    
-                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_'), axis=1)
-                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: flux_to_list(row, 'psf_flux_err_'), axis=1)
-
-                    assigned['filter'] = assigned.apply(filter_to_list, axis=1)
-                else:
-                    # No fluxes or magnitudes available (sky), just generate some empty lists
-                    for prefix in [ 'psf_', 'fiber_', 'total_' ]:
-                        assigned[f'{prefix}flux'] = assigned.apply(lambda row: [], axis=1)
-                        assigned[f'{prefix}flux_err'] = assigned.apply(lambda row: [], axis=1)
-
-                    assigned['filter'] = assigned.apply(lambda row: [], axis=1)
+                assigned['filter'] = assigned.apply(filter_to_list, axis=1)                
 
                 fiber_assignment_lists[k] = assigned
 

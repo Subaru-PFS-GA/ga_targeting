@@ -1,21 +1,14 @@
 import os
-import commentjson as json
-from datetime import datetime, timedelta, tzinfo
+from datetime import datetime
 import numpy as np
 import pandas as pd
-from pandas import Float32Dtype, Float64Dtype, Int32Dtype, Int64Dtype
 import astropy.units as u
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
-from pfs.datamodel import TargetType, FiberStatus, PfsDesign
-
 import pfs.ga.targeting
-from ...config.netflow import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_FIELDS
-from ...instrument import SubaruPFI
-from ...io import ObservationSerializer
-from ...netflow import Netflow, Design
+from ...netflow import Netflow
 from ...util.args import *
 from ...util.astro import *
 from ...util.pandas import *

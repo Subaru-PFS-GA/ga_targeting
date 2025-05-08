@@ -167,7 +167,10 @@ class ExportScript(TargetingScript):
         return os.path.join(dir, f'{self._config.field.key}_designs.feather')
     
     def __get_field_code(self, stage, pidx, vidx):
-        return f'SSP_{self.__obs_wg}_{self._config.field.key}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
+        if stage is None:
+            return f'SSP_{self.__obs_wg}_{self._config.field.key}_P{pidx:02d}V{vidx:02d}'
+        else:
+            return f'SSP_{self.__obs_wg}_{self._config.field.key}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
 
     def __get_ppcList_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
@@ -268,7 +271,10 @@ class ExportScript(TargetingScript):
         }
 
         # TODO: is this map valid for all GA fields?
-        filter_map = self._field.get_filter_map()
+        if self._field is not None:
+            filter_map = self._field.get_filter_map()
+        else:
+            filter_map = {}
 
         bands = 'bgrizy'
 
@@ -303,9 +309,11 @@ class ExportScript(TargetingScript):
                 
                 # Target list meta data
 
-                mask = ((designs['stage'] == stage) &
-                        (designs['pointing_idx'] == pidx) &
+                mask = ((designs['pointing_idx'] == pidx) &
                         (designs['visit_idx'] == vidx))
+                
+                if stage is not None:
+                    mask &= (designs['stage'] == stage)
 
                 table.meta['ppc_code'] = field_code
                 table.meta['ppc_ra'] = designs[mask]['ra'].item()
@@ -314,15 +322,23 @@ class ExportScript(TargetingScript):
 
                 # Get the list of targets for this pointing and visit
                 mask = ((assignments['target_type'] == target_type) &
-                        (assignments['stage'] == stage) &
                         (assignments['pointing_idx'] == pidx) &
                         (assignments['visit_idx'] == vidx))
+
+                if stage is not None:
+                    mask &= (assignments['stage'] == stage)
 
                 assert mask.sum() > 0
 
                 # Target list columns
                 if target_type == TargetType.SCIENCE:
-                    obj_id = (self._field.id_prefix | np.array(assignments['__target_idx'][mask], dtype=np.int64))
+                    if self._field is not None and self._field.id_prefix is not None:
+                        id_prefix = self._field.id_prefix
+                    elif self._config.field.id_prefix is not None:
+                        id_prefix = self._config.field.id_prefix
+                    else:
+                        id_prefix = 0
+                    obj_id = (id_prefix | np.array(assignments['__target_idx'][mask], dtype=np.int64))
                 else:
                     obj_id = np.array(assignments['targetid'][mask], dtype=np.int64)
 
