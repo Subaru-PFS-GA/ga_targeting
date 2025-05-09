@@ -1,6 +1,6 @@
 from datetime import datetime
 
-DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l90_b28_SSP'
+DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l90_bm28_SSP'
 
 # TODO: update these IDs
 PROPOSALID = 'S25A-OT02'
@@ -32,16 +32,23 @@ extra_columns = {
 
 config = dict(
     field = dict(
-        key = "outerdisk_l90_b28_faint",
-        name = "GA Outer Disk l=90 b=28 Faint",
+        key = "outerdisk_l90_bm28_faint",
+        name = "GA Outer Disk l=90 b=-28 Faint",
         obs_time = datetime(2025, 5, 28, 12, 0, 0),
     ),
     pointings = [
-        dict(ra=273.525, dec=60.88, posang=120.0, priority=0),
+        dict(ra=340.4, dec=26.50, posang=120.0, priority=0),
     ],
+    netflow_options = dict(
+        cobra_groups = {
+            'cal_location': dict(
+                min_targets = 3,
+            ),
+        }
+    ),
     targets = {
         "ps1": dict(
-            path = f'{DATA_DIR}/ga_targets_outerdisk_l90_b28_faint.ecsv',
+            path = f'{DATA_DIR}/ga_targets_outerdisk_l90_bm28_faint.ecsv',
             mask = 'lambda df: df["input_catalogs"] == "PS1"',
             column_map = column_map,
             prefix = "sci",
@@ -68,7 +75,7 @@ config = dict(
             )
         ),
         "sky": dict(
-            path = f'{DATA_DIR}/l90b28_sky.csv',
+            path = f'{DATA_DIR}/l90bm28_sky.csv',
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
@@ -81,7 +88,7 @@ config = dict(
             extra_columns = extra_columns,
         ),
         "fluxstd": dict(
-            path = f'{DATA_DIR}/l90b28_fluxstd.csv',
+            path = f'{DATA_DIR}/l90bm28_fluxstd.csv',
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
