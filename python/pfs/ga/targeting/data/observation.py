@@ -48,7 +48,7 @@ class Observation(Catalog):
         ---------
         mask : array-like
             Boolean mask to select rows.
-        func : callable
+        filter : callable
             Function to apply to the data to select rows.
         selection : Selection
             Selection object to apply to the data to select rows.
@@ -62,7 +62,7 @@ class Observation(Catalog):
         if not_none > 1:
             raise RuntimeError('Only one of `mask`, `func` and `selection` can be not None.')
         elif mask is not None:
-            return self.__data[mask]
+            return self.__data.loc[mask]
         elif filter is not None:
             return filter(self.__data)
         elif selection is not None:
