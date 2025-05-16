@@ -1,8 +1,6 @@
 import os
 import re
-from typing import Callable
 from collections import defaultdict
-from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 import pickle
@@ -22,7 +20,6 @@ from ..util.args import *
 from ..util.config import *
 from ..util.pandas import *
 from ..data import Catalog
-from ..projection import Pointing
 from ..instrument import CobraAngleFlags
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
@@ -1017,20 +1014,79 @@ class Netflow():
             return 'skyid'
         else:
             return None
+
+    def get_catalog_data(self,
+                         catalog,
+                         prefix,
+                         exp_time=None,
+                         priority=None,
+                         penalty=None,
+                         non_observation_cost=None,
+                         mask=None,
+                         filter=None,
+                         selection=None):
         
-    def append_targets(self, catalog, prefix, exp_time=None, priority=None, penalty=None, mask=None, filter=None, selection=None):
+        """
+        Get a dataframe containing the columns of an input target list. Some
+        columns are updated or generated based on the input parameters and
+        the netflow configuration.
+
+        By default, use values such as `exp_time`, `priority` and `penalty` from
+        the input catalog but when these values are passed to the function, they
+        will override the values in the catalog.
+
+        Parameters
+        ----------
+        catalog : Catalog or pd.DataFrame
+            The input catalog to be added to the target list. If a DataFrame is passed,
+            it must contain the columns `RA`, `Dec` and `__key`.
+        prefix : str
+            The prefix to be used for the target class. This is usually `sci` for science
+            targets and `cal` for calibration targets.
+        exp_time : float, optional
+            The exposure time to be used for the targets. If not specified, the value
+            from the input catalog will be used.
+        priority : int, optional
+            The priority to be used for the targets. If not specified, the value
+            from the input catalog will be used.
+        penalty : int, optional
+            The penalty to be used for the targets. If not specified, the value
+            from the input catalog will be used.
+        non_observation_cost : int, optional
+            The non-observation cost to be used for the targets. If not specified,
+            the value from the input catalog will be used.
+        mask : array-like, optional
+            A mask to filter the input catalog. If not specified, all targets will
+            be used.
+        filter : callable, optional
+            A callable that acts as filter to be applied to the input catalog.
+            If not specified, no filter will be applied. See `Observation.get_data` for details.
+        selection : Selection, optional
+            A selection object to be applied to the input catalog. If not specified,
+            no selection will be applied. See `Observation.get_data` for details.
+        """
+
+        # Depending on the type of catalog, we need to filter the data
+        # differently. For a DataFrame, we can use the mask directly, but for a
+        # Catalog, we need to use the `get_data` method to filter the data.
         if isinstance(catalog, Catalog):
             df = catalog.get_data(mask=mask, filter=filter, selection=selection)
         elif isinstance(catalog, pd.DataFrame):
+            if filter is not None:
+                raise NetflowException("The `filter` parameter is not supported for DataFrames.")
+            
+            if selection is not None:
+                raise NetflowException("The `selection` parameter is not supported for DataFrames.")
+            
             df = catalog[mask if mask is not None else ()]
         
+        # Identify the identity column in the input catalog
         id_column = self.__discover_id_column(prefix, df)
         if id_column is None:
             raise NetflowException(f"Cannot determine identity column for catalog with prefix `{prefix}`.")   
         
-        # Make sure that we convert to the right data type everywhere
-        
         # Create the formatted dataset from the input catalog
+        # Make sure that we convert to the right data type everywhere
         targets = pd.DataFrame({
             'key': df['__key'].astype(str),
             'targetid': df[id_column].astype(np.int64),
@@ -1109,6 +1165,27 @@ class Netflow():
             # Calibration targets have the same target class as the prefix
             pd_append_column(targets, 'class', prefix, 'string')
 
+        # We allow for a non-observation cost to be specified on a target-by-target
+        # basis. This is only used when the `per_target_non_obs_cost` option is turned on,
+        # which is off by default.
+        # If the non-observation cost is not specified on a per target basis, we
+        # use the value from the configuration for the entire target class.
+        if non_observation_cost is not None:
+            pd_append_column(targets, 'non_observation_cost', non_observation_cost, np.int32)
+        elif 'non_observation_cost' in df.columns:
+            pd_append_column(targets, 'non_observation_cost', df['non_observation_cost'], np.int32)
+        else:
+            # The non-observation cost is not specified in the input catalog
+            # In this case, we should use the non-observation cost from the configuration for each target class
+            pd_append_column(targets, 'non_observation_cost', 0, np.int32)
+
+            for target_class in targets['class'].unique():
+                if target_class not in self.__netflow_options.target_classes:
+                    raise NetflowException(f"Target class `{target_class}` not found in the configuration.")
+                
+                noc = self.__netflow_options.target_classes[target_class].non_observation_cost
+                pd_update_column(targets, targets['class'] == target_class, 'non_observation_cost', noc, np.int32)
+            
         # Validate the new targets
         if np.any(targets['priority'].isna() & (targets['prefix'] == 'sci')):
             raise NetflowException('Science targets must have a priority.')
@@ -1118,6 +1195,18 @@ class Netflow():
 
         if np.any((targets['exp_time'] <= 0) & (targets['prefix'] == 'sci')):
             raise NetflowException('Science targets must have an exposure time.')
+
+        return targets
+        
+    def append_targets(self, targets, prefix):
+        """
+        Add targets from an input target list to the internal list of targets.
+
+        Parameters
+        ----------
+        targets : pd.DataFrame
+            A target list preprocessed by `get_catalog_data`.
+        """
 
         # Append to the existing list
         if self.__targets is None:
@@ -1135,49 +1224,64 @@ class Netflow():
     def append_science_targets(self, catalog, exp_time=None, priority=None, mask=None, filter=None, selection=None):
         """Add science targets"""
 
-        return self.append_targets(catalog, 'sci', exp_time=exp_time, priority=priority, mask=mask, filter=filter, selection=selection)
+        # NOTE: This function does not cross-match the input catalog with the targets
+        #       already added. Use the netflow script to achieve this.
+
+        targets = self.get_catalog_data(catalog,
+                                        prefix='sci',
+                                        exp_time=exp_time,
+                                        priority=priority,
+                                        mask=mask,
+                                        filter=filter,
+                                        selection=selection)
+        
+        return self.append_targets(targets, prefix='sci')
 
     def append_sky_targets(self, sky, mask=None, filter=None, selection=None):
         """Add sky positions"""
 
-        return self.append_targets(sky, prefix='sky', mask=mask, filter=filter, selection=selection)
+        targets = self.get_catalog_data(sky,
+                                        prefix='sky',
+                                        mask=mask,
+                                        filter=filter,
+                                        selection=selection)
+        
+        return self.append_targets(targets, prefix='sky')
 
     def append_fluxstd_targets(self, fluxstd, mask=None, filter=None, selection=None):
         """Add flux standard positions"""
 
-        return self.append_targets(fluxstd, prefix='cal', mask=mask, filter=filter, selection=selection)
+        # NOTE: This function does not cross-match the input catalog with the targets
+        #       already added. Use the netflow script to achieve this.
 
-    def update_targets(self, catalog, prefix, idx1, idx2, mask=None, filter=None, selection=None):
+        targets = self.get_catalog_data(fluxstd,
+                                        prefix='cal',
+                                        mask=mask,
+                                        filter=filter,
+                                        selection=selection)
+
+        return self.append_targets(targets, prefix='cal')
+
+    def update_targets(self, input_targets, prefix, idx2):
         """
-        Update existing targets in the target list.
+        Update existing targets in the target list based on the contents of `input_targets`.
 
         This is called on targets which have already been added to the target list but appear in
         another input source list after cross-matching.
+
+        The data frame `input_targets` must contain the same number of rows as the number
+        of indexes in `idx2`.
         
         Parameters
         ==========
-        catalog: Catalog or pd.DataFrame
+        input_targets: pd.DataFrame
             The catalog containing the updated target information.
-        idx1: int
-            The index of the targets in the input catalog.
+        prefix: str
+            The prefix to be used for the target class. This is usually `sci` for science
+            targets and `cal` for calibration targets.
         idx2:
             The index of the targets in the internal target list.
-        exp_time: float
-            The exposure time for science targets.
-        priority: int
-            The priority for science targets.
         """
-
-        if self.__targets is None or \
-           idx1 is None or idx2 is None:
-
-            return
-
-        if isinstance(catalog, Catalog):
-            # id_column
-            df = catalog.get_data(mask=mask, filter=filter, selection=selection)
-        elif isinstance(catalog, pd.DataFrame):
-            df = catalog[mask if mask is not None else ()]
 
         targets = self.__targets
 
@@ -1190,51 +1294,47 @@ class Netflow():
                                (targets.loc[idx2, 'pmra'].isna() |
                                 targets.loc[idx2, 'pmdec'].isna()))
 
-        if 'epoch' in df:
-            if df['epoch'].dtype == 'string' or df['epoch'].dtype == str:
+        if 'epoch' in input_targets:
+            if input_targets['epoch'].dtype == 'string' or input_targets['epoch'].dtype == str:
                 # Convert 'J20XX.X' notation to float
                 pd_update_column(targets, idx2[update_mask], 'epoch',
-                                 df['epoch'][idx1[update_mask]].apply(
+                                 input_targets['epoch'][update_mask].apply(
                                      lambda x: float(x[1:])),
                                  np.float64)
             else:
                 pd_update_column(targets, idx2[update_mask], 'epoch',
-                                 df['epoch'][idx1[update_mask]],
+                                 input_targets['epoch'][update_mask],
                                  np.float64)
 
-        if 'pm' in df:
-            pd_update_column(targets, idx2[update_mask], 'pm', df['pm'][idx1[update_mask]], np.float64)
+        if 'pm' in input_targets:
+            pd_update_column(targets, idx2[update_mask], 'pm', input_targets['pm'][update_mask], np.float64)
         
-        if 'pmra' in df and 'pmdec' in df:
-            pd_update_column(targets, idx2[update_mask], 'pmra', df['pmra'][idx1[update_mask]], np.float64)
-            pd_update_column(targets, idx2[update_mask], 'pmdec', df['pmdec'][idx1[update_mask]], np.float64)
+        if 'pmra' in input_targets and 'pmdec' in input_targets:
+            pd_update_column(targets, idx2[update_mask], 'pmra', input_targets['pmra'][update_mask], np.float64)
+            pd_update_column(targets, idx2[update_mask], 'pmdec', input_targets['pmdec'][update_mask], np.float64)
 
-        if 'parallax' in df:
-            pd_update_column(targets, idx2[update_mask], 'parallax', df['parallax'][idx1[update_mask]], np.float64)
+        if 'parallax' in input_targets:
+            pd_update_column(targets, idx2[update_mask], 'parallax', input_targets['parallax'][update_mask], np.float64)
 
         if prefix == 'sci':
             # Only update exp_time if it is still NA or the new exp_time is larger than
             # the existing one
             update_mask = np.array(targets.loc[idx2, 'exp_time'].reset_index(drop=True).isna() |
-                                   ((df.loc[idx1, 'exp_time'].reset_index(drop=True)) >
+                                   ((input_targets['exp_time'].reset_index(drop=True)) >
                                     (targets.loc[idx2, 'exp_time'].reset_index(drop=True))).fillna(False))
-            pd_update_column(targets, idx2[update_mask], 'exp_time', df['exp_time'][idx1[update_mask]], np.float64)
+            pd_update_column(targets, idx2[update_mask], 'exp_time', input_targets['exp_time'][update_mask], np.float64)
 
             # Only update priority if it is still NA or the new priority is smaller than
             # the existing one
             update_mask = np.array(targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
-                                   ((df.loc[idx1, 'priority'].reset_index(drop=True)) <
+                                   ((input_targets['priority'].reset_index(drop=True)) <
                                     (targets.loc[idx2, 'priority'].reset_index(drop=True))).fillna(False))
-            pd_update_column(targets, idx2[update_mask], 'priority', df['priority'][idx1[update_mask]], np.int32)
+            pd_update_column(targets, idx2[update_mask], 'priority', input_targets['priority'][update_mask], np.int32)
 
             # Update the target class labels if the priority is updated.
             # When we have a priority, it must be a science target.
             # If some science targets are also flux standards, we allocate fibers to them
             # as flux standards. Care must be taken to process these as science targets by the GA pipeline.
-
-            # TODO: implement option to re-allocate flux standards as science targets but
-            #       it requires changes in how the number of targets are counted for the
-            #       purposes of target class minimum and maximum, as well as cobra group minima and maxima
 
             priority_mask = np.array(~targets.loc[idx2[update_mask], 'priority'].isna() &
                                      (targets.loc[idx2[update_mask], 'prefix'] == 'sci'))
@@ -1243,6 +1343,20 @@ class Netflow():
                     # lambda r: f"{r['prefix']}_P{r['priority']}",
                     lambda r: f"sci_P{r['priority']}",
                     axis=1).astype('string')
+
+            # TODO: implement option to re-allocate flux standards as science targets but
+            #       it requires changes in how the number of targets are counted for the
+            #       purposes of target class minimum and maximum, as well as cobra group minima and maxima
+
+            # Update the non-observation cost based on the values in the catalog
+            update_mask = np.array(targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True).isna() |
+                                    ((input_targets['non_observation_cost'].reset_index(drop=True)) >
+                                    (targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True))).fillna(False))
+            pd_update_column(targets,
+                             idx2[update_mask],
+                             'non_observation_cost',
+                             input_targets['non_observation_cost'][update_mask],
+                             np.int32)
 
             # TODO: Update the number of done visits
             pass
@@ -1924,11 +2038,8 @@ class Netflow():
         These edges are created regardless of the visibility of the targets during the visits.
         """
 
-        # TODO: replace this with the logic to implement step-by-step targeting
-        # force_already_observed = self.__get_netflow_option(self.__netflow_options.force_already_observed, False)
-
         # Select only science targets and create the variables in batch mode
-        # Ignore any science target with unknow priority class
+        # Ignore any science target with unknown priority class (how can this happen? this means a wrong config)
         mask = ((self.__target_cache.prefix == 'sci') &
                 np.isin(self.__target_cache.target_class, list(self.__netflow_options.target_classes.keys())))
         

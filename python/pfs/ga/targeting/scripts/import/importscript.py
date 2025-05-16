@@ -361,6 +361,18 @@ class ImportScript(TargetingScript):
         target_list.transform_coords(target_frame='icrs', target_epoch=target_epoch)
 
     def __append_source_target_lists(self, netflow, target_lists):
+
+        # Process the targets lists one by one and add the targets to the internal
+        # target lists. To avoid duplicates, we cross-match the target lists with the
+        # targets already added to the internal target list. When a match is found,
+        # the target is updated with the new information. The rules of the updates
+        # are:
+        # - cal > sci > sky
+        # - the highest priority is kept (smallest integer number)
+        # - the longest exposure time is kept
+        # - coordinates are not updated, the ones used are always the ones from
+        #   the target list that is processed first
+
         # Add flux standards first because those are the less numerous. This way
         # we always cross-match the science targets with the flux standards and
         # can throw away stars that are already in the flux standard list.
@@ -383,15 +395,18 @@ class ImportScript(TargetingScript):
                     
                     if mask is not None:
                         # Update the target list where there is a match
-                        netflow.update_targets(target_list, prefix, idx1, idx2)
+                        targets = netflow.get_catalog_data(target_list, prefix=prefix, mask=idx1)
+                        netflow.update_targets(targets, prefix, idx2)
                         target_list.data.loc[mask, '__target_idx'] = idx2
 
                         # Add targets which didn't have a match
-                        idx = netflow.append_targets(target_list, prefix=prefix, mask=~mask)
+                        targets = netflow.get_catalog_data(target_list, prefix=prefix, mask=~mask)
+                        idx = netflow.append_targets(targets, prefix=prefix)
                         target_list.data.loc[~mask, '__target_idx'] = idx
                     else:
                         # Add all targets as this is the first target list being processed
-                        idx = netflow.append_targets(target_list, prefix=prefix)
+                        targets = netflow.get_catalog_data(target_list, prefix=prefix)
+                        idx = netflow.append_targets(targets, prefix=prefix)
                         target_list.data['__target_idx'] = idx
                                 
         for k, target_list in target_lists.items():
