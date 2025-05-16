@@ -97,10 +97,13 @@ class SubaruWFC(Instrument, TelescopeProjection):
         # TODO: use mask
         mask = mask if mask is not None else np.full_like(coords.T, True, dtype=bool)
 
+        # Different versions of pfs_utils require different shape for
+        # cent.
+
         sky_pos = CoordinateTransform(xyin=coords.T, mode="pfi_sky",
             za=0.0, inr=0.0,
-            # cent=np.array([[self.pointing.ra, self.pointing.dec]]).T,
-            cent=np.array([self.pointing.ra, self.pointing.dec]),
+            cent=np.array([[self.pointing.ra, self.pointing.dec]]).T,
+            # cent=np.array([self.pointing.ra, self.pointing.dec]),
             pa=self.pointing.posang,
             time=self.pointing.obs_time.to_string())
 
