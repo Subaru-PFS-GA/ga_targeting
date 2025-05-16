@@ -38,6 +38,9 @@ class NetflowOptionsConfig(Config):
             # [43486543901, 43218108431],
         ]
 
+        self.science_prefix = ['sci']
+        self.calibration_prefix = ['cal', 'sky']
+
         self.target_classes = target_classes
         self.cobra_groups = cobra_groups
         self.time_budgets = time_budgets
@@ -51,8 +54,15 @@ class NetflowOptionsConfig(Config):
         # Allow more visits than minimally required
         self.allow_more_visits = True
 
+        # Use non-observation cost specified for each target
+        # individually. Otherwise use the non-observation cost
+        # specified for the target class.
+        self.per_target_non_obs_cost = False
+
         # Convert all source catalogs to this epoch when proper motions are provided
-        self.epoch = None       
+        # TODO: isn't there a better place for this option?
+        #       it should go to the netflow script instead
+        self.epoch = None
 
         # Generate full gurobi variable names instead of numbered ones (slow to build problem)
         # It is necessary only, when the netflow solution will be loaded from a file to

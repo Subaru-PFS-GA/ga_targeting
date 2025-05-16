@@ -299,7 +299,7 @@ class Netflow():
         for name, options in self.__netflow_options.target_classes.items():                
             # Sanity check for science targets: make sure that partialObservationCost
             # is larger than nonObservationCost
-            if options.prefix == 'sci' \
+            if options.prefix in self.__netflow_options.science_prefix \
                 and options.non_observation_cost is not None \
                 and options.partial_observation_cost is not None \
                 and options.partial_observation_cost < options.non_observation_cost:
@@ -1138,7 +1138,7 @@ class Netflow():
         else:
             pd_append_column(targets, 'penalty', 0, np.int32)
 
-        if prefix == 'sci':
+        if prefix in self.__netflow_options.science_prefix:
             # Override exposure time, if specified
             if exp_time is not None:
                 pd_append_column(targets, 'exp_time', exp_time, np.float64)
@@ -1187,14 +1187,15 @@ class Netflow():
                 pd_update_column(targets, targets['class'] == target_class, 'non_observation_cost', noc, np.int32)
             
         # Validate the new targets
-        if np.any(targets['priority'].isna() & (targets['prefix'] == 'sci')):
+        sci_mask = targets['prefix'].isin(self.__netflow_options.science_prefix)
+        if np.any(targets['priority'].isna() & sci_mask):
             raise NetflowException('Science targets must have a priority.')
 
-        if np.any(targets['exp_time'].isna() & (targets['prefix'] == 'sci')):
+        if np.any(targets['exp_time'].isna() & sci_mask):
             raise NetflowException('Science targets must have an exposure time.')
 
-        if np.any((targets['exp_time'] <= 0) & (targets['prefix'] == 'sci')):
-            raise NetflowException('Science targets must have an exposure time.')
+        if np.any((targets['exp_time'] <= 0) & sci_mask):
+            raise NetflowException('Science targets must have a non-zero exposure time.')
 
         return targets
         
@@ -1316,7 +1317,7 @@ class Netflow():
         if 'parallax' in input_targets:
             pd_update_column(targets, idx2[update_mask], 'parallax', input_targets['parallax'][update_mask], np.float64)
 
-        if prefix == 'sci':
+        if prefix in self.__netflow_options.science_prefix:
             # Only update exp_time if it is still NA or the new exp_time is larger than
             # the existing one
             update_mask = np.array(targets.loc[idx2, 'exp_time'].reset_index(drop=True).isna() |
@@ -1379,7 +1380,7 @@ class Netflow():
                                   [self.__debug_options.ignore_missing_priority,
                                    self.__debug_options.ignore_missing_exp_time]):
             
-            mask = (self.__targets['prefix'] == 'sci') & (self.__targets[column].isna())
+            mask = (self.__targets['prefix'].isin(self.__netflow_options.science_prefix)) & (self.__targets[column].isna())
             if mask.any():
                 msg = f"Missing {column} for {mask.sum()} science targets."
                 if not ignore:
@@ -1542,8 +1543,8 @@ class Netflow():
 
         # TODO: The number of done visits should come from the science target lists
 
-        sci_mask = (self.__targets['prefix'] == 'sci')
-        cal_mask = self.__targets['prefix'].isin(['cal', 'sky'])
+        sci_mask = self.__targets['prefix'].isin(self.__netflow_options.science_prefix)
+        cal_mask = self.__targets['prefix'].isin(self.__netflow_options.calibration_prefix)
 
         # Reset the number of done visits for new targets
         if 'done_visits' not in self.__targets.columns:
@@ -1556,7 +1557,7 @@ class Netflow():
         done_mask = (self.__targets['done_visits'] > 0) & (self.__targets['done_visits'] >= self.__targets['req_visits'])
 
         # Calculate the number of required visits from the exposure time
-        # The default is 0 for the non-science targets. Some targets are both flux
+        # The default is 0 for calibration targets. Some targets are both flux
         # standards and science targets, so we calculate the number of required visits
         # based on the presence of exp_time
 
@@ -1566,10 +1567,10 @@ class Netflow():
             self.__targets, mask, 'req_visits',
             np.ceil(self.__targets['exp_time'][mask] / self.__visit_exp_time), dtype=np.int32)
 
-        hist = np.bincount(self.__targets[self.__targets['prefix'] == 'sci']['req_visits'])
+        hist = np.bincount(self.__targets[sci_mask]['req_visits'])
         logger.info(f'Histogram of required visits: {hist}')
 
-        hist = np.bincount(self.__targets[self.__targets['prefix'] == 'sci']['done_visits'])
+        hist = np.bincount(self.__targets[sci_mask]['done_visits'])
         logger.info(f'Histogram of done visits: {hist}')
 
     def __validate_target_visits(self):
@@ -1618,6 +1619,7 @@ class Netflow():
                 req_visits = np.array(self.__targets['req_visits'][mask_any].astype(np.int32)),
                 done_visits = np.array(self.__targets['done_visits'][mask_any].astype(np.int32)),
                 penalty = np.array(self.__targets['penalty'][mask_any].astype(np.int32)),
+                non_observation_cost = np.array(self.__targets['non_observation_cost'][mask_any].astype(np.int32)),
             )
         
     def __get_target_cache_filename(self, filename=None):
@@ -2020,7 +2022,7 @@ class Netflow():
         
     def __create_science_target_class_variables(self):
         for target_class in self.__netflow_options.target_classes.keys():
-            if self.__netflow_options.target_classes[target_class].prefix == 'sci':
+            if self.__netflow_options.target_classes[target_class].prefix in self.__netflow_options.science_prefix:
                 # Science Target class node to sink
                 self.__create_STC_sink(target_class)
 
@@ -2030,7 +2032,11 @@ class Netflow():
         # more to the cost to prefer targeting them.
         f = self.__add_variable(self.__make_name("STC_sink", target_class), 0, None)
         self.__variables.STC_sink[target_class] = f
-        self.__add_cost(f * self.__netflow_options.target_classes[target_class].non_observation_cost)
+
+        # If the non-observation cost is handled on the target class level,
+        # define it now on the sink edge.
+        if not self.__netflow_options.per_target_non_obs_cost:
+            self.__add_cost(f * self.__netflow_options.target_classes[target_class].non_observation_cost)
         
     def __create_science_target_variables(self):
         """
@@ -2040,28 +2046,40 @@ class Netflow():
 
         # Select only science targets and create the variables in batch mode
         # Ignore any science target with unknown priority class (how can this happen? this means a wrong config)
-        mask = ((self.__target_cache.prefix == 'sci') &
+        mask = (np.isin(self.__target_cache.prefix, self.__netflow_options.science_prefix) &
                 np.isin(self.__target_cache.target_class, list(self.__netflow_options.target_classes.keys())))
         
         tidx = np.where(mask)[0]
         target_class = self.__target_cache.target_class[mask]
         target_penalty = self.__target_cache.penalty[mask]
+        target_non_observation_cost = self.__target_cache.non_observation_cost[mask]
 
         # Science Target class node to target node: STC -> T
-        self.__create_STC_T(tidx, target_class, target_penalty)
+        self.__create_STC_T(tidx, target_class, target_penalty, target_non_observation_cost)
 
         # Science Target node to sink: T -> T_sink
         # > T_sink[target_idx]
         self.__create_T_sink(tidx, target_class)
 
-    def __create_STC_T(self, tidx, target_class, target_penalty):
+    def __create_STC_T(self, tidx, target_class, target_penalty, target_non_observation_cost):
         vars =  self.__add_variable_array('STC_T', tidx, 0, 1)
         for i in range(len(tidx)):
             f = vars[tidx[i]]
             self.__variables.T_i[tidx[i]] = f
             self.__variables.STC_o[target_class[i]].append(f)
+            
+            # TODO: figure out how to add these cost terms in batch mode
+            # use something like vars = self.__add_variable_array(name, tidx, 0, 1, cost=cost)
+
+            # The observation of a target can be penalized
             if target_penalty[i] != 0:
                 self.__add_cost(f * target_penalty[i])
+
+            # If the non-observation cost is handled on a per target basis,
+            # add the cost term here.
+            if self.__netflow_options.per_target_non_obs_cost:
+                if target_non_observation_cost[i] != 0:
+                    self.__add_cost((1 - f) * target_non_observation_cost[i])
         
     def __create_T_sink(self, tidx, target_class):
         """
@@ -2081,9 +2099,13 @@ class Netflow():
     def __create_calib_target_class_variables(self, visit):
         # Calibration target class visit outflows, key: (target_class, visit_idx)
         for target_class, options in self.__netflow_options.target_classes.items():
-            if options.prefix in ['sky', 'cal']:
+            if options.prefix in self.__netflow_options.calibration_prefix:
                 f = self.__add_variable(self.__make_name("CTCv_sink", target_class, visit.visit_idx), 0, None)
                 self.__variables.CTCv_sink[(target_class, visit.visit_idx)] = f
+
+                # The non-observation cost is always handled on the
+                # target class level for calibration targets because there is no
+                # single variable that can be used to define the cost.
                 self.__add_cost(f * options.non_observation_cost)
     
     def __create_visit_variables(self, visit):
@@ -2096,13 +2118,13 @@ class Netflow():
 
         # Create science targets T_Tv edges in batch
         # > T_Tv_{visit_idx}[target_idx]
-        sci_mask = ((self.__target_cache.prefix[tidx] == 'sci') &
+        sci_mask = (np.isin(self.__target_cache.prefix[tidx], self.__netflow_options.science_prefix) &
                     np.isin(self.__target_cache.target_class[tidx], list(self.__netflow_options.target_classes.keys())))
         self.__create_T_Tv(visit, tidx[sci_mask])
 
         # Create calibration targets CTCv_Tv edges
         # > CTCv_Tv_{visit_idx}[target_idx]
-        cal_mask = (self.__target_cache.prefix[tidx] == 'sky') | (self.__target_cache.prefix[tidx] == 'cal')
+        cal_mask = np.isin(self.__target_cache.prefix[tidx], self.__netflow_options.calibration_prefix)
         self.__create_CTCv_Tv(visit, tidx[cal_mask])
 
         # For each Cv, generate the incoming Tv_Cv edges
@@ -2383,7 +2405,7 @@ class Netflow():
         ignore_science_target_class_maximum = self.__debug_options.ignore_science_target_class_maximum
         
         for target_class in self.__netflow_options.target_classes:
-            if self.__netflow_options.target_classes[target_class].prefix == 'sci':
+            if self.__netflow_options.target_classes[target_class].prefix in self.__netflow_options.science_prefix:
                 vars = self.__variables.STC_o[target_class]
                 sink = self.__variables.STC_sink[target_class]
                 num_targets = len(vars)
@@ -2426,7 +2448,7 @@ class Netflow():
         ignore_calib_target_class_maximum = self.__debug_options.ignore_calib_target_class_maximum
         
         for target_class in self.__netflow_options.target_classes:
-            if self.__netflow_options.target_classes[target_class].prefix in ['cal', 'sky']:
+            if self.__netflow_options.target_classes[target_class].prefix in self.__netflow_options.calibration_prefix:
                 vars = self.__variables.CTCv_o[(target_class, vidx)]
                 sink = self.__variables.CTCv_sink[(target_class, vidx)]
                 num_targets = len(vars)
