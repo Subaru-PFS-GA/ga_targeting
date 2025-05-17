@@ -1153,10 +1153,14 @@ class Netflow():
 
             pd_append_column(targets, 'class', pd.NA, 'string')
             priority_mask = ~targets['priority'].isna()
-            targets.loc[priority_mask, 'class'] = \
-                targets.loc[priority_mask, ['prefix', 'priority']].apply(
-                    lambda r: f"{r['prefix']}_P{r['priority']}",
-                    axis=1).astype('string')
+
+            if prefix == 'sci':
+                targets.loc[priority_mask, 'class'] = \
+                    targets.loc[priority_mask, ['prefix', 'priority']].apply(
+                        lambda r: f"{r['prefix']}_P{r['priority']}",
+                        axis=1).astype('string')
+            else:
+                targets.loc[priority_mask, 'class'] = prefix
         else:
             # Calibration targets have no prescribed exposure time and priority
             pd_append_column(targets, 'exp_time', np.nan, np.float64)
@@ -1194,8 +1198,9 @@ class Netflow():
         if np.any(targets['exp_time'].isna() & sci_mask):
             raise NetflowException('Science targets must have an exposure time.')
 
-        if np.any((targets['exp_time'] <= 0) & sci_mask):
-            raise NetflowException('Science targets must have a non-zero exposure time.')
+        if prefix == 'sci':
+            if np.any((targets['exp_time'] <= 0) & sci_mask):
+                raise NetflowException('Science targets must have a non-zero exposure time.')
 
         return targets
         
@@ -2665,6 +2670,10 @@ class Netflow():
         self.__cobra_assignments = [ np.full(ncobras, -1, dtype=int) for _ in range(nvisits) ]
 
         def set_assigment(tidx, cidx, vidx):
+            # Make sure we don't have any duplicate assignments
+            assert tidx not in self.__target_assignments[vidx]
+            assert self.__cobra_assignments[vidx][cidx] == -1
+
             self.__target_assignments[vidx][tidx] = cidx
             self.__cobra_assignments[vidx][cidx] = tidx
 
@@ -2672,7 +2681,7 @@ class Netflow():
             # This only works when the netflow problem is fully built
             for (tidx, vidx), vars in self.__variables.Tv_o.items():
                 for (f, cidx) in vars:
-                    if self.__problem.get_value(f) > 0:
+                    if self.__problem.is_one(f):
                         set_assigment(tidx, cidx, vidx)
         else:
             # This also works when only the LP problem is loaded back from a file
@@ -2680,12 +2689,16 @@ class Netflow():
             # full variable names.
             for k1, v1 in self.__problem._variables.items():
               if k1.startswith("Tv_Cv_"):
-                    if self.__problem.get_value(v1) > 0:
+                    if self.__problem.is_one(v1) > 0:
                         _, _, tidx, cidx, vidx = k1.split("_")
                         set_assigment(int(tidx), int(cidx), int(vidx))
 
+        # For each visit, check if there are any duplicate assignments
+        # __target_assignments contains a dict of (tidx, cidx) pairs but
+        # both must be unique for a given vidx
         for vidx in range(len(self.__target_assignments)):
-            assert not np.any(np.diff(np.sort([ v for k, v in self.__target_assignments[vidx].items() ])) == 0)
+            # Create a list of fiber indices, then sort them and make sure there's no duplicates
+            assert not np.any(np.diff(np.sort([ cidx for tidx, cidx in self.__target_assignments[vidx].items() ])) == 0)
 
     def update_done_visits(self):
         """

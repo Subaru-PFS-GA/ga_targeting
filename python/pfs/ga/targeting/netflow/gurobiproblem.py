@@ -20,6 +20,9 @@ class GurobiProblem(ILPProblem):
         self.__cost = None
         self.__sum = None
 
+        self.__int_focus = None
+        self.__int_tol = None
+
         self.__create_model()
 
     def __get_cost(self):
@@ -51,6 +54,26 @@ class GurobiProblem(ILPProblem):
                 if value is not None:
                     self.__model.setParam(key, value)
 
+    def __read_options(self):
+        """
+        Read back the value of certain optimizer options that are
+        necessary to process the output.
+        """
+
+        # If IntegralityFocus = 1, then we can expect that integer variables
+        # are actually integer. If not, we can get float values after
+        # optimization.
+        # See: https://support.gurobi.com/hc/en-us/community/posts/19201217200401-Why-are-binary-Variables-getting-float-results-Is-there-any-command-to-prevent-it
+
+        _, _, v, _, _, _ = self.__model.getParamInfo('IntegralityFocus')
+        if v == 1:
+            self.__int_focus = True
+            self.__int_tol = None
+        else:
+            self.__int_focus = False
+            _, _, v, _, _, _ = self.__model.getParamInfo('IntFeasTol')
+            self.__int_tol = v
+        
     def add_variable(self, name, lo, hi):       
         if lo is None:
             lo = -gbp.GRB.INFINITY
@@ -86,6 +109,18 @@ class GurobiProblem(ILPProblem):
     
     def get_value(self, variable):
         return variable.X
+
+    def is_zero(self, variable):
+        if self.__int_focus:
+            return variable.X == 0
+        else:
+            return abs(variable.X) < self.__int_tol
+        
+    def is_one(self, variable):
+        if self.__int_focus:
+            return variable.X == 1
+        else:
+            return abs(variable.X - 1) < self.__int_tol
     
     def add_cost(self, additional_cost):
         self.__cost += additional_cost
@@ -124,6 +159,7 @@ class GurobiProblem(ILPProblem):
 
         self.__model.update()
         self.__model.optimize()
+        self.__read_options()
 
         if self.__model.Status == gbp.GRB.OPTIMAL or \
             self.__model.Status == gbp.GRB.LOADED:
@@ -176,6 +212,7 @@ class GurobiProblem(ILPProblem):
     def read_problem(self, filename):
         if os.path.isfile(filename):
             self.__model = gbp.read(filename)
+            self.__read_options()
         else:
             raise FileNotFoundError(f'File `{filename}` does not exist.')
         
@@ -186,3 +223,4 @@ class GurobiProblem(ILPProblem):
 
     def read_solution(self, filename):
         self.__model.read(filename)
+        self.__read_options()

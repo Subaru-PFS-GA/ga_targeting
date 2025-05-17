@@ -42,4 +42,10 @@ class GurobiOptionsConfig(Config):
         
         self.timelimit = 300
 
+        # When set to 1, force checking for integrality of integer and binary variables
+        self.IntegralityFocus = 0
+
+        # Tolerance for integrality of integer and binary variables
+        self.IntFeasTol = 1e-5
+
         super().__init__()
