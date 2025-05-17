@@ -10,7 +10,6 @@ config = dict(
         nvisits = 6,
         resolution = 'm',
         exp_time = 3 * 60 * 60, # sec,
-        id_prefix = 0x8000000000
     ),
     instrument_options = dict(
         layout = 'calibration',
@@ -25,14 +24,19 @@ config = dict(
     netflow_options = dict(
         black_dot_penalty = R'lambda dist: 10 / (dist + 1)',
         cobra_move_cost = R'lambda dist: 5 * dist',
+        per_target_non_obs_cost = True,
         collision_distance = 2.0,
         forbidden_targets = [],
         forbidden_pairs = [],
+        # science_prefix = ['sci'],
+        # calibration_prefix = ['cal', 'sky'],
+        science_prefix = ['sci', 'cal'],
+        calibration_prefix = ['sky'],
         target_classes = {
             'sky': dict(
                 prefix = 'sky',
-                min_targets = 240,
-                max_targets = 320,
+                min_targets = 400,
+                max_targets = 420,
                 non_observation_cost = 0,
             ),
             'cal': dict(
@@ -43,7 +47,7 @@ config = dict(
             ),
             'sci_P0': dict(
                 prefix = 'sci',
-                min_targets = 5,
+                min_targets = None,
                 max_targets = None,
                 non_observation_cost = 10000,
             ),
@@ -113,15 +117,15 @@ config = dict(
             'sky_instrument': dict(
                 # groups = np.random.randint(8, size=2394),
                 target_classes = [ 'sky' ],
-                min_targets = 10,
-                max_targets = 60,
+                min_targets = 12,
+                max_targets = 40,
                 non_observation_cost = 100,
             ),
             'sky_location': dict(
                 # groups = np.random.randint(8, size=2394),
                 target_classes = [ 'sky' ],
-                min_targets = 10,
-                max_targets = 60,
+                min_targets = 12,
+                max_targets = 40,
                 non_observation_cost = 100,
             )
         },
@@ -141,7 +145,7 @@ config = dict(
         mipfocus = 1,           
         mipgap = 0.0001,
         LogToConsole = 0,
-        timelimit = 600 # sec
+        timelimit = 600, # sec
     ),
     debug_options = dict(
         ignore_endpoint_collisions = False,
