@@ -408,13 +408,13 @@ class ExportScript(TargetingScript):
 
                 for b in filter:
                     if np.any([ f is not None for f in filter[b] ]):
-                        table[f'filter_{b}'] = filter[b]
-                        table[f'psf_flux_{b}'] = psf_flux[b]
-                        table[f'psf_flux_error_{b}'] = psf_flux_err[b]
+                        table[f'filter_{b}'] = np.array([f if f is not None else '' for f in filter[b]], dtype=str)
+                        table[f'psf_flux_{b}'] = np.array([f if f is not None else np.nan for f in psf_flux[b]], dtype=float)
+                        table[f'psf_flux_error_{b}'] = np.array([f if f is not None else np.nan for f in psf_flux_err[b]], dtype=float)
                     else:
                         table[f'filter_{b}'] = np.array(mask.sum() * [''], dtype=str)
-                        table[f'psf_flux_{b}'] = np.zeros(mask.sum(), dtype=float)
-                        table[f'psf_flux_error_{b}'] = np.zeros(mask.sum(), dtype=float)
+                        table[f'psf_flux_{b}'] = np.full(mask.sum(), np.nan, dtype=float)
+                        table[f'psf_flux_error_{b}'] = np.full(mask.sum(), np.nan, dtype=float)
 
                 table['cobraId'] = cobraid
                 table['pfi_X'] = pfi_x
@@ -423,7 +423,6 @@ class ExportScript(TargetingScript):
                 fn = self.__get_targets_path(target_type, field_code)
                 os.makedirs(os.path.dirname(fn), exist_ok=True)
                 table.write(fn)
-
 
     def __get_pfsDesign_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/pfs_designs/{self.__obs_wg}')
