@@ -188,7 +188,7 @@ class ExportScript(TargetingScript):
 
         # Convert to HST
         hawaii_tz = TimeDelta(-10 * u.hr)
-        obstime = designs['obs_time'].apply(lambda t: (Time(t) + hawaii_tz).iso)
+        obstime = designs['obs_time'].apply(lambda t: (Time(t) + hawaii_tz).iso.replace(' ', 'T'))
 
         nframes = code.size * [ self.__nframes ]
 

@@ -1723,10 +1723,12 @@ class Netflow():
 
         for fp in self.__target_fp_pos:
             n = np.sum(np.abs(fp) < 400)
-            assert n > 100, f"Pointing contains only {n} targets within the PFI radius."
+            if n < 100:
+                logger.warning(f"Pointing contains only {n} targets within the PFI radius.")
 
             for m in [ np.min(fp.real), np.max(fp.real), np.min(fp.imag), np.max(fp.imag) ]:
-                assert np.abs(m) > 190, f"The focal plane might not be fully covered by the target catalog."
+                if np.abs(m) < 190:
+                    logger.warning(f"The focal plane might not be fully covered by the target catalog.")
 
     def __make_name_full(self, *parts):
         ### SLOW ### 4M calls!

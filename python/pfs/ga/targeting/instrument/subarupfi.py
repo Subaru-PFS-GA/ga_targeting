@@ -303,6 +303,30 @@ class SubaruPFI(Instrument, FiberAllocator):
         """
         Convert equatorial coordinates to alt-az coordinates at the location of
         the Subaru Telescope.
+
+        Parameters
+        ----------
+        ra : array of float
+            Right Ascension of the targets in degrees
+        dec : array of float
+            Declination of the targets in degrees
+        posang : array of float
+            Position angle of the targets in degrees
+        obs_time : Time
+            Observation time in UTC
+        epoch : float
+            Epoch of the input coordinates in decimal year. Will be used
+            to calculate the position of the targets at ˙obs_time` when
+            proper motion is available.
+        pmra : array of float
+            Proper motion in the RA direction in mas / yr
+        pmdec : array of float
+            Proper motion in the Dec direction in mas / yr
+        parallax : array of float
+            Parallax in mas. Due to bugs in the underlying libraries, must
+            be non-zero.
+        rv : array of float
+            Radial velocity in km / s.
         """
 
         # TODO: move to telescope class
