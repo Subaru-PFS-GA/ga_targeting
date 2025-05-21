@@ -36,11 +36,11 @@ config = dict(
     field = dict(
         key = "crosscalib_ra288_decm17",
         name = "Cross-Calibration ra=288 dec=-17",
-        obs_time = datetime(2025, 5, 28, 12, 0, 0),
+        obs_time = datetime(2025, 6, 1, 15, 0, 0),
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=288.00, dec=-16.75, posang=120.0, priority=0),
+        dict(ra=288.00, dec=-16.75, posang=0.0, priority=100),
     ],
     targets = {
         # Miho
