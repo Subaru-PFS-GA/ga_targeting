@@ -104,9 +104,9 @@ config = dict(
                         mag = 'phot_g_mean_mag',
                     ),
                 },
-                # limits = {
-                #     'gaia_g': [16, 23],
-                # }
+                limits = {
+                    'gaia_g': [13, 23],
+                }
             )
         ),
         # Jingkun
@@ -138,9 +138,9 @@ config = dict(
                         mag = 'G_C',
                     ),
                 },
-                # limits = {
-                #     'gaia_g': [16, 23],
-                # }
+                limits = {
+                    'gaia_g': [13, 23],
+                }
             )
         ),
         # Federico
@@ -170,7 +170,7 @@ config = dict(
                     ),
                 },
                 limits = {
-                    'gaia_g': [16, 23],
+                    'gaia_g': [13, 23],
                 }
             )
         ), 
