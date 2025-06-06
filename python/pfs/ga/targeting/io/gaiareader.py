@@ -52,13 +52,16 @@ class GaiaReader(CatalogSerializer):
         return obs
 
     def cone_search(self, pos, rad):
-        """Run a cone search on the GAIA archive.
+        """
+        Run a cone search on the GAIA archive.
         
         Parameters:
         -----------
-        
-        :pos: `SkyCoord`: Cone search center
-        :rad: `Angle` or `Number`: Cone search radius, in arc min if `Number`"""
+        pos: `SkyCoord`:
+            Cone search center
+        rad: `Angle` or `Number`:
+            Cone search radius, in arc min if `Number`
+        """
 
         # TODO: bring out parameters like data release etc.
         # TODO: apply filters on query lever rather than post-filtering

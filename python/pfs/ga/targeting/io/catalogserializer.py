@@ -1,5 +1,7 @@
 from pandas import DataFrame
 
+from ..setup_logger import logger
+
 from ..util import *
 from ..photometry import Photometry, Magnitude
 
@@ -97,6 +99,7 @@ class CatalogSerializer():
                         if filter[k] not in df.columns:
                             raise ValueError(f'Column {filter[k]} not found in dataframe.')
 
+                        # If there's at least one non-NaN value in the column, consider the filter good
                         if (~df[filter[k]].isna()).any():
                             return True
                             
@@ -156,6 +159,7 @@ class CatalogSerializer():
                     photometry.append_magnitude(magnitude)
                 self.append_photometry(photometry)
         except ValueError:
+            logger.error('Error guessing photometry names from filters. ')
             pass
 
         return self.__photometry
