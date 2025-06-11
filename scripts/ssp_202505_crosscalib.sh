@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION="004"
+VERSION="005"
 
 NVISITS=1
 NFRAMES=2
@@ -79,6 +79,7 @@ FIELDS="ra288_dec-11 ra288_dec-17 ra288_dec-22 ra336_dec-12"
 
 
 # Copy target lists, design files and concatenate the ppcList.ecsv file
+
 for FIELD in $FIELDS; do
 
     FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/CC/crosscalib_${FIELD}
@@ -88,11 +89,11 @@ for FIELD in $FIELDS; do
     echo "Copying ${FIELD} files to ${SSP_OBS_PATH}"
     cp -R ${EXPORT_DIR}/runs ${SSP_OBS_PATH}
 
-    # Concatenate the ppcList.ecsv files
-    if [ ! -f ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv ]; then
-        echo "File ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv does not exist"
-    else
-        echo "Concatenating ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv to ${SSP_OBS_PATH}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
-        cat ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv >> ${SSP_OBS_PATH}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv
-    fi
+    # # Concatenate the ppcList.ecsv files
+    # if [ ! -f ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv ]; then
+    #     echo "File ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv does not exist"
+    # else
+    #     echo "Concatenating ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv to ${SSP_OBS_PATH}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
+    #     cat ${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv >> ${SSP_OBS_PATH}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv
+    # fi
 done
