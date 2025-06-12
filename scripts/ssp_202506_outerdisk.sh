@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION="001"
+VERSION="002"
 
 NVISITS=6
 NFRAMES=2
@@ -22,7 +22,8 @@ EXTRA_OPTIONS=""
 # for FIELD in l90_bm28; do
 # for FIELD in l90_bm29; do
 # for FIELD in l90_b25; do
-for FIELD in l90_b27; do
+# for FIELD in l90_b27; do
+for FIELD in l90_b16; do
 
     FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_${FIELD}_${PREFIX}
     IMPORT_DIR=${FIELD_DIR}/import/outerdisk_${FIELD}_${PREFIX}_${VERSION}
