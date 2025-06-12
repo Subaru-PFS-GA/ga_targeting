@@ -1,6 +1,6 @@
 from datetime import datetime
 
-DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l90_b25_SSP'
+DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l90_b16_SSP'
 
 PROPOSALID = 'S25A-OT02'
 CATID_SKY_GAIA = 1006
@@ -10,7 +10,7 @@ CATID_SCIENCE_CO = 10091
 CATID_SCIENCE_GA = 10092
 CATID_SCIENCE_GE = 10093
 
-ID_PREFIX = 0x5000000000
+ID_PREFIX = 0x7000000000
 
 column_map = {
     'ob_code': 'obcode',
@@ -33,13 +33,13 @@ extra_columns = {
 
 config = dict(
     field = dict(
-        key = "outerdisk_l90_b25_faint",
-        name = "GA Outer Disk l=90 b=25 Faint",
+        key = "outerdisk_l90_b16_faint",
+        name = "GA Outer Disk l=90 b=16 Faint",
         obs_time = datetime(2025, 6, 30, 12, 0, 0),
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=279.0, dec=60.45, posang=120.0, priority=1),
+        dict(ra=296.57, dec=57.4, posang=120.0, priority=1),
     ],
     targets = {
         # # Federico
@@ -76,7 +76,7 @@ config = dict(
         # ),        
         # Miho
         "ps1": dict(
-            path = f'{DATA_DIR}/ga_targets_outerdisk_l90_b25_faint.ecsv',
+            path = f'{DATA_DIR}/ga_targets_outerdisk_l90_b16_faint.ecsv',
             mask = 'lambda df: df["input_catalogs"] == "PS1"',
             column_map = column_map,
             value_map = {
@@ -154,7 +154,7 @@ config = dict(
         # ),
         # Miho
         "sky": dict(
-            path = f'{DATA_DIR}/l90b25_sky.csv',
+            path = f'{DATA_DIR}/l90b16_sky.csv',
             reader_args = dict(),
             column_map = {
                 'obj_id': 'targetid',
@@ -168,7 +168,7 @@ config = dict(
         ),
         # Miho
         "fluxstd": dict(
-            path = f'{DATA_DIR}/l90b25_fluxstd.csv',
+            path = f'{DATA_DIR}/l90b16_fluxstd.csv',
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
