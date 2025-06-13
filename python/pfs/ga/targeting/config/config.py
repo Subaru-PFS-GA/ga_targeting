@@ -68,7 +68,7 @@ class Config():
     #region Load
 
     @classmethod
-    def from_file(cls, path, format=None, ignore_collisions=False):
+    def from_file(cls, path, format=None, ignore_collisions=False, use_defaults=False):
         """
         Load the configuration from a file.
 
@@ -81,12 +81,15 @@ class Config():
             raised when a collision is detected.
         """
 
-        c = cls()
+        if use_defaults:
+            c = cls.default()
+        else:
+            c = cls()
         c.load(path, format=format, ignore_collisions=ignore_collisions)
         return c
     
     @classmethod
-    def from_dict(cls, config, ignore_collisions=False):
+    def from_dict(cls, config, ignore_collisions=False, use_defaults=False):
         """
         Load the configuration from a dictionary.
 
@@ -99,7 +102,10 @@ class Config():
             raised when a collision is detected.
         """
 
-        c = cls()
+        if use_defaults:
+            c = cls.default()
+        else:
+            c = cls()
         c.load(config, ignore_collisions=ignore_collisions)
         return c
 

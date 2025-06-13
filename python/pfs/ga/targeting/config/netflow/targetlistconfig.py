@@ -7,7 +7,7 @@ from .photometryconfig import PhotometryConfig
 class TargetListConfig(Config):
     def __init__(self,
                  extra_columns: Dict[str, ExtraColumnConfig] = None,
-                 photometry: PhotometryConfig = None,
+                 photometry: PhotometryConfig = PhotometryConfig(),
                  mask: Lambda = None):
         
         # Path to the data file

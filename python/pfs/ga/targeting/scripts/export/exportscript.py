@@ -18,7 +18,7 @@ import pfs.ga.targeting
 from gurobipy import gurobi
 from pfs.datamodel import TargetType, PfsDesign
 
-from ...config.netflow import NetflowConfig
+from ...config.netflow import NetflowConfig, ExportOptionsConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_FIELDS
 from ..targetingscript import TargetingScript
@@ -77,6 +77,9 @@ class ExportScript(TargetingScript):
         self.__proposal_id = self.get_arg('proposal_id', args, self.__proposal_id)
 
         # Load the arguments file from the first input directory and parse a few arguments
+        # TODO: here the assumption is made that the configuration is the same for all input directories.
+        #       while this is usually correct, it is not guaranteed, so verify
+        # TODO: even better, require that the arguments file or the config file is passed explicitly
         fn = self.__find_last_dumpfile('*.args')
         logger.info(f'Using input args file `{fn}`')
         with open(fn) as f:
@@ -254,42 +257,37 @@ class ExportScript(TargetingScript):
 
     def __get_flux_by_band(self, assignments_all):
 
-        # TODO: move these dictionaries to some kind of settings file or config section and make
-        #       them the default
-        filter_bands = {
-            'g_ps1': 'g',
-            'r_ps1': 'r',
-            'i_ps1': 'i',
-            'z_ps1': 'z',
-            'y_ps1': 'y',
-            'g_gaia': 'g',
-            'bp_gaia': 'b',
-            'rp_gaia': 'r',
-            'g_hsc': 'g',
-            'r_hsc': 'r',
-            'i_hsc': 'i',
-        }
-
-        # TODO: is this map valid for all GA fields?
+        # Mapping of filter names to filter names that will appear in the exported target lists.
+        # TODO: this is supposed to be a setting for each target list, not a global one.
         if self._field is not None:
             filter_map = self._field.get_filter_map()
         else:
             filter_map = {}
 
+        # Mapping of filter names to bands
+        if self._config.export_options is not None and self._config.export_options.filter_bands is not None:
+            filter_bands = self._config.export_options.filter_bands
+        else:
+            # TODO: this is just fall-back logic that should be removed
+            filter_bands = ExportOptionsConfig.default().filter_bands
+
+        # TODO: make it a parameters?
         bands = 'bgrizy'
 
         filter = { b: len(assignments_all) * [None,] for b in bands }
         psf_flux = { b: len(assignments_all) * [None,] for b in bands }
         psf_flux_err = { b: len(assignments_all) * [None,] for b in bands }
 
-        for i, (_, ff, flux, flux_err) in enumerate(assignments_all[['filter', 'psf_flux', 'psf_flux_err']].to_records()):
-            for j, f in enumerate(ff):
-                if f in filter_bands:
-                    b = filter_bands[f]
-                    if b is not None and filter[b][i] is None:
-                        filter[b][i] = filter_map[f] if f in filter_map else f        ####
-                        psf_flux[b][i] = flux[j]
-                        psf_flux_err[b][i] = flux_err[j]
+        for i, (_, filter_names, flux, flux_err) in enumerate(assignments_all[['filter', 'psf_flux', 'psf_flux_err']].to_records()):
+            for j, filter_name in enumerate(filter_names):
+                # If the filter is associated with a band, map the filter name to the band
+                if filter_name in filter_bands:
+                    band = filter_bands[filter_name]
+                    if band is not None and filter[band][i] is None:
+                        # If the filter name is mapped to a different filter name, apply the mapping
+                        filter[band][i] = filter_map[filter_name] if filter_name in filter_map else filter_name
+                        psf_flux[band][i] = flux[j]
+                        psf_flux_err[band][i] = flux_err[j]
 
         return filter, psf_flux, psf_flux_err
 
