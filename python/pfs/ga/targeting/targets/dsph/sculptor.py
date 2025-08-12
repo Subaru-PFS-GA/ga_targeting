@@ -94,7 +94,7 @@ class Sculptor(DSphGalaxy):
 
         return mask
     
-    def assign_priorities(self, catalog: Catalog, mask=None):
+    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
         """Assign priority classes based on photometry"""
 
         # TODO: merge this with Umi

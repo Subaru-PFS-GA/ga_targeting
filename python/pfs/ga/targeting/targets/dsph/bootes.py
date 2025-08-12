@@ -102,7 +102,7 @@ class Bootes(DSphGalaxy):
         
         return g0, r0, gr0
 
-    def assign_priorities(self, catalog: Catalog, mask=None):
+    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
         """Assign priority classes based on photometry"""
 
         mask = mask if mask is not None else np.s_[:]

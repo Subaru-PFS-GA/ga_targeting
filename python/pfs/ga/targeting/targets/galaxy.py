@@ -65,5 +65,5 @@ class Galaxy(Field):
         catalog.data['p_member'] = np.nan
         catalog.data.loc[catalog.data.index[ix[lp_member_mask]], 'p_member'] = np.exp(lp_member[:, population_id][lp_member_mask])
 
-    def assign_priorities(self, catalog, mask=None):
+    def assign_priorities(self, catalog, mask=None, isogrid=None):
         raise NotImplementedError()
