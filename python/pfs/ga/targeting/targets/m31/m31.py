@@ -9,6 +9,8 @@ from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ...config.pmap import PMapConfig
+from ...config.sample import SampleConfig
 from ..ids import *
 from .m31galaxy import M31Galaxy
 
@@ -23,6 +25,49 @@ class M31(M31Galaxy):
         pm = [ -0.0533, -0.0104 ] * u.mas / u.yr    #Sohn et al. (2012)
         pm_err = [ 0.0246, 0.0244 ] * u.mas / u.yr
         RV, RV_err = (-287.2, 8.0) * u.kilometer / u.second
+
+        fieldnames = ['PFS field 1',
+                    'PFS field 2',
+                    'PFS field 3',
+                    'PFS field 6',
+                    'PFS field 7',
+                    'PFS field 8',
+                    'PFS field 9',
+                    'PFS field 11',
+                    'PFS field 12',
+                    'PFS field 13',
+                    'PFS field 14',
+                    'PFS field 15',
+                    'PFS field 16',
+                    'PFS field 19',
+                    'PFS field 20',
+                    'PFS field 21',
+                    'PFS field 22',
+                    'PFS field 23',
+                    'PFS field 24',
+                    'PFS field 25',
+                    'PFS field 26',
+                    'PFS field 27',
+                    'PFS field 28',
+                    'PFS field 29',
+                    'PFS field 30',
+                    'PFS field 31',
+                    'PFS field 32',
+                    'PFS field 33',
+                    'M31_003',
+                    'M31_004',
+                    'M31_009',
+                    'M31_022',
+                    'M31_023',
+                    'PFS field 34',
+                    'PFS field 35',
+                    'PFS field 36',
+                    'PFS field 37',
+                    'PFS field 38',
+                    'PFS field 39',
+                    'PFS field 40',
+                    'PFS field 41',
+                    'PFS field 42']
 
         rastr = [ '00:34:54',
                 '00:28:56',
@@ -110,17 +155,16 @@ class M31(M31Galaxy):
                 '+39:05:04' ]
         pa0 = [0]*len(rastr)
 
+        pointing_coords = {k: (Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)) for k, (ra, dec) in zip(fieldnames, zip(rastr, decstr))}
+        pointing_pas = {k: pa for k, pa in zip(fieldnames, pa0)}
+
         #pointings = {
         #    SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg) for ra, dec, pa in zip(rastr, decstr, pa0) ]
         #}
 
-        i = 10
-        # just do one pointing for now
-        rastr = rastr[i]
-        decstr = decstr[i]
-        pa = pa0[i]
         pointings = {
-            SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg) ]
+            # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
+            SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
         }
 
         
@@ -150,6 +194,16 @@ class M31(M31Galaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
+    def get_pmap_config(self):
+        config = PMapConfig(
+            cut_nb = True,
+            keep_blue = False,
+            extents = [[0.1, 3.0], [17.0, 24.5]],
+            merge_list = [np.s_[:10], np.s_[10:]]
+        )
+
+        return config
+    
     def get_netflow_config(self):
         config = NetflowConfig.default()
 
@@ -158,8 +212,8 @@ class M31(M31Galaxy):
             name = self.name,
             arms = 'bmn',
             nvisits = 1,
-            exp_time = 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 1, 24, 20, 0, 0) + timedelta(hours=10),
+            exp_time = 5 * 60 * 60.,        # 5 hr total
+            obs_time = datetime(2025, 9, 13, 23, 0, 0) + timedelta(hours=10),
         )
 
         config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]

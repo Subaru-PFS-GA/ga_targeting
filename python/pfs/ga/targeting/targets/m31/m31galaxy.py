@@ -9,6 +9,7 @@ from ...photometry import Photometry, Magnitude, Color
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...diagram import CMD, CCD, ColorAxis, MagnitudeAxis
 from ...photometry import Photometry, Magnitude, Color
+from ...config.sample import SampleConfig
 from ..galaxy import Galaxy
 
 class M31Galaxy(Galaxy):
@@ -45,6 +46,13 @@ class M31Galaxy(Galaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
+    def get_text_observation_reader(self, instrument=SubaruHSC):
+        if instrument == SubaruHSC:
+            return SubaruHSC.text_observation_reader(
+                mags=['g', 'i', 'nb515'], ext=['g', 'i', 'nb515'])
+        else:
+            raise NotImplementedError()
+
     def get_photometry(self, instrument=SubaruHSC):
         """
         Return the photometric system for the given instrument.
@@ -77,3 +85,7 @@ class M31Galaxy(Galaxy):
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         raise NotImplementedError()
+    
+    def get_sample_config(self):
+        config = SampleConfig()
+        return config
