@@ -48,8 +48,9 @@ class M31Galaxy(Galaxy):
 
     def get_text_observation_reader(self, instrument=SubaruHSC):
         if instrument == SubaruHSC:
-            return SubaruHSC.text_observation_reader(
-                mags=['g', 'i', 'nb515'], ext=['g', 'i', 'nb515'])
+            return SubaruHSC.text_observation_reader_m31(
+                mags=['g', 'i', 'nb515'],
+                ext=['g', 'i', 'nb515'])
         else:
             raise NotImplementedError()
 
