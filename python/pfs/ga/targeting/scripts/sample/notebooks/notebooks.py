@@ -63,8 +63,8 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
     for p in pp:
         pfi.plot_focal_plane(axs[2], fov, corners=True, projection=SubaruWFC(p))
 
-    axs[2].set_xlim(0.75, -2.75)
-    axs[2].set_ylim(-2.75, 0.75)
+    axs[2].set_xlim(1.75, -3.75)
+    axs[2].set_ylim(-3.75, 1.75)
 
     # Put a colorbar under all three subplots
     if l is not None and c is not None:

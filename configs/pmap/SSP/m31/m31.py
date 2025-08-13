@@ -17,10 +17,10 @@ config = dict(
         4.74330132e-01, 2.05290646e-01
     ],
     merge_list = [list(range(10)), list(range(10, 10))],
-    sim_path = "$CMDFIT_DATA/run/m31/sim/nobin_chab_10k_002",
+    sim_path = "/raid/pfs/data/cmdfit/run/m31/sim/nobin_chab_10k_002",
     
     # sim_path = "/datascope/subaru/data/cmdfit/run/umi/sim/bin_chab_nb_uni_250k_001",
     # use_p_stars = True,
     
-    obs_path = "$PFS_TARGETING_DATA/m31/M31Catalog_forPFS.csv"
+    obs_path = "/raid/pfs/data/targeting/m31/M31Catalog_forPFS.csv"
 )

@@ -158,14 +158,14 @@ class M31(M31Galaxy):
         pointing_coords = {k: (Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)) for k, (ra, dec) in zip(fieldnames, zip(rastr, decstr))}
         pointing_pas = {k: pa for k, pa in zip(fieldnames, pa0)}
 
-        #pointings = {
-        #    SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg) for ra, dec, pa in zip(rastr, decstr, pa0) ]
-        #}
-
         pointings = {
-            # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
-            SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
+            SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) for ra, dec, pa in zip(rastr, decstr, pa0) ]
         }
+
+        # pointings = {
+        #     # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
+        #     SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
+        # }
 
         
 
