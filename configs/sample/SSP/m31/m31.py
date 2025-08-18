@@ -1,8 +1,8 @@
 import numpy as np
 
 config = dict(
-    obs_path = "$PFS_TARGETING_DATA/data/targeting/M31/M31Catalog_forPFS.csv",
-    pmap_path = "$PFS_TARGETING_DATA/data/targeting/M31/pmap/m31_nb",
+    obs_path = "$PFS_TARGETING_DATA/data/targeting/m31/M31Catalog_forPFS.csv",
+    pmap_path = "$PFS_TARGETING_DATA/data/targeting/m31/pmap/m31_nb",
     isochrones_path = "$CMDFIT_DATA/isochrones/dartmouth/import/afep0_cfht_sdss_hsc",
     cut_nb = True,
     keep_blue = False,
