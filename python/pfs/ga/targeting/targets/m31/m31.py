@@ -162,10 +162,10 @@ class M31(M31Galaxy):
             SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) for ra, dec, pa in zip(rastr, decstr, pa0) ]
         }
 
-        # pointings = {
-        #     # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
-        #     SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
-        # }
+        pointings = {
+            # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
+            SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
+        }
 
         
 
@@ -273,9 +273,9 @@ class M31(M31Galaxy):
             prob = catalog.data['p_member'][mask]
             code = np.full(prob.shape, 0, dtype=np.int32)
 
-            top_pri = np.maximum(np.floor((i0 - 20)/(24.0 - 20) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((i0 - 20)/(24.0 - 20) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
-          
+            top_pri = np.maximum(np.floor((i0 - 20)/(24.5 - 20) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((i0 - 20)/(24.5 - 20) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+
             w = ~np.isnan(prob)
             priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w]**(1/10) * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
             
@@ -290,7 +290,7 @@ class M31(M31Galaxy):
             code[w] = 1
             
             # Very faint stars with lowest priority
-            w = (i0 >= 24.0) & (cli <= 0.5) & (clg <= 0.5)
+            w = (i0 >= 24.5) & (cli <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 2
 
@@ -304,7 +304,7 @@ class M31(M31Galaxy):
         
         exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10**((i0-19.0)/2.5)) + 1).astype(int), 10), 1)
 
-        keep = (g0 < 24) & (priority <= 9) & (code == 0)
+        keep = (g0 < 24.5) & (priority <= 9) & (code == 0)
 
         catalog.data['priority'] = -1
         catalog.data['priority'][mask][keep] = priority[keep]
