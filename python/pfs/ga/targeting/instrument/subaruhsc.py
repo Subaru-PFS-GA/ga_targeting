@@ -103,6 +103,9 @@ class SubaruHSC(Instrument):
         reader.append_photometry(SubaruHSC.photometry())
         #reader.column_names.append(f'targetid')
         
+        # M31 files have no unique object id, generate one
+        reader.idcol = 'objid'
+        
         reader.column_map = {
             'RA': 'RA',
             'Dec': 'Dec',

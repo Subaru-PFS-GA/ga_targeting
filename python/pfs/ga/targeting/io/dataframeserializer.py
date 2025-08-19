@@ -34,6 +34,8 @@ class DataFrameSerializer():
         the original value in the column is used.
     index : str
         Column to use as the index.
+    idcol : str
+        When not None, a column with this name will be created as unique integers.
     mask : function, mask or index
         mask function, mask array or index to apply to the DataFrame.
     format : str
@@ -58,6 +60,7 @@ class DataFrameSerializer():
                  data_types=None,
                  value_map=None,
                  index=None,
+                 idcol=None,
                  mask=None,
                  format=None,
                  kwargs=None,
@@ -73,6 +76,7 @@ class DataFrameSerializer():
             self.__data_types = data_types                      # Data types for each column
             self.__value_map = value_map                        # Map values in columns
             self.__index = index                                # Column to use as the index
+            self.__idcol = idcol                                # When not None, a column with this name will be created as unique integers
             self.__mask = mask                                  # Filter function, mask or index
             self.__format = format                              # Data file format, can be inferred from file extension
             self.__kwargs = kwargs                              # Additional keyword arguments for read/write functions
@@ -86,6 +90,7 @@ class DataFrameSerializer():
             self.__data_types = data_types if data_types is not None else safe_deep_copy(orig.__data_types)
             self.__value_map = value_map if value_map is not None else safe_deep_copy(orig.__value_map)
             self.__index = index if index is not None else safe_deep_copy(orig.__index)
+            self.__idcol = idcol if idcol is not None else orig.__idcol
             self.__mask = mask if mask is not None else orig.__mask
             self.__format = format if format is not None else orig.__format
             self.__kwargs = kwargs if kwargs is not None else safe_deep_copy(orig.__kwargs)
@@ -141,6 +146,14 @@ class DataFrameSerializer():
         self.__index = index
 
     index = property(__get_index, __set_index)
+
+    def __get_idcol(self):
+        return self.__idcol
+
+    def __set_idcol(self, idcol):
+        self.__idcol = idcol
+
+    idcol = property(__get_idcol, __set_idcol)
 
     def __get_mask(self):
         return self.__mask
@@ -286,6 +299,19 @@ class DataFrameSerializer():
             df.reset_index(drop=True, inplace=True)
         
         return df
+
+    def __apply_idcol(self, df: pd.DataFrame):
+        """
+        Generate a unique integer ID column if `idcol` is set. We intentionally don't use the
+        index here because that might be composite or not unique, etc.
+        """
+
+        if self.__idcol is not None:
+            if self.__idcol in df.columns:
+                raise ValueError(f"Column '{self.__idcol}' already exists in the DataFrame.")
+            df[self.__idcol] = np.arange(len(df), dtype=int)
+        
+        return df
     
     def __read_csv(self, filename: str, dataset=None, mask=None, **kwargs) -> pd.DataFrame:
         if self.__column_names is not None:
@@ -374,6 +400,7 @@ class DataFrameSerializer():
         df = read_func(filename, dataset=dataset, mask=mask, **kwargs)
         df = self.__apply_mappings(df)
         df = self.__apply_index(df)
+        df = self.__apply_idcol(df)
         return df
     
     def write(self, df: pd.DataFrame, filename: str, dataset=None, mask=None, **kwargs):
