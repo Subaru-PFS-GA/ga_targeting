@@ -16,41 +16,42 @@ INPUT_CATALOG_ID="10092"
 EXTRA_OPTIONS="--debug"
 # EXTRA_OPTIONS=""
 
-for FIELD in m31; do
+for SECTOR in 'PFS_1'; do
 
-    FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/m31/m31_${FIELD}_${PREFIX}
-    IMPORT_DIR=${FIELD_DIR}/import/m31_${FIELD}_${PREFIX}_${VERSION}
-    NETFLOW_DIR=${FIELD_DIR}/netflow/m31_${FIELD}_${NVISITS}_${PREFIX}_${VERSION}
-    EXPORT_DIR=${FIELD_DIR}/export/m31_${FIELD}_${NVISITS}_${PREFIX}_${VERSION}
+    SECTOR_DIR="$PFS_TARGETING_DATA/data/targeting/m31/m31_${SECTOR}_${PREFIX}"
+    IMPORT_DIR="${SECTOR_DIR}/import/m31_${SECTOR}_${PREFIX}_${VERSION}"
+    NETFLOW_DIR="${SECTOR_DIR}/netflow/m31_${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
+    EXPORT_DIR="${SECTOR_DIR}/export/m31_${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
+
+    # CONFIG_FILE="./configs/netflow/${PREFIX}/m31/${SECTOR}.py"
+    CONFIG_FILE="./configs/netflow/${PREFIX}/m31/m31.py"
+
+    mkdir -p "${SECTOR_DIR}"
 
     # rm -Rf "${IMPORT_DIR}"
     # rm -Rf "${NETFLOW_DIR}"
-    # rm -Rf "${EXPORT_DIR}"
+    rm -Rf "${EXPORT_DIR}"
 
-    if [ ! -d "$IMPORT_DIR" ]; then
-        ga-import \
-            --m31 ${FIELD} \
-            --config \
-                ./configs/netflow/${PREFIX}/m31/_common.py \
-                ./configs/netflow/${PREFIX}/m31/${FIELD}.py \
-            --exp-time ${EXP_TIME} \
-            --out "${IMPORT_DIR}" \
-            ${EXTRA_OPTIONS}
-    fi
+    # if [ ! -d "$IMPORT_DIR" ]; then
+    #     ga-import \
+    #         --m31 ${SECTOR} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
+    #         --exp-time ${EXP_TIME} \
+    #         --out "${IMPORT_DIR}" \
+    #         ${EXTRA_OPTIONS}
+    # fi
 
-    if [ ! -d "$NETFLOW_DIR" ]; then
-        ga-netflow \
-            --m31 ${FIELD} \
-            --config \
-                ./configs/netflow/${PREFIX}/m31/_common.py \
-                ./configs/netflow/${PREFIX}/m31/${FIELD}.py \
-            --nvisits ${NVISITS} \
-            --exp-time ${EXP_TIME} \
-            --obs-time ${OBS_TIME} \
-            --in "${IMPORT_DIR}" \
-            --out "${NETFLOW_DIR}" \
-            ${EXTRA_OPTIONS}
-    fi
+    # if [ ! -d "$NETFLOW_DIR" ]; then
+    #     ga-netflow \
+    #         --m31 ${SECTOR} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
+    #         --nvisits ${NVISITS} \
+    #         --exp-time ${EXP_TIME} \
+    #         --obs-time ${OBS_TIME} \
+    #         --in "${IMPORT_DIR}" \
+    #         --out "${NETFLOW_DIR}" \
+    #         ${EXTRA_OPTIONS}
+    # fi
 
     if [ ! -d "$EXPORT_DIR" ]; then
         ga-export \

@@ -5,7 +5,7 @@ from scipy.special import logsumexp
 from pfs.ga.isochrones.isogrid import IsoGrid
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
-from ...targets.m31 import M31_FIELDS
+from ...targets.m31 import M31_SECTORS
 from ...config.sample import SampleConfig
 from ..script import Script
 from ...io import Hdf5SimulationReader
@@ -43,7 +43,7 @@ class SampleScript(Script):
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
 
         self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
-        self.add_arg('--m31', type=str, choices=M31_FIELDS, help='Name of a predefined M31 field.')
+        self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 field.')
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
 
@@ -61,7 +61,7 @@ class SampleScript(Script):
             self._field = DSPH_FIELDS[self.get_arg('dsph', args)]
 
         if self.is_arg('m31', args):
-            self._field = M31_FIELDS[self.get_arg('m31', args)]
+            self._field = M31_SECTORS[self.get_arg('m31', args)]
 
         # If a field is specified, load its default configuration      
         if self._field is not None:

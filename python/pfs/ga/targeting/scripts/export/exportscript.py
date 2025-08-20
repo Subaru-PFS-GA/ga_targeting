@@ -20,7 +20,7 @@ from pfs.datamodel import TargetType, PfsDesign
 
 from ...config.netflow import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
-from ...targets.m31 import M31_FIELDS
+from ...targets.m31 import M31_SECTORS
 from ..targetingscript import TargetingScript
 
 from ...setup_logger import logger
@@ -90,7 +90,7 @@ class ExportScript(TargetingScript):
             self._field = DSPH_FIELDS[self.get_arg('dsph', self.__input_args)]
 
         if self.is_arg('m31', self.__input_args):
-            self._field = M31_FIELDS[self.get_arg('m31', self.__input_args)]
+            self._field = M31_SECTORS[self.get_arg('m31', self.__input_args)]
 
     def __find_last_dumpfile(self, pattern):
         """

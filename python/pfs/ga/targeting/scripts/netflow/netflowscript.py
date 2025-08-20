@@ -12,7 +12,7 @@ from pfs.datamodel import TargetType, FiberStatus, PfsDesign
 import pfs.ga.targeting
 from ...config.netflow import NetflowConfig
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
-from ...targets.m31 import M31_FIELDS
+from ...targets.m31 import M31_SECTORS
 from ...instrument import SubaruPFI
 from ...io import ObservationSerializer
 from ...netflow import Netflow, Design
@@ -98,7 +98,7 @@ class NetflowScript(TargetingScript):
         super()._add_args()
 
         self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
-        self.add_arg('--m31', type=str, choices=M31_FIELDS, help='Name of a predefined M31 field.')
+        self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 sector.')
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--in', type=str, required=True, help='Path to the input directory with target lists.')

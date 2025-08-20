@@ -7,7 +7,7 @@ from astropy.coordinates import SkyCoord, match_coordinates_sky
 
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
-from ...targets.m31 import M31_FIELDS
+from ...targets.m31 import M31_SECTORS
 from ...netflow import Netflow
 from ...util.args import *
 from ...util.astro import *
@@ -39,7 +39,7 @@ class ImportScript(TargetingScript):
         super()._add_args()
 
         self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
-        self.add_arg('--m31', type=str, choices=M31_FIELDS, help='Name of a predefined M31 field.')
+        self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 field.')
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')

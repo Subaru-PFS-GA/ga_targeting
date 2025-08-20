@@ -1,5 +1,6 @@
 import astropy.units as u
 from datetime import datetime, timedelta, tzinfo
+from collections import defaultdict
 
 from ...util.args import *
 from ...instrument import *
@@ -11,11 +12,59 @@ from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
 from ...config.sample import SampleConfig
+from ..galaxy import Galaxy
 from ..ids import *
-from .m31galaxy import M31Galaxy
 
-class M31(M31Galaxy):
-    def __init__(self):
+class M31(Galaxy):
+
+    FIELDS = [
+        # group_name, field_name, ra, dec, posang, stage, priority
+        ('sector_0', 'PFS_1',   '00:34:54'  , '+42:22:57', 0.0, 0, 0),
+        ('sector_1', 'PFS_2',   '00:28:56'  , '+43:11:01', 0.0, 0, 0),
+        ('sector_1', 'PFS_3',   '00:22:49'  , '+43:57:54', 0.0, 0, 0),
+        ('sector_1', 'PFS_6',   '00:41:43'  , '+42:54:25', 0.0, 0, 0),
+        ('sector_1', 'PFS_7',   '00:35:47'  , '+43:43:47', 0.0, 0, 0),
+        ('sector_1', 'PFS_8',   '00:29:42'  , '+44:32:01', 0.0, 0, 0),
+        ('sector_1', 'PFS_9',   '00:23:26'  , '+45:19:01', 0.0, 0, 0),
+        ('sector_1', 'PFS_11',  '00:42:45'  , '+44:15:02', 0.0, 0, 0),
+        ('sector_1', 'PFS_12',  '00:36:42'  , '+45:04:35', 0.0, 0, 0),
+        ('sector_1', 'PFS_13',  '00:37:40'  , '+46:25:20', 0.0, 0, 0),
+        ('sector_1', 'PFS_14',  '00:34:04'  , '+41:02:05', 0.0, 0, 0),
+        ('sector_1', 'PFS_15',  '00:28:13'  , '+41:50:00', 0.0, 0, 0),
+        ('sector_1', 'PFS_16',  '00:22:13'  , '+42:36:45', 0.0, 0, 0),
+        ('sector_1', 'PFS_19',  '00:50:18'  , '+40:07:25', 0.0, 0, 0),
+        ('sector_1', 'PFS_20',  '00:55:44'  , '+39:15:27', 0.0, 0, 0),
+        ('sector_1', 'PFS_21',  '01:01:02'  , '+38:22:34', 0.0, 0, 0),
+        ('sector_1', 'PFS_22',  '00:51:28'  , '+41:27:45', 0.0, 0, 0),
+        ('sector_1', 'PFS_23',  '00:56:59'  , '+40:35:34', 0.0, 0, 0),
+        ('sector_1', 'PFS_24',  '01:02:22'  , '+39:42:28', 0.0, 0, 0),
+        ('sector_1', 'PFS_25',  '00:52:41'  , '+42:48:01', 0.0, 0, 0),
+        ('sector_1', 'PFS_26',  '00:58:18'  , '+41:55:37', 0.0, 0, 0),
+        ('sector_1', 'PFS_27',  '01:03:46'  , '+41:02:17', 0.0, 0, 0),
+        ('sector_1', 'PFS_28',  '00:43:43'  , '+39:37:51', 0.0, 0, 0),
+        ('sector_1', 'PFS_29',  '00:49:12'  , '+38:47:03', 0.0, 0, 0),
+        ('sector_1', 'PFS_30',  '00:54:32'  , '+37:55:17', 0.0, 0, 0),
+        ('sector_1', 'PFS_31',  '00:37:13'  , '+39:06:52', 0.0, 0, 0),
+        ('sector_1', 'PFS_32',  '00:42:44'  , '+38:17:16', 0.0, 0, 0),
+        ('sector_1', 'PFS_33',  '00:48:06'  , '+37:26:39', 0.0, 0, 0),
+        ('sector_1', 'M31_003', '00:16:31.7', '+44:43:30', 0.0, 0, 0),
+        ('sector_1', 'M31_004', '00:10:04.7', '+45:27:47', 0.0, 0, 0),
+        ('sector_1', 'M31_009', '00:10:24.5', '+46:49:07', 0.0, 0, 0),
+        ('sector_1', 'M31_022', '00:16:04.2', '+43:22:15', 0.0, 0, 0),
+        ('sector_1', 'M31_023', '00:09:45.8', '+44:06:28', 0.0, 0, 0),
+        ('sector_1', 'PFS_34',  '00:06:10'  , '+47:35:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_35',  '00:52:10'  , '+44:25:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_36',  '00:48:10'  , '+43:30:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_37',  '00:47:06'  , '+42:16:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_38',  '00:47:05'  , '+40:40:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_39',  '00:39:30'  , '+41:50:07', 0.0, 0, 0),
+        ('sector_1', 'PFS_40',  '00:37:40'  , '+40:05:04', 0.0, 0, 0),
+        ('sector_1', 'PFS_41',  '00:32:40'  , '+40:05:04', 0.0, 0, 0),
+        ('sector_1', 'PFS_42',  '00:31:10'  , '+39:05:04', 0.0, 0, 0),
+    ]
+
+    def __init__(self, sector=None, field=None):
+    
         ID = 'm31'
         name = 'M31'
 
@@ -26,148 +75,32 @@ class M31(M31Galaxy):
         pm_err = [ 0.0246, 0.0244 ] * u.mas / u.yr
         RV, RV_err = (-287.2, 8.0) * u.kilometer / u.second
 
-        fieldnames = ['PFS field 1',
-                    'PFS field 2',
-                    'PFS field 3',
-                    'PFS field 6',
-                    'PFS field 7',
-                    'PFS field 8',
-                    'PFS field 9',
-                    'PFS field 11',
-                    'PFS field 12',
-                    'PFS field 13',
-                    'PFS field 14',
-                    'PFS field 15',
-                    'PFS field 16',
-                    'PFS field 19',
-                    'PFS field 20',
-                    'PFS field 21',
-                    'PFS field 22',
-                    'PFS field 23',
-                    'PFS field 24',
-                    'PFS field 25',
-                    'PFS field 26',
-                    'PFS field 27',
-                    'PFS field 28',
-                    'PFS field 29',
-                    'PFS field 30',
-                    'PFS field 31',
-                    'PFS field 32',
-                    'PFS field 33',
-                    'M31_003',
-                    'M31_004',
-                    'M31_009',
-                    'M31_022',
-                    'M31_023',
-                    'PFS field 34',
-                    'PFS field 35',
-                    'PFS field 36',
-                    'PFS field 37',
-                    'PFS field 38',
-                    'PFS field 39',
-                    'PFS field 40',
-                    'PFS field 41',
-                    'PFS field 42']
-
-        rastr = [ '00:34:54',
-                '00:28:56',
-                '00:22:49',
-                '00:41:43',
-                '00:35:47',
-                '00:29:42',
-                '00:23:26',
-                '00:42:45',
-                '00:36:42',
-                '00:37:40',
-                '00:34:04',
-                '00:28:13',
-                '00:22:13',
-                '00:50:18',
-                '00:55:44',
-                '01:01:02',
-                '00:51:28',
-                '00:56:59',
-                '01:02:22',
-                '00:52:41',
-                '00:58:18',
-                '01:03:46',
-                '00:43:43',
-                '00:49:12',
-                '00:54:32',
-                '00:37:13',
-                '00:42:44',
-                '00:48:06',
-                '00:16:31.7',
-                '00:10:04.7',
-                '00:10:24.5',
-                '00:16:04.2',
-                '00:09:45.8',
-                '00:06:10',
-                '00:52:10',
-                '00:48:10',
-                '00:47:06',
-                '00:47:05',
-                '00:39:30',
-                '00:37:40',
-                '00:32:40',
-                '00:31:10' ]
-        decstr = [ '+42:22:57',
-                '+43:11:01',
-                '+43:57:54',
-                '+42:54:25',
-                '+43:43:47',
-                '+44:32:01',
-                '+45:19:01',
-                '+44:15:02',
-                '+45:04:35',
-                '+46:25:20',
-                '+41:02:05',
-                '+41:50:00',
-                '+42:36:45',
-                '+40:07:25',
-                '+39:15:27',
-                '+38:22:34',
-                '+41:27:45',
-                '+40:35:34',
-                '+39:42:28',
-                '+42:48:01',
-                '+41:55:37',
-                '+41:02:17',
-                '+39:37:51',
-                '+38:47:03',
-                '+37:55:17',
-                '+39:06:52',
-                '+38:17:16',
-                '+37:26:39',
-                '+44:43:30',
-                '+45:27:47',
-                '+46:49:07',
-                '+43:22:15',
-                '+44:06:28',
-                '+47:35:07',
-                '+44:25:07',
-                '+43:30:07',
-                '+42:16:07',
-                '+40:40:07',
-                '+41:50:07',
-                '+40:05:04',
-                '+40:05:04',
-                '+39:05:04' ]
-        pa0 = [0]*len(rastr)
-
-        pointing_coords = {k: (Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)) for k, (ra, dec) in zip(fieldnames, zip(rastr, decstr))}
-        pointing_pas = {k: pa for k, pa in zip(fieldnames, pa0)}
-
-        pointings = {
-            SubaruPFI: [ Pointing((Angle(ra, unit=u.deg)*15, Angle(dec, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) for ra, dec, pa in zip(rastr, decstr, pa0) ]
-        }
-
-        pointings = {
-            # SubaruPFI: [ Pointing((Angle(rastr, unit=u.deg)*15, Angle(decstr, unit=u.deg)), posang=pa*u.deg, stage=0, priority=0) ]
-            SubaruPFI: [ Pointing(pointing_coords['PFS field 1'], posang=pointing_pas['PFS field 1'], stage=0, priority=0) ]
-        }
-
+        pointings_by_sector = defaultdict(dict)
+        for sc, fl, ra, dec, pa0, st, pri in self.FIELDS:
+            pointings_by_sector[sc][fl] = Pointing(
+                Angle(ra, unit=u.hourangle),
+                Angle(dec, unit=u.deg),
+                posang=pa0, priority=pri, stage=st,
+                exp_time=30*60, nvisits=10)
         
+        if sector is None and field is None:
+            # All pointings
+            pointings = {
+                SubaruPFI: [ pointing
+                             for s in pointings_by_sector
+                             for f, pointing in pointings_by_sector[s].items() ]
+            }
+        elif sector is not None and field is None:
+            # Use a single sector with all its pointings
+            pointings = {
+                SubaruPFI: [ pointing
+                             for f, pointing in pointings_by_sector[sector].items() ]
+            }
+        else:
+            # Use a single pointing
+            pointings = {
+                SubaruPFI: [ pointings_by_sector[sector][field] ]
+            }
 
         super().__init__(ID, name, ID_PREFIX_M31,
                          pos, rad=rad,
@@ -194,6 +127,44 @@ class M31(M31Galaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
+    def get_text_observation_reader(self, instrument=SubaruHSC):
+        if instrument == SubaruHSC:
+            return SubaruHSC.text_observation_reader_m31(
+                mags=['g', 'i', 'nb515'],
+                ext=['g', 'i', 'nb515'])
+        else:
+            raise NotImplementedError()
+
+    def get_photometry(self, instrument=SubaruHSC):
+        """
+        Return the photometric system for the given instrument.
+        """
+        return instrument.photometry()
+
+    def get_cmd(self, instrument=SubaruHSC):
+        """
+        Return the definition of the color-magnitude diagram for the given instrument.
+        """
+        if instrument == SubaruHSC:
+            cmd = self.__hsc_cmd
+        elif instrument == Gaia:
+            cmd = self.__gaia_cmd
+        else:
+            raise NotImplementedError()
+            
+        return cmd
+    
+    def get_ccd(self, instrument=SubaruHSC):
+        """
+        Return the definition of the color-color diagram for the given instrument.
+        """
+        if instrument == SubaruHSC:
+            ccd = self.__hsc_ccd
+        else:
+            raise NotImplementedError()
+
+        return ccd
+
     def get_pmap_config(self):
         config = PMapConfig(
             cut_nb = True,
@@ -203,22 +174,54 @@ class M31(M31Galaxy):
         )
 
         return config
+
+    def get_sample_config(self):
+        config = SampleConfig()
+        return config
     
     def get_netflow_config(self):
         config = NetflowConfig.default()
 
-        config.field = FieldConfig(
-            key = self.ID,
-            name = self.name,
-            arms = 'bmn',
-            nvisits = 1,
-            exp_time = 5 * 60 * 60.,        # 5 hr total
-            obs_time = datetime(2025, 9, 13, 23, 0, 0) + timedelta(hours=10),
-        )
-
-        config.pointings = [ PointingConfig(p.ra, p.dec, p.posang) for p in self.get_pointings(SubaruPFI) ]
+        config.field = self.get_field_config()
+        config.pointings = [ PointingConfig.from_pointing(p) for p in self.get_pointings(SubaruPFI) ]
 
         return config
+
+    def get_field_config(self):
+        """
+        Return the default field configuration for M31.
+        """
+
+        # TODO: it doesn't check visibility at abs_time
+
+        return FieldConfig(
+            key = self.ID,
+            name = self.name,
+            id_prefix = self.id_prefix,
+            center = PointingConfig.from_pointing(self.get_center()),
+            arms = 'bmn',
+            nvisits = 10,
+            exp_time = 30 * 60.,        # 5 hr total
+            obs_time = datetime(2025, 9, 13, 23, 0, 0) + timedelta(hours=10),
+            resolution = 'm',
+        )
+
+    def get_filter_map(self):
+        """
+        Return a dictionary that maps between filter names used internally and the actual
+        filter names that are to be written into the exported target lists and design files.
+
+        This is just a final hack because propagating the new filter names through the stack
+        can take a significant effort. 
+        """
+
+        # What HSC filters were used to observe M31?
+        filter_map = {
+            # 'r_hsc': 'r2_hsc',
+            # 'i_hsc': 'i2_hsc',
+        }
+
+        return filter_map
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=21.5, faint=24.5):
         """Return true for objects within sharp magnitude cuts."""

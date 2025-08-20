@@ -10,7 +10,7 @@ from ..config.netflow import NetflowConfig
 from ..io import ObservationSerializer
 from ..instrument import SubaruPFI
 from ..targets.dsph import GALAXIES as DSPH_FIELDS
-from ..targets.m31 import M31_FIELDS
+from ..targets.m31 import M31_SECTORS
 from ..photometry import PhotometryEncoder, PhotometryDecoder
 from .script import Script
 
@@ -42,7 +42,7 @@ class TargetingScript(Script):
             self._field = DSPH_FIELDS[self.get_arg('dsph', args)]
 
         if self.is_arg('m31', args):
-            self._field = M31_FIELDS[self.get_arg('m31', args)]
+            self._field = M31_SECTORS[self.get_arg('m31', args)]
 
     def _create_config_from_field(self):
         # If a field is specified, load its default configuration      
