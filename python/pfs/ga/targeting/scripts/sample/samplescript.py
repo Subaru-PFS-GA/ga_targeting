@@ -92,6 +92,11 @@ class SampleScript(Script):
             logger.debug(f'Creating output directory `{self.__outdir}`')
             os.makedirs(self.__outdir)
 
+        if os.path.isdir(self.__gaiadir):
+            logger.debug(f'Gaia directory already exists: `{self.__gaiadir}`, no need to create it')
+        else:
+            logger.debug(f'Creating output directory `{self.__gaiadir}`')
+            os.makedirs(self.__gaiadir)
         # Update log file path to point to the output directory
         self.log_file = os.path.join(self.__outdir, os.path.basename(self.log_file))
 
