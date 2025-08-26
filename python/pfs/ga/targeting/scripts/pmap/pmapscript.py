@@ -114,6 +114,7 @@ class PMapScript(Script):
                     'DEBUG': False,
                     'CONFIG_FILE': self.__get_output_config_path(),
                     'OUTPUT_PATH': self.__outdir,
+                    'BINARIES': self.is_arg('m31'),
                 }
                 self._execute_notebook(notebook_path, parameters, self.__outdir)
 
