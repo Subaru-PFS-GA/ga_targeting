@@ -30,6 +30,7 @@ class SampleScript(Script):
         self._config = None
 
         self.__outdir = None
+        self.__gaiadir = None
         self.__skip_notebooks = False
 
     def __get_config(self):
@@ -41,6 +42,7 @@ class SampleScript(Script):
         super()._add_args()
 
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
+        self.add_arg('--gaiadir', type=str, required=False, help='Path to the directory containing the Gaia HDF5 file.')
 
         self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
         self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 field.')
@@ -53,6 +55,10 @@ class SampleScript(Script):
         super()._init_from_args_pre_logging(args)
 
         self.__outdir = self.get_arg('out', args, self.__outdir)
+        if self.is_arg('gaiadir'):
+            self.__gaiadir = self.get_arg('gaiadir', args, self.__gaiadir)
+        else:
+            self.__gaiadir = os.path.join(self.__outdir, '../../gaia')
 
     def _init_from_args(self, args):
         super()._init_from_args(args)
@@ -109,8 +115,11 @@ class SampleScript(Script):
         iso = self.__load_isochrones()
 
         if self._config.gaia_crossmatch:
-            gaia = self.__query_gaia()
-            self.__save_gaia(gaia)
+            if self.__gaia_exists():
+                gaia = self.__load_gaia()
+            else:
+                gaia = self.__query_gaia()
+                self.__save_gaia(gaia)
 
             hsc_gaia_idx, hsc_gaia_mask, hsc_gaia_sep = self.__crossmatch_hsc_gaia(hsc, gaia)
             gaia_hsc_idx, gaia_hsc_mask, gaia_hsc_sep = self.__crossmatch_gaia_hsc(hsc, gaia)
@@ -169,7 +178,17 @@ class SampleScript(Script):
         return gaia
 
     def __get_gaia_file_path(self):
-        return os.path.expandvars(os.path.join(self.__outdir, f'gaia_{self._field.ID}.feather'))
+        return os.path.expandvars(os.path.join(self.__gaiadir, f'gaia_{self._field.ID}.feather'))
+
+    def __gaia_exists(self):
+        fn = self.__get_gaia_file_path()
+        return os.path.isfile(fn)
+
+    def __load_gaia(self):
+        fn = self.__get_gaia_file_path()
+        r = ObservationSerializer()
+        gaia = r.read(fn)
+        return gaia
 
     def __save_gaia(self, gaia):
         fn = self.__get_gaia_file_path()
