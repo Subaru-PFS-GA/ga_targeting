@@ -1,3 +1,4 @@
+FIELD = 'PFS_22'
 PROPOSALID = 'S25B-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
@@ -103,7 +104,7 @@ config = dict(
     targets = {
         "hsc": dict(
             # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/sample/SSP/m31_nb/hsc_m31_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31_PFS_22_SSP/sample/m31_PFS_22_SSP_001/hsc_m31_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -130,15 +131,15 @@ config = dict(
             )
         ),
         "anc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31.anc-short_exposures.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31.ucd.anc.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
             value_map = {
                 'priority': {
-                    0: 5,
-                    1: 6,
-                    2: 7
+                    0: 6,
+                    1: 7,
+                    2: 8
                 }
             },
             prefix = "sci",
@@ -172,76 +173,76 @@ config = dict(
             )
         ),
 
-        # Use the PS1 x GAIA sample as a fall-back for empty fibers
-        # This entry also add PS1 and GAIA photometry to all other objects
-        "gaia": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/PS1_GAIA_point_source_M31_2_dobos.csv",
-            column_map = {
-                'source_id': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec',
-                'radial_velocity': 'rv',
-                'ref_epoch': 'epoch',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 9,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['rPSFMag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        flux = 'phot_g_mean_flux',
-                        flux_err = 'phot_g_mean_flux_error'
-                    ),
-                    "bp_gaia": dict(
-                        flux = 'phot_bp_mean_flux',
-                        flux_err = 'phot_bp_mean_flux_error'
-                    ),
-                    "rp_gaia": dict(
-                        flux = 'phot_rp_mean_flux',
-                        flux_err = 'phot_rp_mean_flux_error'
-                    ),
-                    "g_ps1": dict(
-                        mag = 'gPSFMag',
-                        mag_err = 'gPSFMagErr',
-                    ),
-                    "r_ps1": dict(
-                        mag = 'rPSFMag',
-                        mag_err = 'rPSFMagErr',
-                    ),
-                    "i_ps1": dict(
-                        mag = 'iPSFMag',
-                        mag_err = 'iPSFMagErr',
-                    ),
-                    "z_ps1": dict(
-                        mag = 'zPSFMag',
-                        mag_err = 'zPSFMagErr',
-                    ),
-                    "y_ps1": dict(
-                        mag = 'yPSFMag',
-                        mag_err = 'yPSFMagErr',
-                    ),
-                },
-                limits = {
-                    'gaia_rp': [16, 23],
-                }
-            )
-        ),
+        # # Use the PS1 x GAIA sample as a fall-back for empty fibers
+        # # This entry also add PS1 and GAIA photometry to all other objects
+        # "gaia": dict(
+        #     path = "$PFS_TARGETING_DATA/data/targeting/m31/PS1_GAIA_point_source_M31_2_dobos.csv",
+        #     column_map = {
+        #         'source_id': 'targetid',
+        #         'ra': 'RA',
+        #         'dec': 'Dec',
+        #         'radial_velocity': 'rv',
+        #         'ref_epoch': 'epoch',
+        #     },
+        #     prefix = "sci",
+        #     frame= 'icrs',
+        #     epoch = 2016.0,
+        #     catid = CATID_SCIENCE_GA,
+        #     extra_columns = {
+        #         **extra_columns,
+        #         'priority': dict(
+        #             constant = 9,
+        #             dtype = 'int',
+        #         ),
+        #         'exp_time': dict(
+        #             lambda_args = ['rPSFMag'],
+        #             lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+        #             dtype = 'int'
+        #         )
+        #     },
+        #     photometry = dict(
+        #         filters = {
+        #             "g_gaia": dict(
+        #                 flux = 'phot_g_mean_flux',
+        #                 flux_err = 'phot_g_mean_flux_error'
+        #             ),
+        #             "bp_gaia": dict(
+        #                 flux = 'phot_bp_mean_flux',
+        #                 flux_err = 'phot_bp_mean_flux_error'
+        #             ),
+        #             "rp_gaia": dict(
+        #                 flux = 'phot_rp_mean_flux',
+        #                 flux_err = 'phot_rp_mean_flux_error'
+        #             ),
+        #             "g_ps1": dict(
+        #                 mag = 'gPSFMag',
+        #                 mag_err = 'gPSFMagErr',
+        #             ),
+        #             "r_ps1": dict(
+        #                 mag = 'rPSFMag',
+        #                 mag_err = 'rPSFMagErr',
+        #             ),
+        #             "i_ps1": dict(
+        #                 mag = 'iPSFMag',
+        #                 mag_err = 'iPSFMagErr',
+        #             ),
+        #             "z_ps1": dict(
+        #                 mag = 'zPSFMag',
+        #                 mag_err = 'zPSFMagErr',
+        #             ),
+        #             "y_ps1": dict(
+        #                 mag = 'yPSFMag',
+        #                 mag_err = 'yPSFMagErr',
+        #             ),
+        #         },
+        #         limits = {
+        #             'gaia_rp': [16, 23],
+        #         }
+        #     )
+        # ),
 
         "sky": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/sky_m31.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_sky.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -302,7 +303,7 @@ config = dict(
 
         # MIHO NEW
         "fluxstd": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/fluxstd_m31.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_fluxstd.feather",
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
@@ -335,26 +336,26 @@ config = dict(
             )
         ),
 
-        "guide": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/guide_m31.feather",
-            reader_args = dict(),
-            prefix = "ag",
-            photometry = dict(
-                filters = {
-                    "gaia_g": dict(
-                        flux = "flux_gaia_g",
-                        flux_err = "err_flux_gaia_g",
-                    ),
-                    "gaia_bp": dict(
-                        flux = "flux_gaia_bp",
-                        flux_err = "err_flux_gaia_bp",
-                    ),
-                    "gaia_rp": dict(
-                        flux = "flux_gaia_rp",
-                        flux_err = "err_flux_gaia_rp",
-                    )
-                }
-            )
-        )
+        # "guide": dict(
+        #     path = "$PFS_TARGETING_DATA/data/targeting/m31/guide_m31.feather",
+        #     reader_args = dict(),
+        #     prefix = "ag",
+        #     photometry = dict(
+        #         filters = {
+        #             "gaia_g": dict(
+        #                 flux = "flux_gaia_g",
+        #                 flux_err = "err_flux_gaia_g",
+        #             ),
+        #             "gaia_bp": dict(
+        #                 flux = "flux_gaia_bp",
+        #                 flux_err = "err_flux_gaia_bp",
+        #             ),
+        #             "gaia_rp": dict(
+        #                 flux = "flux_gaia_rp",
+        #                 flux_err = "err_flux_gaia_rp",
+        #             )
+        #         }
+        #     )
+        # )
     },
 )

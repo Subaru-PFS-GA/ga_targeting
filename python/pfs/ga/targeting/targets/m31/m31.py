@@ -2,6 +2,8 @@ import astropy.units as u
 from datetime import datetime, timedelta, tzinfo
 from collections import defaultdict
 
+from sklearn import logger
+
 from ...util.args import *
 from ...instrument import *
 from ...projection import Pointing
@@ -14,6 +16,8 @@ from ...config.pmap import PMapConfig
 from ...config.sample import SampleConfig
 from ..galaxy import Galaxy
 from ..ids import *
+
+from ...setup_logger import logger
 
 class M31(Galaxy):
 
@@ -35,7 +39,7 @@ class M31(Galaxy):
         ('sector_1', 'PFS_19',  '00:50:18'  , '+40:07:25', 0.0, 0, 0),
         ('sector_1', 'PFS_20',  '00:55:44'  , '+39:15:27', 0.0, 0, 0),
         ('sector_1', 'PFS_21',  '01:01:02'  , '+38:22:34', 0.0, 0, 0),
-        ('sector_1', 'PFS_22',  '00:51:28'  , '+41:27:45', 0.0, 0, 0),
+        ('sector_2', 'PFS_22',  '00:51:28'  , '+41:27:45', 0.0, 0, 0),
         ('sector_1', 'PFS_23',  '00:56:59'  , '+40:35:34', 0.0, 0, 0),
         ('sector_1', 'PFS_24',  '01:02:22'  , '+39:42:28', 0.0, 0, 0),
         ('sector_1', 'PFS_25',  '00:52:41'  , '+42:48:01', 0.0, 0, 0),
@@ -262,6 +266,85 @@ class M31(Galaxy):
         return mask
     
     def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
+        """
+        Assign priority classes based on photometry
+        """
+
+        mask = mask.copy() if mask is not None else np.full(catalog.shape[0], True, dtype=bool)
+
+        logger.info(f'Assigning priorities to {self.name} stars.')
+        logger.info(f'HSC catalog size: {catalog.shape[0]}, using {mask.sum()} unmasked stars.')
+
+        hsc = SubaruHSC.photometry()
+        # cmd = self._hsc_cmd
+        # ccd = self._hsc_ccd
+
+        g0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
+        i0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
+        # gi0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), observed=True, dered=True, mask=mask)
+        # gn0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), observed=True, dered=True, mask=mask)
+
+        # Exclude very bright and very faint stars in case they accidentally
+        # got into the sample
+        keep = mask & (16 <= g0) & (g0 <= 24.5) & \
+                      (16 <= i0) & (i0 < 24.5)
+
+        # Exclude any extended sources
+        clg = catalog.data['clg'][mask]
+        cli = catalog.data['cli'][mask]
+        keep &= (cli < 0.5) & (clg < 0.5)
+        
+        p_member = catalog.data['p_member'][mask]
+        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10 ** ((i0 - 19.0) / 2.5)) + 1).astype(int), 6), 1)
+
+        # Priorities
+        priority = np.full_like(p_member, -1, np.int32)
+
+        # Everything without membership probability
+        w9 = np.isnan(p_member) | (p_member == 0.0)
+        priority[w9] = 9
+
+        # Priority 0:
+        w0 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.9) & (g0 < 23.25)
+        priority[w0] = 0
+        logger.info(f'{(keep & w0).sum()} {self.name} stars are marked as priority 0')
+
+        # Priority 1:
+        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.9) & (g0 < 24.5)
+        priority[w1] = 1
+        logger.info(f'{(keep & w1).sum()} {self.name} stars are marked as priority 1')
+
+        # Priority 2:
+        w2 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 23.25)
+        priority[w2] = 2
+        logger.info(f'{(keep & w2).sum()} {self.name} stars are marked as priority 2')
+
+        # Priority 3:
+        w3 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 24.5)
+        priority[w3] = 3
+        logger.info(f'{(keep & w3).sum()} {self.name} stars are marked as priority 3')
+
+        # Priority 4:
+        w4 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0) & (g0 < 23.25)
+        priority[w4] = 4
+        logger.info(f'{(keep & w4).sum()} {self.name} stars are marked as priority 4')
+
+        # Priority 5:
+        w5 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0) & (g0 < 24.0)
+        priority[w5] = 5
+        logger.info(f'{(keep & w5).sum()} {self.name} stars are marked as priority 5')
+
+        # Only keep stars with valid priority
+        keep &= (priority >= 0) & (priority <= 9)
+
+        catalog.data['priority'] = -1
+        catalog.data.loc[keep, 'priority'] = priority[keep]
+
+        catalog.data['exp_time'] = np.nan
+        catalog.data.loc[keep, 'exp_time'] = exp_time[keep]
+
+
+    def assign_priorities_old(self, catalog: Catalog, mask=None, isogrid=None):
         """Assign priority classes based on photometry"""
 
         mask = mask if mask is not None else np.s_[:]
@@ -271,29 +354,29 @@ class M31(Galaxy):
         cli = catalog.data['cli'][mask]
 
         priority = np.full(g0.shape, -1, np.int32)
+        code = np.full(g0.shape, 0, dtype=np.int32)
 
         if 'p_member' in catalog.data:
             prob = catalog.data['p_member'][mask]
-            code = np.full(prob.shape, 0, dtype=np.int32)
 
-            top_pri = np.maximum(np.floor((i0 - 20)/(24.5 - 20) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((i0 - 20)/(24.5 - 20) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
+            top_pri = np.maximum(np.floor((i0 - 21)/(24.5 - 21) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
+            bot_pri = np.maximum(np.floor((i0 - 21)/(24.5 - 21) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
 
             w = ~np.isnan(prob)
-            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w]**(1/10) * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
-            
+            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
+
             # Everything without membership probability
             w = np.isnan(prob) | (prob == 0.0)
             priority[w] = 9
             code[w] = 0
             
-            # Very bright stars, this does nothing because there aren't any of those
-            w = (i0 <= 16) & (cli <= 0.5) & (clg <= 0.5)
+            # Bright stars
+            w = (i0 <= 21.0) & (cli <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 1
             
             # Very faint stars with lowest priority
-            w = (i0 >= 24.5) & (cli <= 0.5) & (clg <= 0.5)
+            w = (i0 >= 24.0) & (cli <= 0.5) & (clg <= 0.5)
             priority[w] = 9
             code[w] = 2
 
@@ -307,7 +390,7 @@ class M31(Galaxy):
         
         exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10**((i0-19.0)/2.5)) + 1).astype(int), 10), 1)
 
-        keep = (g0 < 24.5) & (priority <= 9) & (code == 0)
+        keep = (i0 < 25.0) & (g0 < 24.5) & (priority <= 9) & (code <= 2)
 
         catalog.data['priority'] = -1
         catalog.data['priority'][mask][keep] = priority[keep]
