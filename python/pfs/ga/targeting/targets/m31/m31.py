@@ -227,27 +227,44 @@ class M31(Galaxy):
 
         return filter_map
     
-    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=21.5, faint=24.5):
+    def lookup_ml_prob(self, catalog: Catalog, mask=None):
+        """
+        Returns the color-diagram-based membership probability based on
+        machine learning-based probability (K. Ding et al. 2025).
+        """
+
+        ml_prob = catalog.data['ml_prob']
+        mask_member = np.full_like(ml_prob, True, dtype=bool)
+        mask_member[np.isnan(ml_prob)] = False
+
+        return ml_prob, mask_member
+
+    def assign_probabilities(self, catalog, pmap, population_id=-1, mask=None):
+         # Membership probability
+        ml_member, ml_member_mask = self.lookup_ml_prob(catalog, mask=mask)
+
+        catalog.data['p_member'] = np.nan
+        catalog.data.loc[ml_member_mask,'p_member'] = ml_member[ml_member_mask]
+
+    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=20.0, faint=24.5):
         """Return true for objects within sharp magnitude cuts."""
 
-        # TODO: add Keyi's cut
-        
         cmd = self.__hsc_cmd
         ccd = self.__hsc_ccd
 
         # Broadband colors
-        mask = ColorSelection(cmd.axes[0], 0.95, 3.5).apply(catalog, observed=observed)
+        mask = ColorSelection(cmd.axes[0], 0.95, 4.0).apply(catalog, observed=observed)
 
         # Narrow band
         if nb:
             mask &= (
                 ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
 
-                | ColorSelection(ccd.axes[1], -0.05, None).apply(catalog, observed=observed)
-                & ColorSelection(ccd.axes[0], None, 2.5).apply(catalog, observed=observed)
+                | ColorSelection(ccd.axes[1], 0.05, None).apply(catalog, observed=observed)
+                & ColorSelection(ccd.axes[0], None, 4.0).apply(catalog, observed=observed)
                 
                 #| LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
-                & LinearSelection(ccd.axes, [1.0, 7.0], 1.8, None).apply(catalog, observed=observed)
+                # & LinearSelection(ccd.axes, [1.0, 7.0], 1.8, None).apply(catalog, observed=observed)
             )
 
         # Probability-based cut (map) - nonzero membership probability
@@ -280,7 +297,7 @@ class M31(Galaxy):
         # ccd = self._hsc_ccd
 
         g0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
-        i0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
+        i0, _ = catalog.get_magnitude(hsc.magnitudes['i'], observed=True, dered=True, mask=mask)
         # gi0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), observed=True, dered=True, mask=mask)
         # gn0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), observed=True, dered=True, mask=mask)
 
@@ -304,38 +321,38 @@ class M31(Galaxy):
         w9 = np.isnan(p_member) | (p_member == 0.0)
         priority[w9] = 9
 
-        # Priority 0:
-        w0 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.9) & (g0 < 23.25)
-        priority[w0] = 0
-        logger.info(f'{(keep & w0).sum()} {self.name} stars are marked as priority 0')
-
         # Priority 1:
-        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.9) & (g0 < 24.5)
+        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.95) & (i0 < 22.25)
         priority[w1] = 1
         logger.info(f'{(keep & w1).sum()} {self.name} stars are marked as priority 1')
 
         # Priority 2:
-        w2 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 23.25)
+        w2 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.95) & (i0 < 23.0)
         priority[w2] = 2
         logger.info(f'{(keep & w2).sum()} {self.name} stars are marked as priority 2')
 
         # Priority 3:
-        w3 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 24.5)
+        w3 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.8) & (i0 < 22.25)
         priority[w3] = 3
         logger.info(f'{(keep & w3).sum()} {self.name} stars are marked as priority 3')
 
         # Priority 4:
-        w4 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0) & (g0 < 23.25)
+        w4 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.8) & (i0 < 23.0)
         priority[w4] = 4
         logger.info(f'{(keep & w4).sum()} {self.name} stars are marked as priority 4')
 
         # Priority 5:
-        w5 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0) & (g0 < 24.0)
+        w5 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.1) & (i0 < 22.25)
         priority[w5] = 5
         logger.info(f'{(keep & w5).sum()} {self.name} stars are marked as priority 5')
 
+        # Priority 6:
+        w6 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.1) & (i0 < 23.0)
+        priority[w6] = 6
+        logger.info(f'{(keep & w6).sum()} {self.name} stars are marked as priority 6')
+
         # Only keep stars with valid priority
-        keep &= (priority >= 0) & (priority <= 9)
+        keep &= (priority >= 0) & (priority <= 9) & (g0 > 20.0) & (i0 > 20.0) & (i0 < 30.0) & (g0 < 30.0)
 
         catalog.data['priority'] = -1
         catalog.data.loc[keep, 'priority'] = priority[keep]
