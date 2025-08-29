@@ -1,4 +1,4 @@
-from .observation import Observation
+from pfs.ga.common.data import Observation
 
 class TargetList(Observation):
     def __init__(self, name=None, orig=None):

@@ -1,8 +1,9 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-from ..util import *
-from .catalog import Catalog
-from ..photometry import Photometry, Color, Magnitude
+from pfs.ga.common.data import Catalog
+from pfs.ga.common.util import *
+from pfs.ga.common.photometry import Photometry, Color, Magnitude
 
 class Simulation(Catalog):
     def __init__(self, name=None, orig=None):
@@ -33,6 +34,9 @@ class Simulation(Catalog):
         return False
 
     observed = property(__get_observed)
+
+    def _get_observed_default(self, observed=None):
+        return observed if observed is not None else True
 
     def apply_categories(self, a, g=None):
         if g is None and 'g' in self.__data:
@@ -79,3 +83,38 @@ class Simulation(Catalog):
         err = get_value(magnitude.get_name('err_'), mask)
 
         return mag, err
+
+    def plot_cmd(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
+            observed=None, mask=None, s=None, **kwargs):
+
+        observed = observed if observed is not None else self.observed
+        mask = mask if mask is not None else np.s_[:]
+
+        (x, _), (y, _) = self.get_diagram_values(diagram.axes, observed=observed)
+        
+        if apply_categories:
+            x = self.apply_categories(x, g=g)
+            y = self.apply_categories(y, g=g)
+
+            if isinstance(mask, np.ndarray):
+                mask = self.apply_categories(mask, g=g)
+
+        if population_id is not None:
+            p = np.s_[..., population_id]
+            x = x[p]
+            y = y[p]
+
+            if isinstance(mask, np.ndarray):
+                mask = mask[p]
+
+        l =  diagram.scatter(ax, x, y, mask=mask, s=s, **kwargs)
+
+        diagram.apply(ax)
+
+        return l
+
+    def plot_spatial(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
+            observed=None, mask_fov=False, mask=None, s=None, **kwargs):
+        
+        # TODO: implement
+        raise NotImplementedError()

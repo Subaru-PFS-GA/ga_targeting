@@ -1,7 +1,7 @@
 import numpy as np
 from collections.abc import Iterable
 
-from ..util import *
+from pfs.ga.common.util import *
 
 class HistogramND():
     def __init__(self, orig=None):

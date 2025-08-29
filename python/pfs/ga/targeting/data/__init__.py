@@ -1,5 +1,4 @@
-from .catalog import Catalog
+from pfs.ga.common.data import Catalog, Observation
 from .simulation import Simulation
-from .observation import Observation
 from .histogramnd import HistogramND
 from .targetlist import TargetList
