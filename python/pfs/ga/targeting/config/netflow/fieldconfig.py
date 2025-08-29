@@ -1,7 +1,8 @@
 from typing import List, Dict
 from datetime import datetime
 
-from ..config import Config
+from pfs.ga.common.config import Config
+
 from .pointingconfig import PointingConfig
 
 class FieldConfig(Config):

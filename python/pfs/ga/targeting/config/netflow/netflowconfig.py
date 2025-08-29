@@ -1,6 +1,7 @@
 from typing import List, Dict
 
-from ..config import Config
+from pfs.ga.common.config import Config
+
 from .fieldconfig import FieldConfig
 from .pointingconfig import PointingConfig
 from .targetlistconfig import TargetListConfig

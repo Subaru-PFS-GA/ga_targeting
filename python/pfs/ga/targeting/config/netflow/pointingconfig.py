@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from ...core import Pointing
-from ..config import Config
+from pfs.ga.common.projection import Pointing
+from pfs.ga.common.config import Config
 
 class PointingConfig(Config):
     def __init__(self,

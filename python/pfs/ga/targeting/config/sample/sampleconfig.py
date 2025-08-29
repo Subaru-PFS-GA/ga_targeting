@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..config import Config
+from pfs.ga.common.config import Config
 
 class SampleConfig(Config):
     def __init__(self,

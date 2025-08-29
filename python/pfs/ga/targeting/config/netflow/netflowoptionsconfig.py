@@ -4,8 +4,9 @@ import numpy as np
 import pfs.utils
 from pfs.utils.fibers import fiberHoleFromFiberId
 
+from pfs.ga.common.config import Config, Lambda
+
 from ...instrument import SubaruHSC, SubaruPFI
-from ..config import Config, Lambda
 from .targetclassconfig import TargetClassConfig
 from .timebudgetconfig import TimeBudgetConfig
 from .cobragroupconfig import CobraGroupConfig
