@@ -2,9 +2,10 @@ import numpy as np
 from collections.abc import Iterable
 from scipy.special import logsumexp
 from scipy.ndimage import maximum_filter
+import matplotlib.pyplot as plt
 
-from .util import *
-from .diagram import ColorAxis, MagnitudeAxis
+from pfs.ga.common.util import *
+from pfs.ga.common.diagram import ColorAxis, MagnitudeAxis
 from .data import HistogramND, Simulation, Catalog
 
 import h5py
@@ -258,3 +259,12 @@ class ProbabilityMap(HistogramND):
     def load_items(self, g):
         super().load_items(g)
         self.__population_weights = g['population_weights'][:]
+
+    def plot_cmd(self, ax: plt.Axes, cmd, population_id=0, **kwargs):
+        style = styles.histogram_imshow(**kwargs)
+
+        lp_member, _ = self.get_lp_member()
+        l = self.imshow(ax, lp_member[population_id].T / np.log(10), extent=self.extents.flatten(), **style)
+        self.apply(ax)
+
+        return l

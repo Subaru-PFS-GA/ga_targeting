@@ -6,17 +6,14 @@ import pandas as pd
 
 from pfs.ga.isochrones import tensorlib as tt
 
-import  pfs.ga.targeting
-from pfs.ga.targeting.selection.andselection import AndSelection
+import pfs.ga.targeting
+from pfs.ga.common.diagram import *
+from pfs.ga.common.photometry import *
+from pfs.ga.common.projection import Pointing, WcsProjection
+from pfs.ga.common.selection import *
 from pfs.ga.targeting.io import ObservationSerializer, Hdf5SimulationReader
 from pfs.ga.targeting.data import Observation, Simulation
-from pfs.ga.targeting.photometry import *
 from pfs.ga.targeting.instrument import SubaruHSC
-from pfs.ga.targeting.diagram import *
-from pfs.ga.targeting.diagram.diagram import Diagram
-from pfs.ga.targeting.diagram.xyaxis import XYAxis
-from pfs.ga.targeting.projection import Pointing, WcsProjection
-from pfs.ga.targeting.selection import *
 from pfs.ga.targeting import Isochrone
 from pfs.ga.isochrones.dartmouth import Dartmouth
 

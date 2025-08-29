@@ -17,20 +17,22 @@ import pfs.instdata
 from ics.cobraOps.Bench import Bench
 from pfs.utils.fiberids import FiberIds
 from pfs.utils.butler import Butler
+
+from pfs.ga.common.util import *
+from pfs.ga.common.util.config import *
+from pfs.ga.common.diagram import styles
+from pfs.ga.common.projection import Pointing
+
 from ..external import BlackDotsCalibrationProduct
 from ..external import PFIDesign
 from ..external import CobraCoach
-
-from ..setup_logger import logger
-from ..util import *
-from ..util.config import *
-from ..diagram import styles
 from ..allocation.associations import Associations
 from ..allocation.fiberallocator import FiberAllocator
-from ..projection import Pointing
 from .instrument import Instrument
 from .subaruwfc import SubaruWFC
 from .cobraangleflags import CobraAngleFlags
+
+from ..setup_logger import logger
 
 class SubaruPFI(Instrument, FiberAllocator):
     """

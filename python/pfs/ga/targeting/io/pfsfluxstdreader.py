@@ -1,7 +1,7 @@
 import pandas as pd
 
 from ..data import Observation
-from .observationserializer import ObservationSerializer
+from . import ObservationSerializer
 
 class PfsFluxStdReader(ObservationSerializer):
     """

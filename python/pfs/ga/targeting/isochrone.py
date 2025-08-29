@@ -1,11 +1,12 @@
 from collections.abc import Iterable
+import matplotlib.pyplot as plt
 
 from pfs.ga.isochrones import tensorlib as tt
 from pfs.ga.isochrones.isogrid import IsoGrid
-
-from .util import *
-from .photometry import Color, Magnitude
-from .diagram.diagramvalueprovider import DiagramValueProvider
+from pfs.ga.common.util import *
+from pfs.ga.common.diagram import styles
+from pfs.ga.common.photometry import Color, Magnitude
+from pfs.ga.common.data import DiagramValueProvider
 
 class Isochrone(DiagramValueProvider):
     def __init__(self, orig=None):
@@ -41,6 +42,9 @@ class Isochrone(DiagramValueProvider):
     EEP = property(__get_eep)
     
     M_ini = property(__get_M_ini)
+
+    def _get_observed_default(self, observed=None):
+        return True
 
     def from_isogrid(self, photometry, isogrid: IsoGrid, Fe_H, log_t, M_ini=None, EEP=None, DM=None, name_mappings=None, **kwargs):
         """
@@ -123,3 +127,20 @@ class Isochrone(DiagramValueProvider):
             s = np.sqrt(s_m1**2 + s_m2**2)
 
         return m1 - m2, s
+
+    def plot_cmd(self, ax: plt.Axes, diagram, observed=False, error_sigma=None, **kwargs):
+        style = styles.dashed_line(**kwargs)
+
+        (x, x_err), (y, y_err) = self.get_diagram_values(diagram.axes, observed=observed)
+        
+        if error_sigma is not None:
+            if x_err is not None:
+                x = x + error_sigma[0] * x_err
+            if y_err is not None:
+                y = y + error_sigma[1] * y_err
+
+        l = diagram.plot(ax, x, y, **style)
+
+        diagram.apply(ax)
+
+        return l

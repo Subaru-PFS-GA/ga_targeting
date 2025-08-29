@@ -5,8 +5,9 @@ from matplotlib.patches import Circle
 from ics.cobraOps.Bench import Bench
 from pfs.utils.coordinates.CoordTransp import CoordinateTransform
 
-from ..util import *
-from ..diagram import styles
+from pfs.ga.common.util import *
+from pfs.ga.common.diagram import styles
+
 from ..projection.telescopeprojection import TelescopeProjection
 from . instrument import Instrument
 

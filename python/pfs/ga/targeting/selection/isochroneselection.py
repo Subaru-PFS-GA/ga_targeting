@@ -1,9 +1,10 @@
 from scipy.interpolate import interp1d
 
-from ..util import *
+from pfs.ga.common.util import *
+from pfs.ga.common.diagram import ColorAxis, MagnitudeAxis
+from pfs.ga.common.selection import Selection
+
 from ..data import Catalog
-from ..diagram import ColorAxis, MagnitudeAxis
-from .selection import Selection
 
 class IsochroneSelection(Selection):
     def __init__(self, isochrone, axes, selection_axis, selection_direction, DM=20, error_sigma=None, orig=None):

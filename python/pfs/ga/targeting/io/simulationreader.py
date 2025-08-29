@@ -1,5 +1,5 @@
+from . import CatalogSerializer
 from ..data import Simulation
-from .catalogserializer import CatalogSerializer
 
 class SimulationReader(CatalogSerializer):
     def __init__(self, orig=None):
