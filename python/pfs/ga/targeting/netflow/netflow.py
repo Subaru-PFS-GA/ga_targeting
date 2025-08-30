@@ -580,12 +580,14 @@ class Netflow():
         Look up the target index based on the target id of forbidden targets.
         """
 
+        targets = self.__targets.set_index('targetid', drop=True)
         forbidden_targets = self.__netflow_options.forbidden_targets
         fpp = []
         wrong_id_count = 0
         if forbidden_targets is not None:
-            for i, target_id in enumerate(forbidden_targets):            
-                tidx = self.__target_to_cache_map[self.__targets.index.get_loc(target_id)]
+            for i, target_id in enumerate(forbidden_targets):
+                target_idx = targets.index.get_loc(target_id)
+                tidx = self.__target_to_cache_map[target_idx]
                 if tidx != -1:
                     fpp.append(tidx)
                 else:
@@ -601,6 +603,7 @@ class Netflow():
         Look up the target indices based on the target ids of forbidden pairs.
         """
 
+        targets = self.__targets.set_index('targetid', drop=True)
         forbidden_pairs = self.__netflow_options.forbidden_pairs
         fpp = []
         wrong_id_count = 0
@@ -609,7 +612,8 @@ class Netflow():
                 if len(pair) != 2:
                     raise NetflowException(f"Found an incorrect number of target ids in forbidden pair list at index {i}.")
             
-                tidx_list = [ self.__target_to_cache_map[self.__targets.index.get_loc(p)] for p in pair ]
+                target_idx_list = [ targets.index.get_loc(p) for p in pair ] 
+                tidx_list = [ self.__target_to_cache_map[target_idx] for target_idx in target_idx_list ]
                 if -1 not in tidx_list:
                     fpp.append(tidx_list)
                 else:
@@ -1100,7 +1104,7 @@ class Netflow():
 
         # Add proper motion and parallax, if available
         if 'epoch' in df:
-            if df['epoch'].dtype == 'string' or df['epoch'].dtype == str:
+            if df['epoch'].dtype == 'string' or df['epoch'].dtype == str or df['epoch'].dtype == object:
                 # Convert 'J20XX.X' notation to float
                 pd_append_column(targets, 'epoch', df['epoch'].apply(lambda x: float(x[1:])), np.float64)
             else:
@@ -2578,7 +2582,7 @@ class Netflow():
                 # TODO: add done_visits
                 name = self.__make_name("Tv_i_sum", budget_name)
                 # constr = self.__visit_exp_time * self.__problem.sum([ v for v in budget_variables ]) <= 3600 * options.budget
-                constr = ([self.__visit_exp_time.value] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
+                constr = ([self.__visit_exp_time] * len(budget_variables), budget_variables, '<=', 3600 * options.budget)
                 self.__constraints.Tv_i_sum[budget_name] = constr
                 self.__add_constraint(name, constr)
 

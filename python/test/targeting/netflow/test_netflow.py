@@ -51,7 +51,12 @@ class NetflowTest(TestBase):
         instrument = SubaruPFI()
         pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
-        nf = Netflow(f'test', instrument, [ pointing ])
+        obs.data['__key'] = 'obs'
+        config = NetflowConfig.default()
+        nf = Netflow(f'test',
+                     instrument,
+                     [ pointing ],
+                     netflow_options=config.netflow_options)
         nf.append_science_targets(obs, exp_time=1200, priority=1)
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
@@ -62,7 +67,9 @@ class NetflowTest(TestBase):
         instrument = SubaruPFI()
         pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         config = NetflowConfig.default()
+        config.netflow_options.epoch = 2016.0
         nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=config.netflow_options,
                      debug_options=config.debug_options)
@@ -78,7 +85,9 @@ class NetflowTest(TestBase):
         instrument = SubaruPFI()
         pointing = Pointing(226.3, 67.5, posang=0, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         config = NetflowConfig.default()
+        config.netflow_options.epoch = 2016.0
         nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=config.netflow_options,
                      debug_options=config.debug_options)
@@ -96,7 +105,9 @@ class NetflowTest(TestBase):
         instrument = SubaruPFI()
         pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         config = NetflowConfig.default()
+        config.netflow_options.epoch = 2016.0
         nf = Netflow(f'test', instrument, [ pointing ],
                      netflow_options=config.netflow_options,
                      debug_options=config.debug_options)
@@ -133,6 +144,7 @@ class NetflowTest(TestBase):
                      debug_options=config.debug_options)
 
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         nf.append_science_targets(obs, exp_time=1200)
 
         # Ignore some targets, this is to test the target index mappings
@@ -167,6 +179,7 @@ class NetflowTest(TestBase):
                      debug_options=config.debug_options)
 
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         nf.append_science_targets(obs, exp_time=1200)
 
         # Ignore some targets, this is to test the target index mappings
@@ -194,6 +207,7 @@ class NetflowTest(TestBase):
                      debug_options=config.debug_options)
 
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         nf.append_science_targets(obs, exp_time=1200)
 
         # Ignore some targets, this is to test the target index mappings
@@ -218,6 +232,10 @@ class NetflowTest(TestBase):
         config = NetflowConfig.default()
         config.load(os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py'))
 
+        # Ignore all calibration target constraints because we don't have any of those
+        # config.netflow_options.target_classes['sky'].min_targets = 0
+        # config.netflow_options.cobra_groups['sky_location'].min_targets = 0
+
         instrument = SubaruPFI(instrument_options=config.instrument_options)
         pointing = Pointing(227.1, 67.25, posang=30, obs_time=Time("2024-06-10T00:00:00.0Z"), nvisits=1, exp_time=1200)
         nf = Netflow(f'test', instrument, [ pointing ],
@@ -226,7 +244,16 @@ class NetflowTest(TestBase):
                      debug_options=config.debug_options)
 
         obs = self.load_test_observation()
+        obs.data['__key'] = 'obs'
         nf.append_science_targets(obs, exp_time=1200)
+
+        sky = self.load_test_sky()
+        sky.data['__key'] = 'sky'
+        nf.append_sky_targets(sky)
+
+        fluxstd = self.load_test_fluxstd()
+        fluxstd.data['__key'] = 'fluxstd'
+        nf.append_fluxstd_targets(fluxstd)
 
         nf._Netflow__calculate_exp_time()
         nf._Netflow__calculate_target_visits()
@@ -242,11 +269,11 @@ class NetflowTest(TestBase):
 
         # Ignore cobra group minima because we have no sky or flux std targets in the test data
         nf.debug_options.ignore_cobra_group_minimum = True
-
-        nf._Netflow__targets.reset_index(names='targetid', inplace=True)
         
         nf.build()
         nf.solve()
+
+        nf.extract_assignments()
 
         assignments = nf.get_fiber_assignments(include_target_columns=True,
                                                 include_unassigned_fibers=True,

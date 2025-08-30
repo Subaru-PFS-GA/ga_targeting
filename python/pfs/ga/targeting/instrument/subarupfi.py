@@ -1196,7 +1196,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         theta[mask] += theta_expected[mask]
         phi[mask] += phi_expected[mask]
 
-        targets = self.__pfi_angles_to_positions(cobra_state, theta, phi)
+        targets = self.cobra_angles_to_fp_pos(theta, phi, np.arange(theta.size))
         
         
                 

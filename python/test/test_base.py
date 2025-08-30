@@ -11,7 +11,7 @@ from pfs.ga.common.diagram import *
 from pfs.ga.common.photometry import *
 from pfs.ga.common.projection import Pointing, WcsProjection
 from pfs.ga.common.selection import *
-from pfs.ga.targeting.io import ObservationSerializer, Hdf5SimulationReader
+from pfs.ga.targeting.io import ObservationSerializer, Hdf5SimulationReader, PfsSkyReader, PfsFluxStdReader
 from pfs.ga.targeting.data import Observation, Simulation
 from pfs.ga.targeting.instrument import SubaruHSC
 from pfs.ga.targeting import Isochrone
@@ -51,6 +51,20 @@ class TestBase(TestCase):
     def load_test_observation(self) -> Observation:
         fn =  os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi.feather')
         s = ObservationSerializer()
+        return s.read(fn)
+
+    def load_test_sky(self):
+        fn = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi_sky.feather')
+        s = PfsSkyReader()
+        s.columns = ['sky_id', 'RA', 'Dec']
+        s.column_map = {
+            'sky_id': 'targetid',
+        }
+        return s.read(fn)
+
+    def load_test_fluxstd(self):
+        fn = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../data/test/umi_fluxstd.feather')
+        s = PfsFluxStdReader()
         return s.read(fn)
 
     def load_test_simulation(self) -> Simulation:

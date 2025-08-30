@@ -194,8 +194,8 @@ config = dict(
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec'
+                # 'ra': 'RA',
+                # 'dec': 'Dec'
             },
             prefix = "sky",
             extra_columns = {
