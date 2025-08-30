@@ -2,8 +2,8 @@ import os
 import numpy as np
 
 from test_base import TestBase
-from pfs.ga.targeting.photometry import Color
-from pfs.ga.targeting.selection import LinearSelection
+from pfs.ga.common.photometry import Color
+from pfs.ga.common.selection import LinearSelection
 
 class LinearSelectionTest(TestBase):
     def test_get_shape(self):

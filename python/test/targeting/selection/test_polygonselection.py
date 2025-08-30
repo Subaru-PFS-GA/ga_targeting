@@ -3,8 +3,8 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from test_base import TestBase
-from pfs.ga.targeting.photometry import Color
-from pfs.ga.targeting.selection import PolygonSelection
+from pfs.ga.common.photometry import Color
+from pfs.ga.common.selection import PolygonSelection
 
 class PolygonSelectionTest(TestBase):
     def get_test_points(self):

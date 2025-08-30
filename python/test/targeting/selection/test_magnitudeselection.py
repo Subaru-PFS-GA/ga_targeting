@@ -2,8 +2,8 @@ import os
 import numpy as np
 
 from test_base import TestBase
-from pfs.ga.targeting.photometry import Color
-from pfs.ga.targeting.selection import MagnitudeSelection
+from pfs.ga.common.photometry import Color
+from pfs.ga.common.selection import MagnitudeSelection
 
 class MagnitudeSelectionTest(TestBase):
     def test_apply(self):
