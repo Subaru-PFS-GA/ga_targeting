@@ -4,19 +4,16 @@ import matplotlib.pyplot as plt
 
 from test_base import TestBase
 
-from pfs.ga.targeting.projection import Pointing, WcsProjection
-from pfs.ga.targeting.diagram import CMD
+from pfs.ga.common.projection import Pointing, WcsProjection
+from pfs.ga.common.diagram import CMD
 
 class CMDTest(TestBase):
-    def test_plot_selection(self):
-        self.skipTest('TODO')
-
     def test_plot_isochrone(self):
         iso = self.get_test_isochrone()
         f, ax = self.get_test_plot()
 
         cmd, _ = self.get_test_cmd()
-        cmd.plot_isochrone(ax, iso)
+        iso.plot(ax, cmd)
 
         self.save_fig(f)
 
@@ -25,7 +22,7 @@ class CMDTest(TestBase):
         f, ax = self.get_test_plot()
 
         cmd, _ = self.get_test_cmd()
-        cmd.plot_catalog(ax, obs)
+        obs.plot(ax, cmd)
 
         self.save_fig(f)
 
@@ -34,7 +31,7 @@ class CMDTest(TestBase):
         f, ax = self.get_test_plot()
 
         cmd, _ = self.get_test_cmd()
-        cmd.plot_observation(ax, obs)
+        obs.plot(ax, cmd)
 
         self.save_fig(f)
 
@@ -43,7 +40,7 @@ class CMDTest(TestBase):
         f, ax = self.get_test_plot()
 
         cmd, _ = self.get_test_cmd()
-        cmd.plot_simulation(ax, sim, apply_categories=True, s=np.s_[::30])
+        sim.plot(ax, cmd, apply_categories=True, s=np.s_[::30])
 
         self.save_fig(f)
 

@@ -1,8 +1,8 @@
 from collections.abc import Iterable
 import numpy as np
 
-from ..util import *
-from .transformation import Transformation
+from pfs.ga.common.util import *
+from pfs.ga.common.projection import Transformation
 
 class Whitening(Transformation):
     """

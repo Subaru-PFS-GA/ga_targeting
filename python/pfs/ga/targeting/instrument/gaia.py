@@ -1,4 +1,5 @@
-from ..photometry import Photometry, Magnitude
+from pfs.ga.common.photometry import Photometry, Magnitude
+
 from .instrument import Instrument
 
 class Gaia(Instrument):

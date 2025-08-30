@@ -1,0 +1,1 @@
+from pfs.ga.common.scripts import Script

@@ -1,11 +1,13 @@
 import os
 import numpy as np
 
-from test_base import TestBase
+
+from pfs.ga.common.diagram import CMD, ColorAxis, MagnitudeAxis
+from pfs.ga.common.photometry import Color, Magnitude, Photometry, photometry
 from pfs.ga.targeting import Isochrone
-from pfs.ga.targeting.diagram import CMD, ColorAxis, MagnitudeAxis
-from pfs.ga.targeting.photometry import Color, Magnitude, Photometry, photometry
 from pfs.ga.targeting.selection import IsochroneSelection
+
+from test_base import TestBase
 
 class IsochroneSelectionTest(TestBase):
     def get_selection(self, cmd, iso):

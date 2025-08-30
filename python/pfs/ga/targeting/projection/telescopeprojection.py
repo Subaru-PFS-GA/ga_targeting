@@ -1,4 +1,4 @@
-from .projection import Projection
+from . import Projection
 
 class TelescopeProjection(Projection):
     def __init__(self, pointing=None, orig=None):

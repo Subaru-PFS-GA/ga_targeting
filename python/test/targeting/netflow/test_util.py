@@ -1,6 +1,6 @@
 import os
 
-from pfs.ga.targeting.util.config import *
+from pfs.ga.common.util.config import *
 from test_base import TestBase
 
 class InstrumentTest(TestBase):

@@ -6,13 +6,14 @@ import json
 
 from pfs.datamodel import TargetType
 
+from pfs.ga.common.io import ObservationSerializer
+from pfs.ga.common.photometry import PhotometryEncoder, PhotometryDecoder
+
 from ..config.netflow import NetflowConfig
-from ..io import ObservationSerializer
 from ..instrument import SubaruPFI
 from ..targets.dsph import GALAXIES as DSPH_FIELDS
 from ..targets.m31 import M31_SECTORS
-from ..photometry import PhotometryEncoder, PhotometryDecoder
-from .script import Script
+from . import Script
 
 from ..setup_logger import logger
 

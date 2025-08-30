@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..util import safe_deep_copy
+from pfs.ga.common.util import safe_deep_copy
 
 class Associations():
     """

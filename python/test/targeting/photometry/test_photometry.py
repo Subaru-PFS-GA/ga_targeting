@@ -2,9 +2,9 @@ import os
 import numpy as np
 import json as json
 
-from test_base import TestBase
+from pfs.ga.common.photometry import *
 
-from pfs.ga.targeting.photometry import *
+from test_base import TestBase
 
 class PhotometryTest(TestBase):
     def test_init(self):

@@ -1,8 +1,8 @@
 import os
 
 from test_base import TestBase
-from pfs.ga.targeting.photometry import Photometry, Magnitude
-from pfs.ga.targeting.diagram import CMD
+from pfs.ga.common.photometry import Photometry, Magnitude
+from pfs.ga.common.diagram import CMD
 from pfs.ga.targeting.instrument import SubaruHSC
 from pfs.ga.targeting import Isochrone
 

@@ -1,8 +1,8 @@
 import numpy as np
 from scipy.interpolate import interp1d
 
-from ..util import *
-from ..projection.transformation import Transformation
+from pfs.ga.common.util import *
+from pfs.ga.common.projection import Transformation
 
 class RadialProfile():
     """

@@ -1,8 +1,9 @@
 import astropy.units as u
 
-from ..util.args import *
+from pfs.ga.common.util.args import *
+from pfs.ga.common.photometry import Photometry, Magnitude, Color
+
 from ..instrument import SubaruHSC
-from ..photometry import Photometry, Magnitude, Color
 from ..probabilitymap import ProbabilityMap
 from ..projection import Pointing
 from .field import Field

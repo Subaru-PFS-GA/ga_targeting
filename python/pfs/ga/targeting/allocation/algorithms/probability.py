@@ -1,7 +1,8 @@
 import numpy as np
 
-from ...data import Catalog
-from ...photometry import *
+from pfs.ga.common.data import Catalog
+from pfs.ga.common.photometry import *
+
 from ..associations import Associations
 from ..targetingalgorithm import TargetingAlgorithm
 

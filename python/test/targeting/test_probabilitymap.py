@@ -1,10 +1,11 @@
 import os
 import numpy as np
 
-from test_base import TestBase
-from pfs.ga.targeting.photometry import Photometry, Magnitude, Color
-from pfs.ga.targeting.selection import MagnitudeSelection
+from pfs.ga.common.photometry import Photometry, Magnitude, Color
+from pfs.ga.common.selection import MagnitudeSelection
 from pfs.ga.targeting import ProbabilityMap
+
+from test_base import TestBase
 
 class ProbabilityMapTest(TestBase):
     def test_from_simulation(self):

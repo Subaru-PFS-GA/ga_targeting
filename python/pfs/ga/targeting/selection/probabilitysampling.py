@@ -1,7 +1,7 @@
-from ..util import *
+from pfs.ga.common.util import *
 from ..data import Catalog
 from ..probabilitymap import ProbabilityMap
-from .selection import Selection
+from . import Selection
 
 class ProbabilitySampling(Selection):
     """

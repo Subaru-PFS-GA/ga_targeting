@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 
 from test_base import TestBase
 
+from pfs.ga.common.projection import Pointing
+from pfs.ga.common.diagram import FP
 from pfs.ga.targeting.instrument import SubaruWFC, SubaruPFI
-from pfs.ga.targeting.projection import Pointing
-from pfs.ga.targeting.diagram import FP
 
 class FPTest(TestBase):
     def get_projection(self, obs):
@@ -73,7 +73,7 @@ class FPTest(TestBase):
         fp = FP(projection=p)
 
         f, ax = self.get_test_plot()
-        fp.plot_observation(ax, obs)
+        obs.plot(ax, fp)
 
         self.save_fig(f)
 

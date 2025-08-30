@@ -1,4 +1,3 @@
-from .pointing import Pointing
-from .projection import Projection
-from .wcsprojection import WcsProjection
+from pfs.ga.common.projection import Pointing, Projection, WcsProjection
+from .telescopeprojection import TelescopeProjection
 from .whitening import Whitening

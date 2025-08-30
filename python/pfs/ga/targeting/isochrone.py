@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pfs.ga.isochrones import tensorlib as tt
 from pfs.ga.isochrones.isogrid import IsoGrid
 from pfs.ga.common.util import *
-from pfs.ga.common.diagram import styles
+from pfs.ga.common.diagram import styles, MagnitudeDiagram
 from pfs.ga.common.photometry import Color, Magnitude
 from pfs.ga.common.data import DiagramValueProvider
 
@@ -128,7 +128,13 @@ class Isochrone(DiagramValueProvider):
 
         return m1 - m2, s
 
-    def plot_cmd(self, ax: plt.Axes, diagram, observed=False, error_sigma=None, **kwargs):
+    def plot(self, ax: plt.Axes, diagram, observed=False, error_sigma=None, **kwargs):
+        if isinstance(diagram, MagnitudeDiagram):
+            self.plot_magnitude(ax, diagram, observed=observed, error_sigma=error_sigma, **kwargs)
+        else:
+            raise NotImplementedError()
+
+    def plot_magnitude(self, ax: plt.Axes, diagram, observed=False, error_sigma=None, **kwargs):
         style = styles.dashed_line(**kwargs)
 
         (x, x_err), (y, y_err) = self.get_diagram_values(diagram.axes, observed=observed)

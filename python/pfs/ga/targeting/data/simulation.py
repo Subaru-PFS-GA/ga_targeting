@@ -84,7 +84,7 @@ class Simulation(Catalog):
 
         return mag, err
 
-    def plot_cmd(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
+    def _plot_magnitude(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
             observed=None, mask=None, s=None, **kwargs):
 
         observed = observed if observed is not None else self.observed
@@ -113,7 +113,7 @@ class Simulation(Catalog):
 
         return l
 
-    def plot_spatial(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
+    def _plot_spatial(self, ax: plt.Axes, diagram, population_id=None, apply_categories=False, g=None,
             observed=None, mask_fov=False, mask=None, s=None, **kwargs):
         
         # TODO: implement

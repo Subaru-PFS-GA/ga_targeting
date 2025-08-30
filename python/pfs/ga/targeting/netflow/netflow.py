@@ -16,9 +16,9 @@ from ics.cobraCharmer.cobraCoach import engineer
 
 from .setup_logger import logger
 
-from ..util.args import *
-from ..util.config import *
-from ..util.pandas import *
+from pfs.ga.common.util.args import *
+from pfs.ga.common.util.config import *
+from pfs.ga.common.util.pandas import *
 from ..data import Catalog
 from ..instrument import CobraAngleFlags
 from .visit import Visit

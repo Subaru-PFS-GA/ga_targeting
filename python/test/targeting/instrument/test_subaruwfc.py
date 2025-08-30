@@ -3,10 +3,11 @@ import numpy as np
 
 from test_base import TestBase
 
+from pfs.ga.common.diagram import FOV
+from pfs.ga.common.projection import Pointing
 from pfs.ga.targeting.radialprofile import King
-from pfs.ga.targeting.projection import Pointing
 from pfs.ga.targeting.instrument import SubaruWFC
-from pfs.ga.targeting.diagram import FOV
+
 
 class SubaruWfcTest(TestBase):
     def test_world_to_pixel(self):
@@ -58,7 +59,7 @@ class SubaruWfcTest(TestBase):
         wfc = SubaruWFC(proj.pointing)
 
         f, ax = self.get_test_plot(projection=proj.wcs)
-        fov.plot_observation(ax, obs)
+        obs.plot(ax, fov)
         wfc.plot_field_of_view(ax, fov)
 
         self.save_fig(f)

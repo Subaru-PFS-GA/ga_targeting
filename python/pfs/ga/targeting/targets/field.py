@@ -1,6 +1,7 @@
 import astropy.units as u
 
-from ..util.args import *
+from pfs.ga.common.util.args import *
+
 from ..projection import Pointing
 from ..config.netflow import FieldConfig, PointingConfig
 

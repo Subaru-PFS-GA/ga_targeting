@@ -66,7 +66,7 @@ class TestBase(TestCase):
 
     def load_test_isogrid(self):
         isogrid = Dartmouth()
-        isogrid.load(os.path.join(self.PFS_TARGETING_DATA, '/data/cmdfit/isochrones/dartmouth/import/afep0_cfht_sdss_hsc_nb_bosz/isochrones.h5'))
+        isogrid.load(os.path.join(self.PFS_TARGETING_DATA, 'data/cmdfit/isochrones/dartmouth/import/afep0_cfht_sdss_hsc_nb_bosz/isochrones.h5'))
         return isogrid
 
     def get_test_plot(self, projection=None):

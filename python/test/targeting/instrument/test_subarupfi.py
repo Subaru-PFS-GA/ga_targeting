@@ -11,9 +11,9 @@ from ics.cobraCharmer.pfiDesign import PFIDesign
 
 from pfs.ga.targeting.config.netflow import NetflowConfig
 from pfs.ga.targeting.config.instrument import InstrumentOptionsConfig
-from pfs.ga.targeting.projection import Pointing
+from pfs.ga.common.projection import Pointing
+from pfs.ga.common.diagram import FOV
 from pfs.ga.targeting.instrument import SubaruPFI, SubaruWFC, CobraAngleFlags
-from pfs.ga.targeting.diagram import FOV
 
 class SubaruPFITest(TestBase):
     def test_init(self):
@@ -71,7 +71,7 @@ class SubaruPFITest(TestBase):
         pfi = SubaruPFI(wfc)
 
         f, ax = self.get_test_plot(projection=proj.wcs)
-        fov.plot_observation(ax, obs)
+        obs.plot(ax, fov)
         wfc.plot_field_of_view(ax, fov)
         pfi.plot_focal_plane(ax, fov, corners=True, c='r', ls='--')
         pfi.plot_cobras(ax, fov, color='b')
