@@ -1,6 +1,5 @@
 import numpy as np
 
-from ics.cobraOps import TargetGroup, TrajectoryGroup
 from ics.cobraCharmer.cobraCoach import engineer
 from ics.cobraCharmer.pfi import PFI
 from ics.cobraCharmer.pfiDesign import PFIDesign

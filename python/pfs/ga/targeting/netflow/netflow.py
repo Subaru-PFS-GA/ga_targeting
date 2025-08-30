@@ -8,10 +8,9 @@ from types import SimpleNamespace
 from scipy.spatial import KDTree
 
 from pfs.datamodel import TargetType, FiberStatus
-# from ics.cobraOps.CollisionSimulator import CollisionSimulator
-from ics.cobraOps.CollisionSimulator2 import CollisionSimulator2
+from ics.cobraOps.CollisionSimulator import CollisionSimulator
+# from ics.cobraOps.CollisionSimulator2 import CollisionSimulator2
 from ics.cobraOps.TargetGroup import TargetGroup
-from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 from ics.cobraCharmer.cobraCoach import engineer
 
 from .setup_logger import logger
@@ -2735,7 +2734,7 @@ class Netflow():
 
         for vidx, visit in enumerate(self.__visits):
             # Collect fiber positions ordered by cobra id
-            fp_pos = np.full(self.__bench.cobras.nCobras, NULL_TARGET_POSITION)
+            fp_pos = np.full(self.__bench.cobras.nCobras, TargetGroup.NULL_TARGET_POSITION)
 
             # Assume the position of broken cobras from the calibration model
             # These include cobras that are broken or have a broken fibers

@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
 from ics.cobraOps.TargetGroup import TargetGroup
-from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
 
 from pfs.ga.targeting.projection import Pointing
 from pfs.ga.targeting.instrument import SubaruWFC, SubaruPFI
@@ -39,7 +38,7 @@ class CollisionSimulatorTest(TestBase):
 
         # Pick a few cobras from the good ones and mark them unassigned
         unassigned = np.random.choice(np.arange(pfi.bench.cobras.nCobras)[~pfi.bench.cobras.hasProblem], 10, replace=False)
-        fp_pos[unassigned] = NULL_TARGET_POSITION
+        fp_pos[unassigned] = TargetGroup.NULL_TARGET_POSITION
 
         return fp_pos
     

@@ -7,11 +7,6 @@ from astropy.time import Time
 
 from test_base import TestBase
 
-from ics.cobraOps.TargetGroup import TargetGroup
-from ics.cobraOps.CollisionSimulator import CollisionSimulator
-from ics.cobraOps.Bench import Bench
-from ics.cobraOps.cobraConstants import NULL_TARGET_POSITION, NULL_TARGET_ID
-
 import pfs.ga.targeting
 from pfs.ga.targeting.instrument import SubaruPFI
 from pfs.ga.targeting.projection import Pointing

@@ -30,20 +30,12 @@ class SubaruPFITest(TestBase):
         pfi = SubaruPFI()
         fiber_map = pfi.fiber_map
 
-    def test_create_default_bench(self):
-        pfi = SubaruPFI()
-        pfi._SubaruPFI__create_default_bench()
-
     def test_create_configured_bench(self):
         pfi = SubaruPFI()
         pfi._SubaruPFI__create_configured_bench()
 
     def test_get_bench(self):
         pfi = SubaruPFI()
-        bench = pfi.bench
-
-        instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'full'})
-        pfi = SubaruPFI(instrument_options=instrument_options)
         bench = pfi.bench
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
@@ -152,8 +144,8 @@ class SubaruPFITest(TestBase):
         for j in range(fp_pos.shape[1]):
             theta2, phi2, flags2 = pfi.cobra_coach.pfi.positionsToAngles(pfi.cobra_coach.allCobras[s], fp_pos[:, j])
             for i in range(2):
-                npt.assert_almost_equal(theta[:, j, i][~pfi.bench.cobras.hasProblem[s]], theta2[:, i][~pfi.bench.cobras.hasProblem[s]])
-                npt.assert_almost_equal(phi[:, j, i][~pfi.bench.cobras.hasProblem[s]], phi2[:, i][~pfi.bench.cobras.hasProblem[s]])
+                npt.assert_almost_equal(theta[:, j, i][pfi.bench.cobras.isGood[s]], theta2[:, i][pfi.bench.cobras.isGood[s]])
+                npt.assert_almost_equal(phi[:, j, i][pfi.bench.cobras.isGood[s]], phi2[:, i][pfi.bench.cobras.isGood[s]])
                 
                 # Flags don't match by definition
                 # self.assertTrue((flags[:, j, i] == flags2[:, i]).all())
@@ -305,9 +297,10 @@ class SubaruPFITest(TestBase):
                          pfi.bench.cobras.L1 * np.exp(1j * pfi.bench.cobras.tht1) + \
                          pfi.bench.cobras.L2 * np.exp(1j * (pfi.bench.cobras.tht1 + phi_home))
 
-        npt.assert_almost_equal(home0_cobraops, pfi.bench.cobras.home0)
-        npt.assert_almost_equal(home1_cobraops[~pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[~pfi.bench.cobras.hasProblem])
-        npt.assert_almost_equal(home0_cobraops[pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[pfi.bench.cobras.hasProblem])
+        # home0 and home1 are removed from cobraOps
+        # npt.assert_almost_equal(home0_cobraops, pfi.bench.cobras.home0)
+        # npt.assert_almost_equal(home1_cobraops[~pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[~pfi.bench.cobras.hasProblem])
+        # npt.assert_almost_equal(home0_cobraops[pfi.bench.cobras.hasProblem], pfi.bench.cobras.home1[pfi.bench.cobras.hasProblem])
 
         # CobraCoach version (trajectory mode, this is what the simulator uses)
         # There are two modes for theta, CW and CWW

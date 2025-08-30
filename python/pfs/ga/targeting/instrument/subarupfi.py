@@ -179,7 +179,7 @@ class SubaruPFI(Instrument, FiberAllocator):
             bench = SubaruPFI.bench_cache[layout]
         else:
             if layout == 'full':
-                bench = self.__create_default_bench()
+                raise NotImplementedError('Full bench configuration is no longer supported, use a calibration product.')
             elif layout == 'calibration':
                 bench = self.__create_configured_bench()
             else:
@@ -188,13 +188,6 @@ class SubaruPFI(Instrument, FiberAllocator):
             SubaruPFI.bench_cache[layout] = bench
 
         return bench
-
-    def __create_default_bench(self):
-        """
-        Create a bench object with default instrument configuration. This is
-        not the real configuration and the PFI is rotated by 30 degrees.
-        """
-        return Bench(layout='full'), None, None
     
     def __create_configured_bench(self):
         """
@@ -242,8 +235,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         black_dots_calibration_product = BlackDotsCalibrationProduct(pfs_black_dots_path)
 
         bench = Bench(
-            layout="calibration",                       # Use the layout from the calibration product
-            calibrationProduct=calib_model,
+            cobraCoach=cobra_coach,
             blackDotsCalibrationProduct=black_dots_calibration_product,
             blackDotsMargin=black_dot_radius_margin,
         )
@@ -360,7 +352,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         batch_shape = (Ellipsis,) + (ndim - cobraidx.ndim) * (None,)
         centers = self.__bench.cobras.centers[cobraidx][batch_shape]
-        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+        bad_cobra = ~self.__bench.cobras.isGood[cobraidx][batch_shape]
         L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
         L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
 
