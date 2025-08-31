@@ -6,6 +6,8 @@ from ics.cobraCharmer.pfiDesign import PFIDesign
 
 from .setup_logger import logger
 
+# TODO: this should be removed
+
 class CollisionSimulator():
     """
     Simulate trajectory collisions for cobras. This is a superset of the features

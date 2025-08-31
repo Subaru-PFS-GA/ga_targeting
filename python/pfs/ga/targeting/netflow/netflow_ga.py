@@ -6,6 +6,8 @@ Created on Tue Jun 20 15:11:40 2023
 @author: elenasaez, evankirby
 """
 
+# TODO: this should be removed
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

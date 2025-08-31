@@ -9,7 +9,6 @@ from scipy.spatial import KDTree
 
 from pfs.datamodel import TargetType, FiberStatus
 from ics.cobraOps.CollisionSimulator import CollisionSimulator
-# from ics.cobraOps.CollisionSimulator2 import CollisionSimulator2
 from ics.cobraOps.TargetGroup import TargetGroup
 from ics.cobraCharmer.cobraCoach import engineer
 
@@ -23,7 +22,6 @@ from ..instrument import CobraAngleFlags
 from .visit import Visit
 from .gurobiproblem import GurobiProblem
 from .netflowexception import NetflowException
-from .collisionsimulator import CollisionSimulator
 
 class Netflow():
     """
@@ -743,8 +741,8 @@ class Netflow():
         cobras_targets = defaultdict(list)
 
         for cidx in range(self.__bench.cobras.nCobras):
-            # Skip broken cobra
-            if self.__bench.cobras.hasProblem[cidx]:
+            # Skip broken cobras
+            if ~self.__bench.cobras.isGood[cidx]:
                 continue
 
             # Calculate the cobra angles and elbow positions
@@ -891,7 +889,7 @@ class Netflow():
                         
                         ntidx = np.unique(ntidx)
                         nfp = fp_pos[tidx_to_fpidx_map[ntidx]]
-                        d = self.__bench.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
+                        d = CollisionSimulator.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
                         for nti in ntidx[d < collision_distance]:
                             res[(cidx, tidx)].append((ncidx, nti))
 
@@ -902,21 +900,35 @@ class Netflow():
         For each broken cobra, look up the neighboring cobras and return the list of targets
         that would cause endpoint or elbow collision with the broken cobra in home position.
 
-        The collision detection is done the same way as in CollisionSimulator and CollisionSimulator2.
+        Parameters
+        ----------
+        pidx: : int
+            The index of the pointing to check for collisions.
+        collision_distance : float
+            The maximum distance to consider for collisions.
+
+        Returns
+        -------
+        dict : Dictionary, keyed by a tuple of (cidx, ncidx) of list of target idx
         """
+
 
         tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
         visibility = self.__visibility[pidx]
 
+        phiOffset = 0.00001
+        phiHome = np.maximum(-np.pi, self.__bench.cobras.phiIn) + phiOffset
+        home0 = self.__bench.cobras.calculateFiberPositions(self.__bench.cobras.tht0, phiHome)
+
         # For each broken cobra, look up the neighboring cobras and loop over them
-        res = defaultdict(list)
-        for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
-            fp_pos = np.atleast_1d(self.__bench.cobras.home0[cidx])
+        collisions = defaultdict(list)
+        for cidx in np.arange(self.__bench.cobras.nCobras)[~self.__bench.cobras.isGood]:
+            fp_pos = np.atleast_1d(home0[cidx])
             eb_pos = self.__bench.cobras.calculateCobraElbowPositions(cidx, fp_pos)
 
             for ncidx in self.__bench.getCobraNeighbors(cidx):
                 # This is another broken cobra nothing to do with it
-                if self.__bench.cobras.hasProblem[ncidx]:
+                if ~self.__bench.cobras.isGood[ncidx]:
                     continue
                 
                 # Find the targets that are visible by the neighboring cobra
@@ -930,7 +942,7 @@ class Netflow():
                     neb_pos = np.array([ eb[0] for ti, eb, an in visibility.cobras_targets[ncidx] ])
 
                     # Distance from the home position of the broken cobra to the targets
-                    d = self.__instrument.bench.distancesBetweenLineSegments(
+                    d = CollisionSimulator.distancesBetweenLineSegments(
                         np.repeat(fp_pos, ntidx.size),
                         np.repeat(eb_pos, ntidx.size),
                         nfp_pos,
@@ -938,53 +950,74 @@ class Netflow():
 
                     t = list(ntidx[d < collision_distance])
                     if len(t) > 0:
-                        res[(cidx, ncidx)] += t
+                        collisions[(cidx, ncidx)] += t
 
-        return res
-    
-    def __get_colliding_trajectories(self, pidx, collision_distance):
+        return collisions
+
+    def __get_colliding_trajectories(
+            self,
+            pidx,
+            vidx,
+            collision_distance,
+            unassigned_to_home=True):
+        
         """
         Calculate the trajectories of cobras belonging to targets in the overlap regions.
 
-        This is based on the class CollisionSimulator2 but allows for better vectorization
+        This is based on the refactored CollisionSimulator from cobraOps v2 which doesn't
+        allow for vectorization so it can only be used to detect collisions of a final design.
+
+        Parameters
+        ----------
+        pidx: : int
+            The index of the pointing to check for collisions.
+        vidx : int
+            The index of the visit to check for collisions.
+        collision_distance : float
+            The distance within which to check for collisions.
         """
 
-        # TODO: bring out parameters
-        time_step = 20
-        max_steps = 2000
-
-        # Initialize the cobra coach engineer
-        engineer.setCobraCoach(self.__instrument.cobra_coach)
-        engineer.setConstantOntimeMode(maxSteps=max_steps)
-
-        # Collect all targets that are in the overlap regions
-        # TODO: this could be cached at some point
-        # TODO: overlap region should be revised because cobra tip and elbow can be further away than
-        #       the fiber
-
-        # TODO: we can exclude the colliding tips and elbows from the checks
-
+        # Look up focal plane target positions for the particular pointing
+        # and the array that maps the target index to focal plane coordinate index
         fp_pos = self.__target_fp_pos[pidx]
         tidx_to_fpidx_map = self.__cache_to_fp_pos_map[pidx]
+        visibility = self.__visibility[pidx]
 
-        def calcuate_trajectory(cidx, tidx):
-            theta, phi, d, eb_pos, flags = self.__instrument.fp_pos_to_cobra_angles(
-                fp_pos[tidx_to_fpidx_map[tidx]], np.full_like(tidx, cidx))
-            
-            raise NotImplementedError()
+        phiOffset = 0.00001
+        phiHome = np.maximum(-np.pi, self.__bench.cobras.phiIn) + phiOffset
+        home0 = self.__bench.cobras.calculateFiberPositions(self.__bench.cobras.tht0, self.__bench.cobras.phiIn + phiOffset)
 
-            return fp, eb
-        
-        for cidx in range(self.__bench.cobras.nCobras):
-            intersections = self.__get_targets_in_intersections(pidx, cidx)
+        # Collect the focal plane position of the targets
+        targets = np.full(len(self.__instrument.bench.cobras.centers), TargetGroup.NULL_TARGET_POSITION)
+        ids = np.full(len(self.__instrument.bench.cobras.centers), TargetGroup.NULL_TARGET_ID)
 
-            # Calculate the trajectory for each focal plane position
-            for ncidx, tidx in intersections.items():
-                # Calculate the trajectory for the cobras
-                fp1, eb1 = calcuate_trajectory(cidx, tidx)
-                fp2, eb2 = calcuate_trajectory(ncidx, tidx)
-                
-        pass
+        if unassigned_to_home:
+            for cidx in range(len(targets)):
+                targets[cidx] = home0[cidx]
+                ids[cidx] = ""
+
+        for tidx, cidx in self.__target_assignments[vidx].items():
+            targets[cidx] = fp_pos[tidx_to_fpidx_map[tidx]]
+            ids[cidx] = ""
+
+        simulator = CollisionSimulator(self.__instrument.bench, TargetGroup(targets, ids))
+        simulator.run()
+
+        # List of cidx of colliding cobras, this should be impossible if endpoint collisions
+        # are filtered when the netflow problem is constructed
+        if np.any(simulator.endPointCollisions):
+            logger.error(f"Found endpoint collisions in visit {vidx} of pointing {pidx}.")
+            # raise NetflowException("Endpoint collisions found in final solution.")
+
+        # For each pair of colliding cobras, figure out the target index causing the collision
+        collisions = defaultdict(list)
+        for cidx1 in range(self.__bench.cobras.nCobras):
+            for cidx2 in self.__bench.getCobraNeighbors(cidx):
+                if simulator.collisions[cidx1] and simulator.collisions[cidx2]:
+                    tidx = self.__cobra_assignments[vidx][cidx1]
+                    collisions[(cidx1, cidx2)].append(tidx)
+                                
+        return collisions
 
     #endregion
 
@@ -2771,7 +2804,7 @@ class Netflow():
             cobra_assignments = self.__cobra_assignments[vidx]
             tidx = cobra_assignments[trajectory_collisions]
             cidx = trajectory_collisions[tidx == -1]
-            good_cobra = ~self.__instrument.bench.cobras.hasProblem[cidx]
+            good_cobra = self.__instrument.bench.cobras.isGood[cidx]
             if not np.any(good_cobra):
                 logger.warning(f'Collision detected for working cobras that are not assigned to a target.'
                                f'Visit index {vidx}, cobra ID {cidx[good_cobra] + 1}.')
@@ -2906,6 +2939,11 @@ class Netflow():
         #       instead of updating the status now
         fiber_status = self.__get_fiber_status()
 
+        # Cobra home positions
+        phiOffset = 0.00001
+        phiHome = np.maximum(-np.pi, self.__bench.cobras.phiIn) + phiOffset
+        home0 = self.__bench.cobras.calculateFiberPositions(self.__bench.cobras.tht0, phiHome)
+
         assignments : pd.DataFrame = None
         
         for vidx, visit in enumerate(self.__visits):
@@ -2926,8 +2964,8 @@ class Netflow():
                 pd_append_column(unassigned, 'fieldid', fm.fieldId[sci_fiberidx][cidx], np.int32)
                 pd_append_column(unassigned, 'fiberholeid', fm.fiberHoleId[sci_fiberidx][cidx], np.int32)
                 pd_append_column(unassigned, 'spectrographid', fm.spectrographId[sci_fiberidx][cidx], np.int32)
-                pd_append_column(unassigned, 'fp_x', self.__bench.cobras.home0[cidx].real, np.float64)
-                pd_append_column(unassigned, 'fp_y', self.__bench.cobras.home0[cidx].imag, np.float64)
+                pd_append_column(unassigned, 'fp_x', home0[cidx].real, np.float64)
+                pd_append_column(unassigned, 'fp_y', home0[cidx].imag, np.float64)
                 pd_append_column(unassigned, 'target_type', 'na', 'string')
                 pd_append_column(unassigned, 'fiber_status', fiber_status[cidx], np.int32)
                 pd_append_column(unassigned, 'center_dist', np.nan, np.float64)
