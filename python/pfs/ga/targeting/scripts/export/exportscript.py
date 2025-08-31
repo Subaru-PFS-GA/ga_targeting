@@ -214,9 +214,8 @@ class ExportScript(TargetingScript):
         _, _, tag = self.get_last_git_commit(ics.cobraCharmer)
         table.meta['ics_cobraCharmer'] = tag
 
-        # TODO: cobraOps has no tags
-        # _, _, tag = self.get_last_git_commit(ics.cobraOps)
-        # table.meta['ics_cobraOps'] = tag
+        _, _, tag = self.get_last_git_commit(ics.cobraOps)
+        table.meta['ics_cobraOps'] = tag
 
         # _, _, tag = self.get_last_git_commit(ets.fiberalloc)
         table.meta['ets_fiberalloc'] = None
@@ -234,6 +233,8 @@ class ExportScript(TargetingScript):
 
         # Add runtime options to the meta data
 
+        table.meta['cobra safety margin'] = self._config.netflow_options.cobra_safety_margin
+        table.meta['cobra maximum distance'] = self._config.netflow_options.cobra_maximum_distance
         table.meta['dot margin'] = self._config.instrument_options.black_dot_radius_margin
         table.meta['dot penalty'] = self._config.netflow_options._NetflowOptionsConfig__black_dot_penalty_str
         table.meta['gurobi_parameters'] = [
