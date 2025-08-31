@@ -331,6 +331,17 @@ config = dict(
         # will be ignored.
         cobra_move_cost = R'lambda dist: 5 * dist',
 
+        # Add a safety margin to the extreme cobra positions, i.e. avoid getting too close to
+        # the circumference of the patrol region as well as too close to the center. This option
+        # is useful the create designs which are valid in a long interval of observation times.
+        # Since objects near the edge of the patrol region might appear inside or outside the
+        # actual reach of the cobra depending on the time of observation, setting this limit
+        # allow for more flexibility in design preparation at the expense of a selection bias.
+        cobra_safety_margin = 0.1,
+
+        # Maximum distance of the tip of the cobras from their center.
+        cobra_maximum_distance = 4.4,
+
         # The minimum distance between cobra tips and cobra elbows to avoid collisions.
         collision_distance = 2.0,
 

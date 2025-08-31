@@ -33,6 +33,13 @@ class NetflowOptionsConfig(Config):
         self.cobra_move_cost = cobra_move_cost
         # self.cobra_move_cost = lambda dist: 0
 
+        # Add a cobra safety margin to avoid the circumference and very center
+        # of the patrol region
+        self.cobra_safety_margin = 0.0
+
+        # Maximum distance of the tip of the cobras from their center
+        self.cobra_maximum_distance = None
+
         self.collision_distance = 2.0
         self.forbidden_targets = []
         self.forbidden_pairs = [

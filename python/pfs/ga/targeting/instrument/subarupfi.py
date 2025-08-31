@@ -468,6 +468,30 @@ class SubaruPFI(Instrument, FiberAllocator):
         """
         Convert focal plane positions to relative focal plane positions. It also returns
         a few precomputed parameters.
+
+        Parameters
+        ----------
+        fp_pos : np.ndarray
+            Focal plane positions with shape (N,) where N is the number of targets.
+        cobraidx : np.ndarray
+            Cobra indices for each focal plane position with shape (N,) where N is the number of targets.
+
+        Returns
+        -------
+        batch_shape : tuple
+            The shape of the batch.
+        bad_cobra : np.ndarray
+            Boolean array indicating which cobras are in a bad configuration.
+        centers : np.ndarray
+            The centers of the cobras.
+        L1 : np.ndarray
+            The lengths of the first arm of the cobras.
+        L2 : np.ndarray
+            The lengths of the second arm of the cobras.
+        d : np.ndarray
+            Distance from the main axis of the cobra
+        d_2 : np.ndarray
+            Square of the distance from the main axis of the cobra
         """
 
         batch_shape, bad_cobra, centers, L1, L2 = self.__get_reshaped_cobra_config(fp_pos.ndim, cobraidx)
@@ -503,9 +527,16 @@ class SubaruPFI(Instrument, FiberAllocator):
         phi : np.ndarray
             Phi angles with shape (N, 2) where N is the number of targets. The first column is always filled,
             the second column is filled only if secondary solutions are available.
+        d : np.ndarray
+            Distance from the main axis of the cobra
+        eb_pos : np.ndarray
+            Elbow positions with shape (N, 2) where N is the number of targets.
         flags : np.ndarray
             Flags with shape (N, 2) where N is the number of targets indicating the validity of the solutions.
         """
+
+        # TODO: this could be taken from cobraOps but this is a better vectorized version of
+        #       what's available there
 
         batch_shape, bad_cobra, rel_fp_pos, centers, L1, L2, d, d_2 = \
             self.fp_pos_to_rel_fp_pos(fp_pos, cobraidx)

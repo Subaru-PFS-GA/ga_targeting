@@ -725,7 +725,10 @@ class Netflow():
         elbow positions and filters out invalid solutions.
         """
 
-        # Create a KDTree to find targets within the patrol radisu
+        cobra_safety_margin = self.__get_netflow_option(self.__netflow_options.cobra_safety_margin, None)
+        cobra_maximum_distance = self.__get_netflow_option(self.__netflow_options.cobra_maximum_distance, None)
+
+        # Create a KDTree to find targets within the patrol radius
         kdtree = self.__build_fp_pos_kdtree(fp_pos)
 
         # Query the tree for each cobra in parallel
@@ -745,9 +748,17 @@ class Netflow():
             if ~self.__bench.cobras.isGood[cidx]:
                 continue
 
-            # Calculate the cobra angles and elbow positions
+            # Array of target focal plane coordinate indices for each target
+            # associated with the cobra
             fpidx = np.array(idx[cidx], dtype=int)
+            
+            # Calculate the cobra angles and elbow positions for each target
+            # within the cobra patrol radius - with some constraints
             if fpidx.size > 0:
+
+                # Find the angles and elbow positions for the given focal plane coordinates
+                theta, phi, d, eb_pos, flags = self.__instrument.fp_pos_to_cobra_angles(fp_pos[fpidx], np.atleast_1d(cidx))
+
                 # Filter out targets too close to any of the black dots
                 if self.__black_dots is not None:
                     black_dot_center = self.__black_dots.black_dot_center[cidx]
@@ -759,8 +770,19 @@ class Netflow():
                 else:
                     black_dot_mask = None
 
-                # Find the angles and elbow positions for the given focal plane coordinates
-                theta, phi, d, eb_pos, flags = self.__instrument.fp_pos_to_cobra_angles(fp_pos[fpidx], np.atleast_1d(cidx))
+                # Filter out targets too close to the circumference of the patrol region
+                if cobra_safety_margin is not None and cobra_safety_margin > 0:
+                    rmin = self.__bench.cobras.rMin[cidx] + cobra_safety_margin
+                    rmax = self.__bench.cobras.rMax[cidx] - cobra_safety_margin
+                    safety_margin_mask = (rmin < d) & (d < rmax)
+                else:
+                    safety_margin_mask = None
+
+                # Filter out targets that are beyond the maximum cobra distance limit
+                if cobra_maximum_distance is not None and np.isfinite(cobra_maximum_distance):
+                    max_dist_mask = d < cobra_maximum_distance
+                else:
+                    max_dist_mask = None
 
                 # There can be up to two solutions for the cobra angles, given a single
                 # focal plane position. Filter out invalid solutions and collect elbow positions
@@ -774,12 +796,19 @@ class Netflow():
                     if black_dot_mask is not None:
                         mask &= black_dot_mask
 
+                    if safety_margin_mask is not None:
+                        mask &= safety_margin_mask
+
+                    if max_dist_mask is not None:
+                        mask &= max_dist_mask
+
                     # Map focal plane index to the target cache index
                     tidx = fpidx_to_tidx_map[fpidx[mask]]
                     ebp = eb_pos[..., i][mask]
                     th = theta[..., i][mask]
                     ph = phi[..., i][mask]
 
+                    # Append the solution to the tuple of solutions
                     for ti in range(tidx.size):
                         elbows[tidx[ti]] = elbows[tidx[ti]] + (ebp[ti],)
                         angles[tidx[ti]] = angles[tidx[ti]] + ((th[ti], ph[ti]),)
