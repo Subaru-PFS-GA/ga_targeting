@@ -48,14 +48,14 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
         cax = f.add_subplot(gs[1, :])
 
     if background is not None:
-        cmd.plot_observation(axs[0], background, c='lightgray', observed=True)
-        ccd.plot_observation(axs[1], background, c='lightgray', observed=True)
-        fov.plot_observation(axs[2], background, c='lightgray', observed=True)
+        background.plot(axs[0], cmd, c='lightgray', observed=True)
+        background.plot(axs[1], ccd, c='lightgray', observed=True)
+        background.plot(axs[2], fov, c='lightgray', observed=True)
 
     if sample is not None:
-        cmd.plot_observation(axs[0], sample, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
-        ccd.plot_observation(axs[1], sample, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
-        l = fov.plot_observation(axs[2], sample, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
+        sample.plot(axs[0], cmd, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
+        sample.plot(axs[1], ccd, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
+        l = sample.plot(axs[2], fov, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
     else:
         l = None
             

@@ -1,11 +1,11 @@
 import os
 import numpy as np
 
+from pfs.ga.common.scripts import Script
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_SECTORS
 from ...config.pmap import PMapConfig
-from ..script import Script
 from ...io import Hdf5SimulationReader
 from ...instrument import SubaruHSC
 from ... import ProbabilityMap

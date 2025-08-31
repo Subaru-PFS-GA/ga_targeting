@@ -5,13 +5,13 @@ import pandas as pd
 import astropy.units as u
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
+from pfs.ga.common.util.args import *
+from pfs.ga.common.util.astro import *
+from pfs.ga.common.util.pandas import *
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_SECTORS
 from ...netflow import Netflow
-from ...util.args import *
-from ...util.astro import *
-from ...util.pandas import *
 from ..targetingscript import TargetingScript
 
 from ...setup_logger import logger

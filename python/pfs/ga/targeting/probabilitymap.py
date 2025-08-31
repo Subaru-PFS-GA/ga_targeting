@@ -5,7 +5,7 @@ from scipy.ndimage import maximum_filter
 import matplotlib.pyplot as plt
 
 from pfs.ga.common.util import *
-from pfs.ga.common.diagram import ColorAxis, MagnitudeAxis
+from pfs.ga.common.diagram import MagnitudeDiagram, SpatialDiagram, styles
 from .data import HistogramND, Simulation, Catalog
 
 import h5py
@@ -260,11 +260,17 @@ class ProbabilityMap(HistogramND):
         super().load_items(g)
         self.__population_weights = g['population_weights'][:]
 
-    def plot_cmd(self, ax: plt.Axes, cmd, population_id=0, **kwargs):
+    def plot(self, ax: plt.Axes, diagram, *args, **kwargs):
+        if isinstance(diagram, MagnitudeDiagram):
+            return self._plot_magnitude(ax, diagram, *args, **kwargs)
+        else:
+            raise NotImplementedError()
+
+    def _plot_magnitude(self, ax: plt.Axes, cmd, population_id=0, **kwargs):
         style = styles.histogram_imshow(**kwargs)
 
         lp_member, _ = self.get_lp_member()
-        l = self.imshow(ax, lp_member[population_id].T / np.log(10), extent=self.extents.flatten(), **style)
-        self.apply(ax)
+        l = cmd.imshow(ax, lp_member[population_id].T / np.log(10), extent=self.extents.flatten(), **style)
+        cmd.apply(ax)
 
         return l

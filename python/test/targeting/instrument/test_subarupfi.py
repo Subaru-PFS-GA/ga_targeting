@@ -176,6 +176,9 @@ class SubaruPFITest(TestBase):
         pass
 
     def test_simulate_trajectories(self):
+        # TODO: this is obsolete, remove
+
+
         # This is my version
 
         instrument_options = InstrumentOptionsConfig.from_dict({'layout': 'calibration'})
@@ -200,6 +203,9 @@ class SubaruPFITest(TestBase):
                                   max_total_steps=pfi.cobra_coach.maxTotalSteps)
 
     def test_simulate_trajectories_cobraCharmer(self):
+        # TODO: this is obsolete, remove, use cobraOps v2 CollisionSimulator
+
+
         # This is how it's done in the original code
 
 

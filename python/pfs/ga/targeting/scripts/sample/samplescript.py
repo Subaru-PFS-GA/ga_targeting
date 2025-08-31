@@ -1,17 +1,14 @@
 import os
 import numpy as np
-from scipy.special import logsumexp
 
+from pfs.ga.common.scripts import Script
 from pfs.ga.isochrones.isogrid import IsoGrid
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_SECTORS
 from ...config.sample import SampleConfig
-from ..script import Script
-from ...io import Hdf5SimulationReader
-from ...instrument import SubaruHSC
 from ... import ProbabilityMap
-from ...selection import ProbabilityCut, ProbabilitySampling, MagnitudeSelection, ColorSelection, LinearSelection
+from ...selection import ProbabilityCut, MagnitudeSelection, ColorSelection, LinearSelection
 from ...io import GaiaReader, ObservationSerializer
 
 from ...setup_logger import logger

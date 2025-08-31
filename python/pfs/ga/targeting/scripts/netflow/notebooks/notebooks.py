@@ -4,12 +4,11 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
 
+from pfs.ga.common.diagram import CMD, CCD, FOV, FP, ColorAxis, MagnitudeAxis
+from pfs.ga.common.photometry import Photometry, Magnitude, Color
 from pfs.ga.targeting.config.netflow import NetflowConfig
 from pfs.ga.targeting.scripts.netflow.netflowscript import NetflowScript
 from pfs.ga.targeting.projection import WcsProjection, Pointing
-from pfs.ga.targeting.diagram import CMD, CCD, FOV, FP, ColorAxis, MagnitudeAxis
-from pfs.ga.targeting.diagram import CMD, CCD, FOV, FP, ColorAxis, MagnitudeAxis
-from pfs.ga.targeting.photometry import Photometry, Magnitude, Color
 from pfs.ga.targeting.instrument import *
 
 def load_netflow_config(config_file, format='.json'):
@@ -84,7 +83,7 @@ def plot_target_list_coordinates(ax, fov, target_list, **kwargs):
     else:
         alpha = max(0.01, np.exp(-(n - N) / N))
 
-    l = fov.plot_catalog(ax, target_list, size=1, scalex=False, scaley=False, alpha=alpha, **kwargs)
+    l = target_list.plot(ax, fov, size=1, scalex=False, scaley=False, alpha=alpha, **kwargs)
 
     ax.set_title(target_list.name)
     ax.set_aspect('equal', adjustable='datalim')
@@ -104,7 +103,7 @@ def plot_pointings(ax, pfi, wcs, wfc, fov, pointings, **kwargs):
 def plot_target_list_cmd(ax, target_list, photometry, m1, m2, **kwargs):
     cmd = CMD([ColorAxis(Color([m1, m2])), MagnitudeAxis(m2)])
     
-    l = cmd.plot_catalog(ax, target_list, size=1, **kwargs)
+    l = target_list.plot(ax, cmd, size=1, **kwargs)
 
     ax.set_title(photometry.name)
     ax.grid(True)
