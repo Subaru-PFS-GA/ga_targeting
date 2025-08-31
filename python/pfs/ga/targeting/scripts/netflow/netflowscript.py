@@ -423,7 +423,7 @@ class NetflowScript(TargetingScript):
 
         # Take only a subset of columns, these will be used to generate the design file
         # NOTE: targetid is the index of each target list
-        columns = [ '__target_idx', '__key',
+        columns = [ '__target_idx', '__objid', '__key',
                     'epoch', 'proposalid', 'tract', 'patch', 'catid', 'obcode',
                     'filter', 'psf_flux', 'psf_flux_err',
                     'fiber_flux', 'fiber_flux_err',

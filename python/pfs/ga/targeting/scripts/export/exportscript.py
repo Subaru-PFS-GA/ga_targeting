@@ -332,12 +332,7 @@ class ExportScript(TargetingScript):
 
                 # Target list columns
                 if target_type == TargetType.SCIENCE:
-                    if self._field is not None and self._field.id_prefix is not None:
-                        id_prefix = self._field.id_prefix
-                    elif self._config.field.id_prefix is not None:
-                        id_prefix = self._config.field.id_prefix
-                    else:
-                        id_prefix = 0
+                    id_prefix = self._get_id_prefix()
                     obj_id = (id_prefix | np.array(assignments['__target_idx'][mask], dtype=np.int64))
                 else:
                     obj_id = np.array(assignments['targetid'][mask], dtype=np.int64)

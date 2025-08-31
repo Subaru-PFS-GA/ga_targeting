@@ -5,6 +5,8 @@ import pandas as pd
 import astropy.units as u
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 
+from pfs.datamodel import TargetType
+
 from pfs.ga.common.util.args import *
 from pfs.ga.common.util.astro import *
 from pfs.ga.common.util.pandas import *
@@ -421,6 +423,20 @@ class ImportScript(TargetingScript):
                 # No cross-matching necessary here
                 idx = netflow.append_sky_targets(target_list)
                 target_list.data['__target_idx'] = idx
+
+        # Create an __objid column by combining the id_prefix and target_idx
+        # This will be used in the final target lists and design files except
+        # for non-science targets. Non-science targets must retain the original objid because
+        # the 2drp pipeline might use them for something. The targetid, skyid or similar
+        # column will retain its original value that comes from the input catalog.
+        for k, target_list in target_lists.items():
+            if self._config.targets[k].prefix == 'sci':
+                id_prefix = self._get_id_prefix()
+                objid = np.array(target_list.data['__target_idx'], dtype=np.int64)
+                objid = id_prefix | objid
+            else:
+                objid = np.array(target_list.data['targetid'], dtype=np.int64)
+            pd_append_column(target_list.data, '__objid', objid, pd.Int64Dtype())
 
     def __cross_match_source_target_list(self, netflow, target_list):
         # Cross-match the target list with the target lists already added to netflow

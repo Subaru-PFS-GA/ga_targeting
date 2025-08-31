@@ -156,6 +156,17 @@ class TargetingScript(Script):
 
         return catalog
 
+
+    def _get_id_prefix(self):
+        if self._field is not None and self._field.id_prefix is not None:
+            id_prefix = self._field.id_prefix
+        elif self._config.field.id_prefix is not None:
+            id_prefix = self._config.field.id_prefix
+        else:
+            id_prefix = 0
+
+        return id_prefix
+
     def _get_preprocessed_target_list_path(self, key, dir):
         return os.path.join(dir, f'{self._config.field.key}_targets_{key}.feather')
 
@@ -262,10 +273,9 @@ class TargetingScript(Script):
         sci_mask = target_type == TargetType.SCIENCE
         target_idx = np.array(fiber_assignments['__target_idx'].fillna(-1).astype(np.int64))
         obj_id = np.array(fiber_assignments['targetid'].fillna(-1).astype(np.int64))
-        if self._field is not None:
-            obj_id[sci_mask] = (self._field.id_prefix | target_idx[sci_mask])
-        else:
-            obj_id[sci_mask] = target_idx[sci_mask]
+        
+        id_prefix = self._get_id_prefix()
+        obj_id[sci_mask] = (id_prefix | target_idx[sci_mask])
 
         kwargs = dict(
             designName = design_name,
