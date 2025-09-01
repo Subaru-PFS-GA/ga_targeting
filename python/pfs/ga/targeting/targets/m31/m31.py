@@ -23,6 +23,23 @@ class M31(Galaxy):
 
     FIELDS = [
         # group_name, field_name, ra, dec, posang, stage, priority
+        ('sector_0', 'PFS_2',   '00:50:39.13',  '+41:32:16.9', 50.0, 0, 0),
+        ('sector_0', 'PFS_3',   '00:50:01.64',  '+40:24:31.2', 50.0, 0, 0),
+        ('sector_1', 'PFS_4',   '00:44:27.95',  '+39:41:48.1', 50.0, 0, 0),
+        ('sector_2', 'PFS_6',   '00:56:29.68',  '+41:54:14.8', 50.0, 0, 0),
+        ('sector_2', 'PFS_8',   '00:54:01.84',  '+39:39:08.5', 50.0, 0, 0),
+        ('sector_1', 'PFS_10',   '00:42:49.51',  '+38:53:14.9', 50.0, 0, 0),
+        ('sector_0', 'PFS_1',   '00:51:50.50',  '+42:39:59.8', 50.0, 0, 0),
+        ('sector_2', 'PFS_7',   '00:55:14.42',  '+40:46:43.3', 50.0, 0, 0),
+        ('sector_2', 'PFS_9',   '00:48:23.81',  '+39:16:42.8', 50.0, 0, 0),
+        ('sector_1', 'PFS_5',   '00:38:59.79',  '+39:14:15.7', 50.0, 0, 0),
+        ('sector_2', 'PFS_13',   '00:58:27.46',  '+38:53:07.1', 50.0, 0, 0),
+        ('sector_2', 'PFS_11',   '01:01:01.75',  '+41:04:59.3', 50.0, 0, 0),
+        ('sector_2', 'PFS_12',   '00:59:49.28',  '+40:03:07.7', 50.0, 0, 0),
+        ('sector_2', 'PFS_14',   '00:52:39.04',  '+38:30:07.3', 50.0, 0, 0),
+        ('sector_2', 'PFS_15',   '00:47:33.81',  '+38:09:19.1', 50.0, 0, 0),
+    ]
+    """
         ('sector_0', 'PFS_1',   '00:34:54'  , '+42:22:57', 0.0, 0, 0),
         ('sector_1', 'PFS_2',   '00:28:56'  , '+43:11:01', 0.0, 0, 0),
         ('sector_1', 'PFS_3',   '00:22:49'  , '+43:57:54', 0.0, 0, 0),
@@ -65,7 +82,7 @@ class M31(Galaxy):
         ('sector_1', 'PFS_40',  '00:37:40'  , '+40:05:04', 0.0, 0, 0),
         ('sector_1', 'PFS_41',  '00:32:40'  , '+40:05:04', 0.0, 0, 0),
         ('sector_1', 'PFS_42',  '00:31:10'  , '+39:05:04', 0.0, 0, 0),
-    ]
+    """
 
     def __init__(self, sector=None, field=None):
     
@@ -246,7 +263,7 @@ class M31(Galaxy):
         catalog.data['p_member'] = np.nan
         catalog.data.loc[ml_member_mask,'p_member'] = ml_member[ml_member_mask]
 
-    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=20.0, faint=24.5):
+    def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=19.0, faint=30.0):
         """Return true for objects within sharp magnitude cuts."""
 
         cmd = self.__hsc_cmd
@@ -268,8 +285,8 @@ class M31(Galaxy):
             )
 
         # Probability-based cut (map) - nonzero membership probability
-        if probcut is not None:
-            mask &= probcut.apply(catalog, observed=observed)
+        #if probcut is not None:
+        #    mask &= probcut.apply(catalog, observed=observed)
 
         # Allow blue
         if blue:
@@ -303,8 +320,8 @@ class M31(Galaxy):
 
         # Exclude very bright and very faint stars in case they accidentally
         # got into the sample
-        keep = mask & (16 <= g0) & (g0 <= 24.5) & \
-                      (16 <= i0) & (i0 < 24.5)
+        keep = mask & (16 <= g0) & (g0 <= 30.0) & \
+                      (16 <= i0) & (i0 < 30.0)
 
         # Exclude any extended sources
         clg = catalog.data['clg'][mask]
@@ -352,7 +369,7 @@ class M31(Galaxy):
         logger.info(f'{(keep & w6).sum()} {self.name} stars are marked as priority 6')
 
         # Only keep stars with valid priority
-        keep &= (priority >= 0) & (priority <= 9) & (g0 > 20.0) & (i0 > 20.0) & (i0 < 30.0) & (g0 < 30.0)
+        keep &= (priority >= 0) & (priority <= 9) & (g0 > 19.0) & (i0 > 19.0) & (i0 < 30.0) & (g0 < 30.0)
 
         catalog.data['priority'] = -1
         catalog.data.loc[keep, 'priority'] = priority[keep]

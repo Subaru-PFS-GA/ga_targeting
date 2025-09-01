@@ -268,7 +268,7 @@ config = dict(
         # ),
 
         "sky": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_sky.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/m31_sky.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -329,7 +329,7 @@ config = dict(
 
         # MIHO NEW
         "fluxstd": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_fluxstd.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/m31_fluxstd.feather",
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',

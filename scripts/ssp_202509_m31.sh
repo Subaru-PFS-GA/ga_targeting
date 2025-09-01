@@ -14,9 +14,9 @@ PROPOSAL_ID="S25B-OT02"
 INPUT_CATALOG_ID="10092"
 
 # EXTRA_OPTIONS="--debug"
-#EXTRA_OPTIONS="--skip-notebooks"
+EXTRA_OPTIONS="--skip-notebooks"
 
-for SECTOR in 'PFS_22'; do
+for SECTOR in 'sector_0'; do
 
     SECTOR_DIR="$PFS_TARGETING_DATA/data/targeting/m31/m31_${SECTOR}_${PREFIX}"
     PMAP_DIR="${SECTOR_DIR}/pmap/m31_${SECTOR}_${PREFIX}_${VERSION}"
@@ -40,14 +40,14 @@ for SECTOR in 'PFS_22'; do
     #         ${EXTRA_OPTIONS}
     # fi
 
-    # rm -Rf "${SAMPLE_DIR}"
-    # if [ ! -d "$SAMPLE_DIR" ]; then
-    #     ga-sample \
-    #         --m31 ${SECTOR} \
-    #         --config ./configs/sample/${PREFIX}/m31/m31.py \
-    #         --out "${SAMPLE_DIR}" \
-    #         ${EXTRA_OPTIONS}
-    # fi
+    rm -Rf "${SAMPLE_DIR}"
+    if [ ! -d "$SAMPLE_DIR" ]; then
+        ga-sample \
+            --m31 ${SECTOR} \
+            --config ./configs/sample/${PREFIX}/m31/m31.py \
+            --out "${SAMPLE_DIR}" \
+            ${EXTRA_OPTIONS}
+    fi
 
     rm -Rf "${IMPORT_DIR}"
     if [ ! -d "$IMPORT_DIR" ]; then
