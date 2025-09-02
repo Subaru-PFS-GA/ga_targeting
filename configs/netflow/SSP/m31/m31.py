@@ -36,14 +36,14 @@ config = dict(
             "sci_P0": {
                 "prefix": "sci",
                 # "non_observation_cost": 1000,
-                "non_observation_cost": 1500,
+                "non_observation_cost": 2500,
                 "partial_observation_cost": 100000.0
             },
             # Bright p_member > 0.95
             "sci_P1": {
                 "prefix": "sci",
                 # "non_observation_cost": 775,
-                "non_observation_cost": 1000,
+                "non_observation_cost": 1500,
                 "partial_observation_cost": 100000.0
             },
             # Faint p_member > 0.95
