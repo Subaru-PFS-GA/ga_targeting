@@ -32,57 +32,57 @@ config = dict(
                 min_targets = 60,
                 max_targets = 240,
             ),
-            # Very likely members on the RGB + DEIMOS stars
+            # PNe
             "sci_P0": {
                 "prefix": "sci",
                 # "non_observation_cost": 1000,
-                "non_observation_cost": 1000,
+                "non_observation_cost": 1500,
                 "partial_observation_cost": 100000.0
             },
-            # Bright p_member > 0.7
+            # Bright p_member > 0.95
             "sci_P1": {
                 "prefix": "sci",
                 # "non_observation_cost": 775,
                 "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0
             },
-            # Bright p_member > 0.0
+            # Faint p_member > 0.95
             "sci_P2": {
                 "prefix": "sci",
                 "non_observation_cost": 1000,
                 "partial_observation_cost": 100000.0
             },
-            # BHB + AGB + ToRGB
+            # Bright p_member > 0.80
             "sci_P3": {
                 "prefix": "sci",
                 "non_observation_cost": 465,
                 "partial_observation_cost": 100000.0
             },
-            # Blue Stragglers
+            # Faint p_member > 0.80
             "sci_P4": {
                 "prefix": "sci",
                 "non_observation_cost": 360,
                 "partial_observation_cost": 100000.0
             },
-            # Anc 0, Pace, Sestito
+            # Bright p_member > 0.1
             "sci_P5": {
                 "prefix": "sci",
                 "non_observation_cost": 600,
                 "partial_observation_cost": 100000.0
             },
-            # Anc 1
+            # Faint p_member > 0.1
             "sci_P6": {
                 "prefix": "sci",
                 "non_observation_cost": 450,
                 "partial_observation_cost": 100000.0
             },
-            # Anc 2
+            # Anc 1
             "sci_P7": {
                 "prefix": "sci",
                 "non_observation_cost": 350,
                 "partial_observation_cost": 100000.0
             },
-            # Faint dSph members
+            # Anc 2
             "sci_P8": {
                 "prefix": "sci",
                 "non_observation_cost": 130,
@@ -137,7 +137,7 @@ config = dict(
             column_map = {'objid': 'targetid'},
             value_map = {
                 'priority': {
-                    0: 6,
+                    0: 7,
                     1: 7,
                     2: 8
                 }
@@ -169,6 +169,32 @@ config = dict(
                 limits = {
                     'ps1_g': [16, 23],
                     'ps1_i': [16, 23],
+                }
+            )
+        ),
+        "pne": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31.pne.feather",
+            # reader = None
+            reader_args = dict(),
+            #column_map = {'objid': 'targetid'},
+            value_map = {
+                'priority': {
+                    0: 0,
+                }
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "g_cfht": dict(
+                        mag = 'g_cfht',
+                    ),
+                },
+                limits = {
+                    'cfht_g': [16, 24.5],
                 }
             )
         ),
@@ -242,7 +268,7 @@ config = dict(
         # ),
 
         "sky": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_sky.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/m31_sky.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -303,7 +329,7 @@ config = dict(
 
         # MIHO NEW
         "fluxstd": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/{FIELD}_fluxstd.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/m31/M31_fluxstd_sky/m31_fluxstd.feather",
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
