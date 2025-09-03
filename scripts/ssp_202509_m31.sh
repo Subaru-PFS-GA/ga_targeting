@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION="001"
+VERSION="099"
 
 NVISITS=1
 NFRAMES=2
@@ -13,8 +13,8 @@ OBS_RUN="2025-09"
 PROPOSAL_ID="S25B-OT02"
 INPUT_CATALOG_ID="10092"
 
-# EXTRA_OPTIONS="--debug"
-EXTRA_OPTIONS="--skip-notebooks"
+EXTRA_OPTIONS="--debug --skip-notebooks"
+# EXTRA_OPTIONS="--skip-notebooks"
 
 for SECTOR in 'sector_0'; do
 
@@ -49,28 +49,28 @@ for SECTOR in 'sector_0'; do
             ${EXTRA_OPTIONS}
     fi
 
-    rm -Rf "${IMPORT_DIR}"
-    if [ ! -d "$IMPORT_DIR" ]; then
-        ga-import \
-            --m31 ${SECTOR} \
-            --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
-            --exp-time ${EXP_TIME} \
-            --out "${IMPORT_DIR}" \
-            ${EXTRA_OPTIONS}
-    fi
+    # rm -Rf "${IMPORT_DIR}"
+    # if [ ! -d "$IMPORT_DIR" ]; then
+    #     ga-import \
+    #         --m31 ${SECTOR} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
+    #         --exp-time ${EXP_TIME} \
+    #         --out "${IMPORT_DIR}" \
+    #         ${EXTRA_OPTIONS}
+    # fi
 
-    rm -Rf "${NETFLOW_DIR}"
-    if [ ! -d "$NETFLOW_DIR" ]; then
-        ga-netflow \
-            --m31 ${SECTOR} \
-            --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
-            --nvisits ${NVISITS} \
-            --exp-time ${EXP_TIME} \
-            --obs-time ${OBS_TIME} \
-            --in "${IMPORT_DIR}" \
-            --out "${NETFLOW_DIR}" \
-            ${EXTRA_OPTIONS}
-    fi
+    # rm -Rf "${NETFLOW_DIR}"
+    # if [ ! -d "$NETFLOW_DIR" ]; then
+    #     ga-netflow \
+    #         --m31 ${SECTOR} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${CONFIG_FILE} \
+    #         --nvisits ${NVISITS} \
+    #         --exp-time ${EXP_TIME} \
+    #         --obs-time ${OBS_TIME} \
+    #         --in "${IMPORT_DIR}" \
+    #         --out "${NETFLOW_DIR}" \
+    #         ${EXTRA_OPTIONS}
+    # fi
 
     rm -Rf "${EXPORT_DIR}"
     if [ ! -d "$EXPORT_DIR" ]; then
