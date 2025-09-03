@@ -19,7 +19,7 @@ def load_observations(field, config):
     return obs
 
 def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
-                mask=None,
+                mask=None, xlim_deg=[1.75, -3.75], ylim_deg=[-3.75, 1.75],
                 color_by=None, cmap='tab10', label='target priority', title='HSC targets',
                 **kwargs):
 
@@ -63,8 +63,8 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
     for p in pp:
         pfi.plot_focal_plane(axs[2], fov, corners=True, projection=SubaruWFC(p))
 
-    axs[2].set_xlim(1.75, -3.75)
-    axs[2].set_ylim(-3.75, 1.75)
+    axs[2].set_xlim(xlim_deg)
+    axs[2].set_ylim(ylim_deg)
 
     # Put a colorbar under all three subplots
     if l is not None and c is not None:
