@@ -180,6 +180,7 @@ class ImportScript(TargetingScript):
         # Substitute these fields into column patterns
         field_info = dict(
             field=self._config.field.key,               # Field short name, e.g. 'umi'
+            sector=self._config.field.sector,
             target_list=key,                            # Target list key, e.g. 'hsc' or 'fluxstd'
             obs_time=self._config.field.obs_time,
             resolution=self._config.field.resolution,

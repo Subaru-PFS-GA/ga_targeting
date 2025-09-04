@@ -8,6 +8,7 @@ from .pointingconfig import PointingConfig
 class FieldConfig(Config):
     def __init__(self,
                  key: str = None,
+                 sector: str = None,
                  name: str = None,
                  id_prefix: int = None,
                  center: PointingConfig = None,
@@ -19,6 +20,9 @@ class FieldConfig(Config):
         
         # Short name for the main object of the field
         self.key = key
+
+        # Sector within the field, used for M31
+        self.sector = sector
 
         # Full name of the field
         self.name = name

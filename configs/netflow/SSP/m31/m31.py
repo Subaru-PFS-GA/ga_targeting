@@ -13,7 +13,7 @@ extra_columns = {
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "SSP_GA_S25A_{field}_{target_list}_{{targetid:d}}_{resolution}",
+        pattern = "SSP_GA_S25B_{sector}_{target_list}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
@@ -103,8 +103,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31_PFS_22_SSP/sample/m31_PFS_22_SSP_001/hsc_m31_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31_all_SSP/sample/m31_all_SSP/hsc_m31_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},

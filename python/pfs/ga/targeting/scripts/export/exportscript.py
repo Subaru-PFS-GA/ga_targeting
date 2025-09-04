@@ -167,10 +167,15 @@ class ExportScript(TargetingScript):
         return os.path.join(dir, f'{self._config.field.key}_designs.feather')
     
     def __get_field_code(self, stage, pidx, vidx):
-        if stage is None:
-            return f'SSP_{self.__obs_wg}_{self._config.field.key}_P{pidx:02d}V{vidx:02d}'
+        if self._config.field.sector is not None:
+            field = self._config.field.sector
         else:
-            return f'SSP_{self.__obs_wg}_{self._config.field.key}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
+            field = self._config.field.key
+
+        if stage is None:
+            return f'SSP_{self.__obs_wg}_{field}_P{pidx:02d}V{vidx:02d}'
+        else:
+            return f'SSP_{self.__obs_wg}_{field}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
 
     def __get_ppcList_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
