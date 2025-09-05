@@ -14,6 +14,7 @@ class FieldConfig(Config):
                  center: PointingConfig = None,
                  arms: str = None,
                  nvisits: int = None,
+                 nrepeats: int = None,
                  exp_time: float = None,
                  obs_time: datetime = None,
                  resolution: str = None):
@@ -40,6 +41,10 @@ class FieldConfig(Config):
 
         # Number of visits for each pointing.
         self.nvisits = nvisits
+
+        # Number of repeats for each visit with the same design
+        # Assumed 1 of set to None
+        self.nrepeats = nrepeats
 
         # Exposure time for each visit, in seconds.
         self.exp_time = exp_time

@@ -97,6 +97,7 @@ class TargetingScript(Script):
         # The number of visits can be overridden from the command-line argument,
         # see __init_from_args()
         nvisits = self._config.field.nvisits
+        nrepeats = self._config.field.nrepeats
         exp_time = self._config.field.exp_time
         obs_time = self._config.field.obs_time
         
@@ -110,6 +111,8 @@ class TargetingScript(Script):
                     p.exp_time = exp_time
                 if nvisits is not None:
                     p.nvisits = nvisits
+                if nrepeats is not None:
+                    p.nrepeats = nrepeats
                 pointings.append(p)
 
         if len(pointings) == 0:
@@ -117,6 +120,7 @@ class TargetingScript(Script):
         else:
             logger.info(f'Found {len(pointings)} pointings for observation stage {stage}. '
                         f'Number of visits is {nvisits} with exposure time {exp_time} s. '
+                        f'Every visit will be repeated {nrepeats} times. '
                         f'Observation time is {obs_time} UTC.')
             
         return pointings
@@ -158,10 +162,10 @@ class TargetingScript(Script):
 
 
     def _get_id_prefix(self):
-        if self._field is not None and self._field.id_prefix is not None:
-            id_prefix = self._field.id_prefix
-        elif self._config.field.id_prefix is not None:
+        if self._config.field.id_prefix is not None:
             id_prefix = self._config.field.id_prefix
+        elif self._field is not None and self._field.id_prefix is not None:
+            id_prefix = self._field.id_prefix
         else:
             id_prefix = 0
 
@@ -217,6 +221,7 @@ class TargetingScript(Script):
             'pointing_idx': [ v.pointing_idx for v in netflow.visits ],
             'visit_idx': [ v.visit_idx for v in netflow.visits ],
             'priority': [ v.pointing.priority for v in netflow.visits ],
+            'nrepeats': [ v.pointing.nrepeats for v in netflow.visits ],
             'ra': [ v.pointing.ra for v in netflow.visits ],
             'dec': [ v.pointing.dec for v in netflow.visits ],
             'posang': [ v.pointing.posang for v in netflow.visits ],

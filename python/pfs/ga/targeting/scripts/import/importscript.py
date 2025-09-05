@@ -32,6 +32,7 @@ class ImportScript(TargetingScript):
     def __init__(self):
         super().__init__()
 
+        self.__nrepeats = None
         self.__exp_time = None
         self.__obs_time = None
         self.__xmatch_rad = 2           # arcseconds
@@ -45,6 +46,7 @@ class ImportScript(TargetingScript):
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
+        self.add_arg('--nrepeats', type=int, help='Repeat each design this many times.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')        
         self.add_arg('--xmatch-rad', type=float, help='Cross-match radius in arcseconds.')
@@ -65,12 +67,16 @@ class ImportScript(TargetingScript):
         # Load the configuration template files and merge with the default config
         self._load_config_files(args)
 
+        self.__nrepeats = self.get_arg('nrepeats', args, self.__nrepeats)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__xmatch_rad = self.get_arg('xmatch_rad', args, self.__xmatch_rad)
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
+        if self.__nrepeats is not None:
+            self._config.field.nrepeats = self.__nrepeats
+        
         if self.__exp_time is not None:
             self._config.field.exp_time = self.__exp_time
 
@@ -259,7 +265,7 @@ class ImportScript(TargetingScript):
            
         set_extra_column_constant('catid', pd.Int32Dtype(), -1, self._config.targets[key].catid)
         set_extra_column_constant('priority', pd.Int32Dtype(), None, self._config.targets[key].priority)
-        set_extra_column_constant('exp_time', pd.Int32Dtype(), None, self._config.targets[key].exp_time)
+        set_extra_column_constant('exp_time', pd.Float64Dtype(), None, self._config.targets[key].exp_time)
 
         # Create required columns with default values
         if 'targetid' not in target_list.columns:

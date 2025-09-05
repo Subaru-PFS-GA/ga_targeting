@@ -37,6 +37,7 @@ class ExportScript(TargetingScript):
         self.__nan_values = True
         self.__obs_run = '2025-03'
         self.__obs_wg = 'GA'
+        self.__nrepeats = None              # Number of repeats for each visit with the same design
         self.__nframes = 4                  # Number of frame repeats (for CR removal)
         self.__input_catalog_id = None      # Overrides whatever catId is used during fiber assignment
         self.__proposal_id = None           # Overrides whatever proposalId is used during fiber assignment
@@ -54,6 +55,7 @@ class ExportScript(TargetingScript):
 
         self.add_arg('--obs-run', type=str, help='Observation run name.')
         self.add_arg('--obs-wg', type=str, help='SSP working group abbreviation.')
+        self.add_arg('--nrepeats', type=int, help='Repeat each design this many times.')
         self.add_arg('--nframes', type=int, help='Number of frame repeats for CR removal.')
         self.add_arg('--input-catalog-id', type=int, help='Overrides whatever catId is used during fiber assignment.')
         self.add_arg('--proposal-id', type=str, help='Overrides whatever proposalId is used during fiber assignment.')
@@ -72,6 +74,7 @@ class ExportScript(TargetingScript):
         self.__nan_values = self.get_arg('nan_values', args, self.__nan_values)
         self.__obs_run = self.get_arg('obs_run', args, self.__obs_run)
         self.__obs_wg = self.get_arg('obs_wg', args, self.__obs_wg)
+        self.__nrepeats = self.get_arg('nrepeats', args, self.__nrepeats)
         self.__nframes = self.get_arg('nframes', args, self.__nframes)
         self.__input_catalog_id = self.get_arg('input_catalog_id', args, self.__input_catalog_id)
         self.__proposal_id = self.get_arg('proposal_id', args, self.__proposal_id)
@@ -85,6 +88,10 @@ class ExportScript(TargetingScript):
         fn = self.__find_last_dumpfile('*.config')
         logger.info(f'Using input config file `{fn}`')
         self._config = NetflowConfig.from_file(fn, ignore_collisions=True, format='.json')
+
+        # Override the configuration with the command-line arguments
+        if self.__nrepeats is not None:
+            self._config.field.nrepeats = self.__nrepeats
 
         if self.is_arg('dsph', self.__input_args):
             self._field = DSPH_FIELDS[self.get_arg('dsph', self.__input_args)]
@@ -166,16 +173,23 @@ class ExportScript(TargetingScript):
     def _get_design_list_path(self, dir):
         return os.path.join(dir, f'{self._config.field.key}_designs.feather')
     
-    def __get_field_code(self, stage, pidx, vidx):
+    def __get_field_code(self, stage, pidx, vidx, ridx=None):
         if self._config.field.sector is not None:
             field = self._config.field.sector
         else:
             field = self._config.field.key
 
-        if stage is None:
-            return f'SSP_{self.__obs_wg}_{field}_P{pidx:02d}V{vidx:02d}'
-        else:
-            return f'SSP_{self.__obs_wg}_{field}_S{stage:01d}P{pidx:02d}V{vidx:02d}'
+        code = f'SSP_{self.__obs_wg}_{field}_'
+
+        if stage is not None:
+            code += f'S{stage:01d}'
+
+        code += f'P{pidx:02d}V{vidx:02d}'
+
+        if ridx is not None and ridx >= 0:
+            code += f'R{ridx:02d}'
+
+        return code
 
     def __get_ppcList_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
@@ -183,12 +197,26 @@ class ExportScript(TargetingScript):
     def __write_ppcList(self, designs):
         """
         Write the ppcList to a file in the output directory.
+
+        If designs are repeated, they will appear multiple times in the ppcList.
         """
 
-        table = Table()
+        if False:
+            # Generate a list of repeated visits
+            # Iterate over pointing_idx and visit_idx of the designs DataFrame
+            designs = self.__join_with_repeats(designs)
+
+            # Give a name to each visit
+            code = designs[['stage', 'pointing_idx', 'visit_idx', 'repeat_idx']] \
+                .apply(lambda x: self.__get_field_code(
+                    x['stage'], x['pointing_idx'], x['visit_idx'], x['repeat_idx']), axis=1)
+        else:
+            # Give a name to each visit
+            code = designs[['stage', 'pointing_idx', 'visit_idx']] \
+                .apply(lambda x: self.__get_field_code(
+                    x['stage'], x['pointing_idx'], x['visit_idx']), axis=1)
         
-        # Give a name to each visit
-        code = designs[['stage', 'pointing_idx', 'visit_idx']].apply(lambda x: self.__get_field_code(x['stage'], x['pointing_idx'], x['visit_idx']), axis=1)
+        # Red arm mode
         resolution = len(designs) * [ self._config.field.resolution.upper() ]
 
         # Convert to HST
@@ -197,52 +225,60 @@ class ExportScript(TargetingScript):
 
         nframes = code.size * [ self.__nframes ]
 
-        table['ppc_code'] = np.array(code, dtype=str)
-        table['ppc_ra'] = np.array(designs['ra'], dtype=np.float64)
-        table['ppc_dec'] = np.array(designs['dec'], dtype=np.float64)
-        table['ppc_pa'] = np.array(designs['posang'], dtype=np.float32)
-        table['ppc_resolution'] = np.array(resolution, dtype=str)
-        table['ppc_priority'] = np.array(designs['priority'], dtype=np.int32)
-        table['ppc_obstime'] = np.array(obstime, dtype=str)
-        table['ppc_exptime'] = designs['exp_time']
-        table['ppc_nframes'] = np.array(nframes, dtype=np.int32)
-        table['ppc_pfsDesignId'] = np.array(designs['pfsDesignId'].apply(lambda id: f'0x{id:016x}'), dtype=str)
+        ppc_list = Table()
+
+        ppc_list['ppc_code'] = np.array(code, dtype=str)
+        ppc_list['ppc_ra'] = np.array(designs['ra'], dtype=np.float64)
+        ppc_list['ppc_dec'] = np.array(designs['dec'], dtype=np.float64)
+        ppc_list['ppc_pa'] = np.array(designs['posang'], dtype=np.float32)
+        ppc_list['ppc_resolution'] = np.array(resolution, dtype=str)
+        ppc_list['ppc_priority'] = np.array(designs['priority'], dtype=np.int32)
+        ppc_list['ppc_obstime'] = np.array(obstime, dtype=str)
+        
+        if False:
+            ppc_list['ppc_exptime'] = designs['exp_time']
+            ppc_list['ppc_nframes'] = np.array(nframes, dtype=np.int32)
+        else:
+            ppc_list['ppc_exptime'] = np.array(designs['exp_time'] * designs['nrepeats'], dtype=np.float32)
+            ppc_list['ppc_nframes'] = np.array(nframes, dtype=np.int32) * designs['nrepeats']
+        
+        ppc_list['ppc_pfsDesignId'] = np.array(designs['pfsDesignId'].apply(lambda id: f'0x{id:016x}'), dtype=str)
 
         # Add package versions to the meta data
 
         _, _, tag = self.get_last_git_commit(pfs.datamodel)
-        table.meta['datamodel'] = tag
+        ppc_list.meta['datamodel'] = tag
 
         _, _, tag = self.get_last_git_commit(pfs.utils)
-        table.meta['pfs_utils'] = tag
+        ppc_list.meta['pfs_utils'] = tag
 
         _, _, tag = self.get_last_git_commit(ics.cobraCharmer)
-        table.meta['ics_cobraCharmer'] = tag
+        ppc_list.meta['ics_cobraCharmer'] = tag
 
         _, _, tag = self.get_last_git_commit(ics.cobraOps)
-        table.meta['ics_cobraOps'] = tag
+        ppc_list.meta['ics_cobraOps'] = tag
 
         # _, _, tag = self.get_last_git_commit(ets.fiberalloc)
-        table.meta['ets_fiberalloc'] = None
+        ppc_list.meta['ets_fiberalloc'] = None
 
-        table.meta['gurobi'] = '{}.{}.{}'.format(*gurobi.version())
+        ppc_list.meta['gurobi'] = '{}.{}.{}'.format(*gurobi.version())
 
         # _, _, tag = self.get_last_git_commit(pfs.utils)
         # table.meta['Bench'] = tag
 
         _, _, tag = self.get_last_git_commit(pfs.instdata)
-        table.meta['pfs_instdata'] = tag
+        ppc_list.meta['pfs_instdata'] = tag
 
         hash, _, _ = self.get_last_git_commit(pfs.ga.targeting)
-        table.meta['ga_targeting'] = hash
+        ppc_list.meta['ga_targeting'] = hash
 
         # Add runtime options to the meta data
 
-        table.meta['cobra safety margin'] = self._config.netflow_options.cobra_safety_margin
-        table.meta['cobra maximum distance'] = self._config.netflow_options.cobra_maximum_distance
-        table.meta['dot margin'] = self._config.instrument_options.black_dot_radius_margin
-        table.meta['dot penalty'] = self._config.netflow_options._NetflowOptionsConfig__black_dot_penalty_str
-        table.meta['gurobi_parameters'] = [
+        ppc_list.meta['cobra safety margin'] = self._config.netflow_options.cobra_safety_margin
+        ppc_list.meta['cobra maximum distance'] = self._config.netflow_options.cobra_maximum_distance
+        ppc_list.meta['dot margin'] = self._config.instrument_options.black_dot_radius_margin
+        ppc_list.meta['dot penalty'] = self._config.netflow_options._NetflowOptionsConfig__black_dot_penalty_str
+        ppc_list.meta['gurobi_parameters'] = [
             self._config.gurobi_options.seed,
             self._config.gurobi_options.presolve,
             self._config.gurobi_options.method,
@@ -256,7 +292,34 @@ class ExportScript(TargetingScript):
 
         fn = self.__get_ppcList_path()
         os.makedirs(os.path.dirname(fn), exist_ok=True)
-        table.write(fn)
+        ppc_list.write(fn)
+
+    def __join_with_repeats(self, designs):
+        # Generate a list of repeated visits
+        # Iterate over pointing_idx and visit_idx of the designs DataFrame
+        pointing_idx = []
+        visit_idx = []
+        repeat_idx = []
+        for pidx, vidx, nrepeats in designs[['pointing_idx', 'visit_idx', 'nrepeats']].itertuples(index=False):
+            if nrepeats is None or nrepeats == 1:
+                pointing_idx.append(pidx)
+                visit_idx.append(vidx)
+                repeat_idx.append(-1)
+            else:
+                for ridx in range(nrepeats):
+                    pointing_idx.append(pidx)
+                    visit_idx.append(vidx)
+                    repeat_idx.append(ridx)
+
+        repeats = pd.DataFrame({
+            'pointing_idx': pointing_idx,
+            'visit_idx': visit_idx,
+            'repeat_idx': repeat_idx
+        })
+
+        return designs.set_index(['pointing_idx', 'visit_idx']) \
+            .join(repeats.set_index(['pointing_idx', 'visit_idx'])) \
+            .reset_index()
 
     def __get_flux_by_band(self, assignments_all):
 

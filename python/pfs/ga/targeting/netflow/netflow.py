@@ -419,7 +419,7 @@ class Netflow():
                 m = re.match(r'T_Tv_(\d+)\[(\d+)\]', f.varName)
                 vidx = int(m.group(1))
                 tidx = int(m.group(2))
-                self.__variables.T_o[tidx].append(f)
+                self.__variables.T_o[tidx].append((f, vidx))
                 self.__variables.Tv_i[(tidx, vidx)] = f
             elif f.varName.startswith('Tv_Cv'):         # Tv_Cv_0_0[22810]
                 m = re.match(r'Tv_Cv_(\d+)_(\d+)\[(\d+)\]', f.varName)
@@ -1645,14 +1645,16 @@ class Netflow():
 
     def __validate_target_visits(self):
         """
-        Make sure that there are not targets that would require more visits then availables
+        Make sure that there are no targets that would require more visits then availables
         """
 
         # TODO: take done_visits into account
 
         max_req_visits = self.__targets['req_visits'].max()
         for p in self.__pointings:
-            if p.nvisits < max_req_visits:
+            nvisits = p.nvisits if p.nvisits is not None else 1
+            nrepeats = p.nrepeats if p.nrepeats is not None else 1
+            if nvisits * nrepeats < max_req_visits:
                 raise NetflowException('Some science targets require more visits than provided.')
 
     def __cache_targets(self):
@@ -1719,14 +1721,28 @@ class Netflow():
              self.__cache_to_target_map) = pickle.load(f)
 
     def __create_visits(self):
+        """
+        Create the list of visits from the pointings.
+        """
+
         self.__visits = []
         visit_idx = 0
         for pointing_idx, p in enumerate(self.__pointings):
+            if p.nrepeats is None:
+                p.nrepeats = 1
+
             for i in range(p.nvisits):
                 # TODO: define cost to prefer early or late observation of targets
                 v = Visit(visit_idx, pointing_idx, p, visit_cost=0)
                 self.__visits.append(v)
                 visit_idx += 1
+
+    def __get_max_visits(self):
+        # Taking into repeast, return the maximum number of visits
+        max_visits = 0
+        for visit in self.__visits:
+            max_visits += visit.pointing.nrepeats
+        return max_visits
 
     def __calculate_target_fp_pos(self):
         """
@@ -2156,10 +2172,12 @@ class Netflow():
     def __create_T_sink(self, tidx, target_class):
         """
         Create the sink variable which is responsible for draining the flow from the target nodes
-        which get less visits than required
+        which get less visits than required.
+
+        The maximum number of visits must take the number of repeats into account.
         """
 
-        max_visits = len(self.__visits)
+        max_visits = self.__get_max_visits()
         T_sink =  self.__add_variable_array('T_sink', tidx, 0, max_visits)
 
         for i in range(len(tidx)):
@@ -2222,7 +2240,7 @@ class Netflow():
         vars = self.__add_variable_array(self.__make_name('T_Tv', visit.visit_idx), tidx, 0, 1)
         for ti in tidx:
             f = vars[ti]
-            self.__variables.T_o[ti].append(f)
+            self.__variables.T_o[ti].append((f, visit.visit_idx))
             self.__variables.Tv_i[(ti, visit.visit_idx)] = f
             
     def __create_CTCv_Tv(self, visit, tidx):
@@ -2564,20 +2582,27 @@ class Netflow():
         # TODO: handle already observed targets here
 
         allow_more_visits = self.__get_netflow_option(self.__netflow_options.allow_more_visits, False)
+        max_visits = self.__get_max_visits()
 
         for tidx, T_o in self.__variables.T_o.items():
+            # Number of repeats of the visit comes from the pointing
+            out_vars = []
+            out_repeats = []
+            for f, vidx in T_o:
+                out_vars.append(f)
+                out_repeats.append(-self.__visits[vidx].pointing.nrepeats)
+
             T_i = self.__variables.T_i[tidx]
             T_sink = self.__variables.T_sink[tidx]
             req_visits = self.__target_cache.req_visits[tidx]
             done_visits = self.__target_cache.done_visits[tidx]
-            max_visits = len(self.__visits)
 
             if not allow_more_visits:
                 # Require an exact number of visits
                 name = self.__make_name("T_i_T_o_sum", tidx)
                 # constr = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) == done_visits
-                constr = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
-                          [ T_i ] + T_o + [ T_sink ], '==', done_visits)
+                constr = ([ req_visits ] + out_repeats + [ -1 ],
+                          [ T_i ] + out_vars + [ T_sink ], '==', done_visits)
                 self.__constraints.T_i_T_o_sum[tidx] = constr
                 self.__add_constraint(name, constr)
             else:
@@ -2588,15 +2613,15 @@ class Netflow():
                 # The number of visits (together with the number of already done visits) must be
                 # at least the number of required visits
                 # constr0 = self.__problem.sum([ req_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) <= done_visits
-                constr0 = ([ req_visits ] + [ -1 for _ in T_o ] + [ -1 ],
-                           [ T_i ] + T_o + [ T_sink ], '<=', done_visits)
+                constr0 = ([ req_visits ] + out_repeats + [ -1 ],
+                           [ T_i ] + out_vars + [ T_sink ], '<=', done_visits)
 
                 # The total number of outgoing edges must not be larger, together with the sink,
                 # than the number of visits. This is true regardless how many visits have been done so far,
                 # so done_visits doesn't play a role here.
                 # constr1 = self.__problem.sum([ max_visits * T_i ] + [ -v for v in T_o ] + [ -T_sink ]) >= 0
-                constr1 = ([ max_visits ] + [ -1 for _ in T_o ] + [ -1 ],
-                           [ T_i ] + T_o + [ T_sink ], '>=', 0)
+                constr1 = ([ max_visits ] + out_repeats + [ -1 ],
+                           [ T_i ] + out_vars + [ T_sink ], '>=', 0)
 
                 self.__constraints.T_i_T_o_sum[(tidx, 0)] = constr0
                 self.__constraints.T_i_T_o_sum[(tidx, 1)] = constr1
@@ -2610,7 +2635,8 @@ class Netflow():
 
             name = self.__make_name("Tv_i_Tv_o_sum", tidx, vidx)
             # constr = self.__problem.sum([ v for v in in_vars ] + [ -v[0] for v in out_vars ]) == 0
-            constr = ([ 1 ] + [ -1 ] * len(out_vars), [ in_var ] + [ v for v, _ in out_vars ], '==', 0)
+            constr = ([ 1 ] + len(out_vars) * [ -1 ],
+                      [ in_var ] + [ v for v, _ in out_vars ], '==', 0)
             self.__constraints.Tv_i_Tv_o_sum[(tidx, vidx)] = constr
             self.__add_constraint(name, constr)
 
@@ -2767,6 +2793,10 @@ class Netflow():
             # Create a list of fiber indices, then sort them and make sure there's no duplicates
             assert not np.any(np.diff(np.sort([ cidx for tidx, cidx in self.__target_assignments[vidx].items() ])) == 0)
 
+        # Report the number of assignments in the log
+        total_assigned = sum(len(ta) for ta in self.__target_assignments)
+        logger.info(f"Assigned {total_assigned} targets over {nvisits} visits.")
+
     def update_done_visits(self):
         """
         Update the number of done visits in the targets data frame.
@@ -2780,7 +2810,7 @@ class Netflow():
             tidx = self.__cache_to_target_map[tidx]
 
             # Update the number of done visits
-            self.__targets.loc[tidx, 'done_visits'] = self.__targets.loc[tidx, 'done_visits'] + 1
+            self.__targets.loc[tidx, 'done_visits'] = self.__targets.loc[tidx, 'done_visits'] + visit.pointing.nrepeats
 
     def simulate_collisions(self):
         """
@@ -3115,7 +3145,8 @@ class Netflow():
         """
 
         all_assignments, all_fiberids = self.get_fiber_assignments_masks()
-        num_assignments = np.sum(np.stack(all_assignments, axis=-1), axis=-1)
+        repeats = np.array([ v.pointing.nrepeats for v in self.__visits ], dtype=int)
+        num_assignments = np.sum(repeats * np.stack(all_assignments, axis=-1), axis=-1)
 
         targets = self.__targets.copy()
         targets['num_visits'] = num_assignments

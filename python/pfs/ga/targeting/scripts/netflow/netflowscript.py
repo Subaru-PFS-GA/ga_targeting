@@ -81,6 +81,7 @@ class NetflowScript(TargetingScript):
         self.__resume = False
         self.__stage = None
         self.__nvisits = None
+        self.__nrepeats = None
         self.__exp_time = None
         self.__obs_time = None
         self.__time_limit = None
@@ -99,6 +100,7 @@ class NetflowScript(TargetingScript):
         self.add_arg('--resume', action='store_true', help='Resume from a previous run.')
         self.add_arg('--stage', type=int, nargs='*', help='Stage of observations.')
         self.add_arg('--nvisits', type=int, help='Number of visits for each pointing.')
+        self.add_arg('--nrepeats', type=int, help='Repeat each design this many times.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')
         self.add_arg('--time-limit', type=int, help='Time limit for the optimization in seconds.')
@@ -126,6 +128,7 @@ class NetflowScript(TargetingScript):
 
         self.__stage = self.get_arg('stage', args, self.__stage)
         self.__nvisits = self.get_arg('nvisits', args, self.__nvisits)
+        self.__nrepeats = self.get_arg('nrepeats', args, self.__nrepeats)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
         self.__time_limit = self.get_arg('time_limit', args, self.__time_limit)
@@ -135,6 +138,11 @@ class NetflowScript(TargetingScript):
         # Override the configuration with the command-line arguments
         if self.__nvisits is not None:
             self._config.field.nvisits = self.__nvisits
+
+        if self.__nrepeats is not None:
+            self._config.field.nrepeats = self.__nrepeats
+            for p in self._config.pointings:
+                p.nrepeats = self.__nrepeats
 
         if self.__exp_time is not None:
             self._config.field.exp_time = self.__exp_time
