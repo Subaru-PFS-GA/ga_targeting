@@ -216,25 +216,8 @@ class M31(Galaxy):
             nvisits = 10,
             exp_time = 30 * 60.,        # 5 hr total
             obs_time = datetime(2025, 9, 13, 23, 0, 0) + timedelta(hours=10),
-            resolution = 'm',
+            resolution = 'm'
         )
-
-    def get_filter_map(self):
-        """
-        Return a dictionary that maps between filter names used internally and the actual
-        filter names that are to be written into the exported target lists and design files.
-
-        This is just a final hack because propagating the new filter names through the stack
-        can take a significant effort. 
-        """
-
-        # What HSC filters were used to observe M31?
-        filter_map = {
-            # 'r_hsc': 'r2_hsc',
-            # 'i_hsc': 'i2_hsc',
-        }
-
-        return filter_map
     
     def lookup_ml_prob(self, catalog: Catalog, mask=None):
         """

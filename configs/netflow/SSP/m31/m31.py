@@ -113,12 +113,16 @@ config = dict(
             catid = CATID_SCIENCE_GA,
             extra_columns = extra_columns,
             photometry = dict(
+                # These are actually CHFT magnitudes!
+                # i mag is the old version of the megacam i filter
+                # we override filter names here so that they are written into
+                # the design files correctly
                 filters = {
-                    "g_hsc": dict(
+                    "g_cfht": dict(
                         mag = 'obs_hsc_g',
                         mag_err = 'err_hsc_g',
                     ),
-                    "i_hsc": dict(
+                    "i_cfht": dict(
                         mag = 'obs_hsc_i',
                         mag_err = 'err_hsc_i',
                     ),

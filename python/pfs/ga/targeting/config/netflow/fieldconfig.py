@@ -17,7 +17,8 @@ class FieldConfig(Config):
                  nrepeats: int = None,
                  exp_time: float = None,
                  obs_time: datetime = None,
-                 resolution: str = None):
+                 resolution: str = None,
+                 filter_map: Dict[str, str] = None):
         
         # Short name for the main object of the field
         self.key = key
@@ -54,6 +55,13 @@ class FieldConfig(Config):
         # The pfsDesign files will be further tweaked to position the fibers to the correct positions.
         self.obs_time = obs_time
 
+        # Spectral resolution, "low" or "medium" in the red arm
         self.resolution = resolution
+
+        # Map from the filter names used in the input catalogs to the filter names
+        # used in the pfsDesign files.
+        # TODO: this is not the best way of mapping filter names because the input files can
+        #       use different filters with the same name. We need to keep it for backward compatibility.
+        self.filter_map = filter_map
 
         super().__init__()

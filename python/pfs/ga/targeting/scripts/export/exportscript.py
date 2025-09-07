@@ -336,12 +336,19 @@ class ExportScript(TargetingScript):
             'rp_gaia': 'r',
             'g_hsc': 'g',
             'r_hsc': 'r',
+            'r2_hsc': 'r',
             'i_hsc': 'i',
+            'i2_hsc': 'i',
+            'g_cfht': 'g',
+            'r_cfht': 'r',
+            'i_cfht': 'i',
+            'z_cfht': 'z',
+            'u_cfht': 'b',  # CFHT u* is sometimes mapped to 'b' or 'u'
+            'y_cfht': 'y',
         }
 
-        # TODO: is this map valid for all GA fields?
-        if self._field is not None:
-            filter_map = self._field.get_filter_map()
+        if self._config.field.filter_map is not None:
+            filter_map = self._config.field.filter_map
         else:
             filter_map = {}
 
