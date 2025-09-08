@@ -133,8 +133,10 @@ class ExportScript(TargetingScript):
         # Load the final, merged assignments list
         assignments = self._load_fiber_assignments_all_list()
 
+        designs = self.__generate_ppc_code(designs)
+
         # Save the list of pointings and netflow options
-        self.__write_ppcList(designs)
+        self.__write_ppc_list(designs)
 
         # Save the list of targets
         self.__write_assignments(designs, assignments)
@@ -191,30 +193,33 @@ class ExportScript(TargetingScript):
 
         return code
 
-    def __get_ppcList_path(self):
+    def __get_ppc_list_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
     
-    def __write_ppcList(self, designs):
-        """
-        Write the ppcList to a file in the output directory.
-
-        If designs are repeated, they will appear multiple times in the ppcList.
-        """
-
-        if False:
+    def __generate_ppc_code(self, designs):
+        if self._config.export_options is not None and self._config.export_options.export_repeats:
             # Generate a list of repeated visits
             # Iterate over pointing_idx and visit_idx of the designs DataFrame
             designs = self.__join_with_repeats(designs)
 
             # Give a name to each visit
-            code = designs[['stage', 'pointing_idx', 'visit_idx', 'repeat_idx']] \
+            designs['ppc_code'] = designs[['stage', 'pointing_idx', 'visit_idx', 'repeat_idx']] \
                 .apply(lambda x: self.__get_field_code(
                     x['stage'], x['pointing_idx'], x['visit_idx'], x['repeat_idx']), axis=1)
         else:
             # Give a name to each visit
-            code = designs[['stage', 'pointing_idx', 'visit_idx']] \
+            designs['ppc_code'] = designs[['stage', 'pointing_idx', 'visit_idx']] \
                 .apply(lambda x: self.__get_field_code(
                     x['stage'], x['pointing_idx'], x['visit_idx']), axis=1)
+
+        return designs
+    
+    def __write_ppc_list(self, designs):
+        """
+        Write the ppcList to a file in the output directory.
+
+        If designs are repeated, they will appear multiple times in the ppcList.
+        """
         
         # Red arm mode
         resolution = len(designs) * [ self._config.field.resolution.upper() ]
@@ -223,11 +228,11 @@ class ExportScript(TargetingScript):
         hawaii_tz = TimeDelta(-10 * u.hr)
         obstime = designs['obs_time'].apply(lambda t: (Time(t) + hawaii_tz).iso.replace(' ', 'T'))
 
-        nframes = code.size * [ self.__nframes ]
+        nframes = len(designs) * [ self.__nframes ]
 
         ppc_list = Table()
 
-        ppc_list['ppc_code'] = np.array(code, dtype=str)
+        ppc_list['ppc_code'] = np.array(designs['ppc_code'], dtype=str)
         ppc_list['ppc_ra'] = np.array(designs['ra'], dtype=np.float64)
         ppc_list['ppc_dec'] = np.array(designs['dec'], dtype=np.float64)
         ppc_list['ppc_pa'] = np.array(designs['posang'], dtype=np.float32)
@@ -235,7 +240,7 @@ class ExportScript(TargetingScript):
         ppc_list['ppc_priority'] = np.array(designs['priority'], dtype=np.int32)
         ppc_list['ppc_obstime'] = np.array(obstime, dtype=str)
         
-        if False:
+        if self._config.export_options is not None and self._config.export_options.export_repeats:
             ppc_list['ppc_exptime'] = designs['exp_time']
             ppc_list['ppc_nframes'] = np.array(nframes, dtype=np.int32)
         else:
@@ -290,7 +295,7 @@ class ExportScript(TargetingScript):
             self._config.gurobi_options.threads,
         ]
 
-        fn = self.__get_ppcList_path()
+        fn = self.__get_ppc_list_path()
         os.makedirs(os.path.dirname(fn), exist_ok=True)
         ppc_list.write(fn)
 
@@ -325,6 +330,7 @@ class ExportScript(TargetingScript):
 
         # TODO: move these dictionaries to some kind of settings file or config section and make
         #       them the default
+        # TODO: these should go into export options config
         filter_bands = {
             'g_ps1': 'g',
             'r_ps1': 'r',
@@ -347,8 +353,8 @@ class ExportScript(TargetingScript):
             'y_cfht': 'y',
         }
 
-        if self._config.field.filter_map is not None:
-            filter_map = self._config.field.filter_map
+        if self._config.export_options is not None and self._config.export_options.filter_map is not None:
+            filter_map = self._config.export_options.filter_map
         else:
             filter_map = {}
 
@@ -378,20 +384,21 @@ class ExportScript(TargetingScript):
     def __write_assignments(self, designs, assignments):
 
         for target_type in [ TargetType.SCIENCE, TargetType.FLUXSTD, TargetType.SKY ]:
-            for i, (stage, pidx, vidx) in designs[['stage', 'pointing_idx', 'visit_idx']].iterrows():
-                field_code = self.__get_field_code(stage, pidx, vidx)
-
+            for i, (stage, pidx, vidx, ridx, ppc_code) in \
+                designs[['stage', 'pointing_idx', 'visit_idx', 'repeat_idx', 'ppc_code']].iterrows():
+                
                 table = Table()
                 
                 # Target list meta data
 
                 mask = ((designs['pointing_idx'] == pidx) &
-                        (designs['visit_idx'] == vidx))
+                        (designs['visit_idx'] == vidx) &
+                        (designs['repeat_idx'] == ridx))
                 
                 if stage is not None:
                     mask &= (designs['stage'] == stage)
 
-                table.meta['ppc_code'] = field_code
+                table.meta['ppc_code'] = ppc_code
                 table.meta['ppc_ra'] = designs[mask]['ra'].item()
                 table.meta['ppc_dec'] = designs[mask]['dec'].item()
                 table.meta['ppc_pa'] = designs[mask]['posang'].item()
@@ -491,7 +498,7 @@ class ExportScript(TargetingScript):
                 table['pfi_X'] = pfi_x
                 table['pfi_Y'] = pfi_y
 
-                fn = self.__get_targets_path(target_type, field_code)
+                fn = self.__get_targets_path(target_type, ppc_code)
                 os.makedirs(os.path.dirname(fn), exist_ok=True)
                 table.write(fn)
 
