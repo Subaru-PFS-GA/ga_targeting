@@ -547,8 +547,9 @@ class SubaruPFI(Instrument, FiberAllocator):
         arp = np.angle(rel_fp_pos)
 
         # This might generate warnings because we don't filter on unreachable targets yet
-        ang1 = np.arccos((L1_2 + L2_2 - d_2) / (2 * L1 * L2))
-        ang2 = np.arccos((L1_2 + d_2 - L2_2) / (2 * L1 * d))
+        with np.errstate(invalid='ignore'):
+            ang1 = np.arccos((L1_2 + L2_2 - d_2) / (2 * L1 * L2))
+            ang2 = np.arccos((L1_2 + d_2 - L2_2) / (2 * L1 * d))
         
         phi_in = self.__bench.cobras.phiIn[cobraidx][batch_shape] + np.pi
         phi_out = self.__bench.cobras.phiOut[cobraidx][batch_shape] + np.pi
