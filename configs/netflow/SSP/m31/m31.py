@@ -101,6 +101,9 @@ config = dict(
             )
         }
     ),
+    export_options = dict(
+        export_repeats = True,
+    ),
     targets = {
         "hsc": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/m31/m31_all_SSP/sample/m31_all_SSP/hsc_m31_priorities.feather",

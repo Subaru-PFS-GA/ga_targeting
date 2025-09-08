@@ -9,6 +9,7 @@ from .netflowoptionsconfig import NetflowOptionsConfig
 from ..instrument.instrumentoptionsconfig import InstrumentOptionsConfig
 from .gurobioptionsconfig import GurobiOptionsConfig
 from .debugoptionsconfig import DebugOptionsConfig
+from ..export.exportoptionsconfig import ExportOptionsConfig
 
 class NetflowConfig(Config):
     def __init__(self,
@@ -18,7 +19,9 @@ class NetflowConfig(Config):
                  netflow_options: NetflowOptionsConfig = NetflowOptionsConfig(),
                  instrument_options: InstrumentOptionsConfig = InstrumentOptionsConfig(),
                  gurobi_options: GurobiOptionsConfig = GurobiOptionsConfig(),
-                 debug_options: DebugOptionsConfig = DebugOptionsConfig()):
+                 debug_options: DebugOptionsConfig = DebugOptionsConfig(),
+                 export_options: ExportOptionsConfig = ExportOptionsConfig()
+    ):
         
         self.field = field
         self.pointings = pointings
@@ -27,6 +30,7 @@ class NetflowConfig(Config):
         self.instrument_options = instrument_options
         self.gurobi_options = gurobi_options
         self.debug_options = debug_options
+        self.export_options = export_options
         
         super().__init__()
 
@@ -36,10 +40,5 @@ class NetflowConfig(Config):
         Create a default configuration.
         """
 
-        config = NetflowConfig()
-        config.netflow_options = NetflowOptionsConfig.default()
-        config.instrument_options = InstrumentOptionsConfig.default()
-        config.gurobi_options = GurobiOptionsConfig.default()
-        config.debug_options = DebugOptionsConfig.default()
-        
+        config = NetflowConfig()        
         return config
