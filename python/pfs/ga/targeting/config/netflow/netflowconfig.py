@@ -41,4 +41,10 @@ class NetflowConfig(Config):
         """
 
         config = NetflowConfig()        
+        config.netflow_options = NetflowOptionsConfig.default()
+        config.instrument_options = InstrumentOptionsConfig.default()
+        config.gurobi_options = GurobiOptionsConfig.default()
+        config.debug_options = DebugOptionsConfig.default()
+        config.export_options = ExportOptionsConfig.default()
+
         return config
