@@ -23,7 +23,7 @@ class InstrumentOptionsConfig(Config):
 
         # The margin factor in radius of the black dots to avoid in fiber allocation.
         # This parameter is passed to the `Bench` object.
-        self.black_dot_radius_margin = 1.0
+        self.black_dot_radius_margin = 1.65
 
         # List of the spectgraph modules to be used.
         self.spectrograph_modules = [1, 2, 3, 4]
