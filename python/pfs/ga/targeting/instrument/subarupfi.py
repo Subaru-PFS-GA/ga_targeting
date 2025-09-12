@@ -68,7 +68,7 @@ class SubaruPFI(Instrument, FiberAllocator):
     fiber_map_cache = {}
     bench_cache = {}
 
-    def __init__(self, projection=None, instrument_options=None, orig=None):
+    def __init__(self, projection=None, instrument_options=None, use_cached_bench=True, orig=None):
         from ..config.instrument.instrumentoptionsconfig import InstrumentOptionsConfig
         
         Instrument.__init__(self, orig=orig)
@@ -85,7 +85,7 @@ class SubaruPFI(Instrument, FiberAllocator):
             self.__instrument_options = orig.__instrument_options
 
         self.__fiber_map, self.__blocked_fibers = self.__load_grand_fiber_map()
-        self.__bench, self.__cobra_coach, self.__calib_model = self.__create_bench()
+        self.__bench, self.__cobra_coach, self.__calib_model = self.__create_bench(use_cached_bench=use_cached_bench)
 
     #region Properties
 
@@ -171,10 +171,10 @@ class SubaruPFI(Instrument, FiberAllocator):
         calib_model = butler.get('moduleXml', moduleName='ALL', version='')
         return calib_model
     
-    def __create_bench(self):
+    def __create_bench(self, use_cached_bench=True):
         layout = self.__get_instrument_option(self.__instrument_options.layout, 'full')
 
-        if layout in SubaruPFI.bench_cache:
+        if use_cached_bench and layout in SubaruPFI.bench_cache:
             logger.info(f"Getting the bench from cache.")
             bench = SubaruPFI.bench_cache[layout]
         else:
@@ -194,6 +194,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         Create a bench object with real instrument configuration.
         """
         
+        layout = self.__get_instrument_option(self.__instrument_options.layout, 'calibration')
         pfs_instdata_path = self.__get_instrument_option(self.__instrument_options.instdata_path, SubaruPFI.DEFAULT_INSTDATA_PATH)
         pfs_black_dots_path = self.__get_instrument_option(self.__instrument_options.blackdots_path, SubaruPFI.DEFAULT_BLACK_DOTS_PATH)
         cobra_coach_dir = self.__get_instrument_option(self.__instrument_options.cobra_coach_dir, SubaruPFI.DEFAULT_COBRA_COACH_DIR)
@@ -230,12 +231,15 @@ class SubaruPFI(Instrument, FiberAllocator):
         for cobra_id in range(calib_model.nCobras):
             if cobra_id not in cobra_ids_use:
                 calib_model.status[cobra_id] = ~PFIDesign.COBRA_OK_MASK
+                logger.info(f"Excluding cobraId {cobra_id}.")
         
         # Get the black dots calibration product
         black_dots_calibration_product = BlackDotsCalibrationProduct(pfs_black_dots_path)
 
         bench = Bench(
-            cobraCoach=cobra_coach,
+            layout=layout,
+            calibrationProduct=calib_model,
+            # cobraCoach=cobra_coach,
             blackDotsCalibrationProduct=black_dots_calibration_product,
             blackDotsMargin=black_dot_radius_margin,
         )
@@ -249,40 +253,47 @@ class SubaruPFI(Instrument, FiberAllocator):
 
         ignore_calibration_errors = self.__get_instrument_option(self.__instrument_options.ignore_calibration_errors, False)
 
-        # Set some dummy center positions and phi angles for those cobras that have
-        # zero centers
-        zero_centers = calib_model.centers == 0
-        if zero_centers.any():
-            msg = f"Cobras with zero centers: {np.sum(zero_centers)}"
-            if not ignore_calibration_errors:
-                raise ValueError(msg)
-            else:
-                calib_model.centers[zero_centers] = np.arange(np.sum(zero_centers)) * 300j
-                calib_model.phiIn[zero_centers] = -np.pi
-                calib_model.phiOut[zero_centers] = 0
-                logger.warning(msg)
-                
-        # Use the median value link lengths in those cobras with zero link lengths
-        zero_link_lengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
-        if zero_link_lengths.any():
-            msg = f"Cobras with zero link lengths: {np.sum(zero_link_lengths)}"
-            if not ignore_calibration_errors:
-                raise ValueError(msg)
-            else:
-                calib_model.L1[zero_link_lengths] = np.median(calib_model.L1[~zero_link_lengths])
-                calib_model.L2[zero_link_lengths] = np.median(calib_model.L2[~zero_link_lengths])
-                logger.warning(msg)
+        if not ignore_calibration_errors:
+            # Run a few quick tests which were required in the past
+            zero_centers = calib_model.centers == 0
+            zero_link_lengths = (calib_model.L1 == 0) | (calib_model.L2 == 0)
+            too_long_link_lengths = (calib_model.L1 > 50) | (calib_model.L2 > 50)
 
-        # Use the median value link lengths in those cobras with too long link lengths
-        too_long_link_lengths = (calib_model.L1 > 100) | (calib_model.L2 > 100)
-        if too_long_link_lengths.any():
-            msg = f"Cobras with too long link lengths: {np.sum(too_long_link_lengths)}"
-            if not ignore_calibration_errors:
-                raise ValueError(msg)
-            else:
-                calib_model.L1[too_long_link_lengths] = np.median(calib_model.L1[~too_long_link_lengths])
-                calib_model.L2[too_long_link_lengths] = np.median(calib_model.L2[~too_long_link_lengths])
-                logger.warning(msg)
+            assert zero_centers.sum() == 0
+            assert zero_link_lengths.sum() == 0
+            assert too_long_link_lengths.sum() == 0
+
+            # Cobras with broken motor, we don't know where they are
+            bad_cobras = (calib_model.status & (calib_model.COBRA_BROKEN_PHI_MASK |
+                                          calib_model.COBRA_BROKEN_THETA_MASK |
+                                          calib_model.COBRA_BROKEN_MOTOR_MASK)) != 0
+            
+            assert all(calib_model.phiIn[bad_cobras] == 0.0)
+            assert all(calib_model.phiOut[bad_cobras] == -np.pi)
+            assert all(calib_model.tht0[bad_cobras] == 0.0)
+            assert all(calib_model.tht1[bad_cobras] == 0.0)
+
+            # Cobras with broken fibers, these move but cannot be tracked by the MCS
+            # We have a position but we're not sure they're there
+            invisible_cobras = (calib_model.status & calib_model.COBRA_INVISIBLE_MASK) != 0
+
+            # TODO: verify?
+
+            broken_fibers = (calib_model.status & calib_model.FIBER_BROKEN_MASK) != 0
+
+            # TODO: verify?
+
+        # bad_cobras = calib_model.status != calib_model.COBRA_OK_MASK
+
+        # # Set some dummy center positions and phi angles for those cobras that have zero centers
+        # if bad_cobras.any():
+        #     msg = f"Bad cobras: {np.sum(bad_cobras)}"
+        #     # calib_model.centers[zero_centers] = np.arange(np.sum(zero_centers)) * 300j
+        #     calib_model.phiIn[bad_cobras] = -np.pi
+        #     calib_model.phiOut[bad_cobras] = 0
+        #     calib_model.tht0[bad_cobras] = 0
+        #     calib_model.tht1[bad_cobras] = (2.1 * np.pi) % (2 * np.pi)
+        #     logger.warning(msg)
 
     def get_cobra_centers(self):
         centers = np.array([self.__bench.cobras.centers.real, self.__bench.cobras.centers.imag]).T
@@ -352,7 +363,8 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         batch_shape = (Ellipsis,) + (ndim - cobraidx.ndim) * (None,)
         centers = self.__bench.cobras.centers[cobraidx][batch_shape]
-        bad_cobra = ~self.__bench.cobras.isGood[cobraidx][batch_shape]
+        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
+        # bad_cobra = ~self.__bench.cobras.isGood[cobraidx][batch_shape]
         L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
         L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
 

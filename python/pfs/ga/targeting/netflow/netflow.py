@@ -367,6 +367,10 @@ class Netflow():
         fn = self.__get_targets_filename(filename)
         self.__targets = pd.read_feather(fn)
 
+        # For compatibility, add the column non_observation_cost if it doesn't exist
+        if 'non_observation_cost' not in self.__targets.columns:
+            self.__targets['non_observation_cost'] = 0
+
         logger.debug(f'Loaded targets from `{fn}`.')
 
     def load_problem(self, filename=None, options=None):
@@ -745,7 +749,8 @@ class Netflow():
 
         for cidx in range(self.__bench.cobras.nCobras):
             # Skip broken cobras
-            if ~self.__bench.cobras.isGood[cidx]:
+            # if ~self.__bench.cobras.isGood[cidx]:
+            if self.__bench.cobras.hasProblem[cidx]:
                 continue
 
             # Array of target focal plane coordinate indices for each target
@@ -763,7 +768,7 @@ class Netflow():
                 if self.__black_dots is not None:
                     black_dot_center = self.__black_dots.black_dot_center[cidx]
                     black_dot_radius = self.__black_dots.black_dot_radius[cidx]
-                    black_dot_dist = np.sqrt(np.abs(fp_pos[fpidx] - black_dot_center[..., None]))
+                    black_dot_dist = np.abs(fp_pos[fpidx] - black_dot_center[..., None])
 
                     # Target must be far from all black nearby black dots
                     black_dot_mask = np.all(black_dot_dist > black_dot_radius[..., None], axis=0)
@@ -771,6 +776,7 @@ class Netflow():
                     black_dot_mask = None
 
                 # Filter out targets too close to the circumference of the patrol region
+                # self._Netflow__target_cache.target_idx[fpidx_to_tidx_map[fpidx]]
                 if cobra_safety_margin is not None and cobra_safety_margin > 0:
                     rmin = self.__bench.cobras.rMin[cidx] + cobra_safety_margin
                     rmax = self.__bench.cobras.rMax[cidx] - cobra_safety_margin
@@ -918,7 +924,8 @@ class Netflow():
                         
                         ntidx = np.unique(ntidx)
                         nfp = fp_pos[tidx_to_fpidx_map[ntidx]]
-                        d = CollisionSimulator.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
+                        d = self.__bench.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
+                        # d = CollisionSimulator.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
                         for nti in ntidx[d < collision_distance]:
                             res[(cidx, tidx)].append((ncidx, nti))
 
@@ -951,13 +958,15 @@ class Netflow():
 
         # For each broken cobra, look up the neighboring cobras and loop over them
         collisions = defaultdict(list)
-        for cidx in np.arange(self.__bench.cobras.nCobras)[~self.__bench.cobras.isGood]:
+        for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
+        # for cidx in np.arange(self.__bench.cobras.nCobras)[~self.__bench.cobras.isGood]:
             fp_pos = np.atleast_1d(home0[cidx])
             eb_pos = self.__bench.cobras.calculateCobraElbowPositions(cidx, fp_pos)
 
             for ncidx in self.__bench.getCobraNeighbors(cidx):
                 # This is another broken cobra nothing to do with it
-                if ~self.__bench.cobras.isGood[ncidx]:
+                if self.__bench.cobras.hasProblem[ncidx]:
+                # if ~self.__bench.cobras.isGood[ncidx]:
                     continue
                 
                 # Find the targets that are visible by the neighboring cobra
@@ -971,7 +980,8 @@ class Netflow():
                     neb_pos = np.array([ eb[0] for ti, eb, an in visibility.cobras_targets[ncidx] ])
 
                     # Distance from the home position of the broken cobra to the targets
-                    d = CollisionSimulator.distancesBetweenLineSegments(
+                    d = self.__instrument.bench.distancesBetweenLineSegments(
+                    # d = CollisionSimulator.distancesBetweenLineSegments(
                         np.repeat(fp_pos, ntidx.size),
                         np.repeat(eb_pos, ntidx.size),
                         nfp_pos,

@@ -74,7 +74,8 @@ class TargetingScript(Script):
         logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 
     def _create_instrument(self):
-        return SubaruPFI(instrument_options=self._config.instrument_options)
+        # Never use the cached bench here because that might have the wrong options set
+        return SubaruPFI(instrument_options=self._config.instrument_options, use_cached_bench=False)
     
     def _generate_pointings(self, stage=None):
         # The list of pointings can be defined in the config file, which then
@@ -203,12 +204,20 @@ class TargetingScript(Script):
         target_list = s.read(path)
         target_list.name = key
 
+        # For backward compatibility, set __objid to 0
+        if '__objid' not in target_list.data.columns:
+            target_list.data['__objid'] = 0
+
+        # For backward compatibility, only attempt to load photometry if the file exists
         fn, ext = os.path.splitext(path)
         path = f'{fn}.json'
-        logger.info(f'Loading photometry info for target list `{key}` from `{path}`.')
-        with open(path, 'r') as f:
-            phot = json.load(f, cls=PhotometryDecoder)
-            target_list._set_photometry(phot)
+        if os.path.isfile(path):
+            logger.info(f'Loading photometry info for target list `{key}` from `{path}`.')
+            with open(path, 'r') as f:
+                phot = json.load(f, cls=PhotometryDecoder)
+                target_list._set_photometry(phot)
+        else:
+            logger.warning(f'Photometry info file `{path}` not found, skipping.')
 
         return target_list
     
