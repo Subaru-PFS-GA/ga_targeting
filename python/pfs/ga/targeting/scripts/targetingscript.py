@@ -161,7 +161,6 @@ class TargetingScript(Script):
 
         return catalog
 
-
     def _get_id_prefix(self):
         if self._config.field.id_prefix is not None:
             id_prefix = self._config.field.id_prefix
@@ -171,6 +170,37 @@ class TargetingScript(Script):
             id_prefix = 0
 
         return id_prefix
+
+    def _get_design_name(self, stage, pidx, total_pointings, vidx, total_visits):
+        if self._config.field.sector is not None:
+            design_name = self._config.field.sector
+        else:
+            design_name = self._config.field.name
+
+        if stage is not None:
+            design_name += f' S{stage:01d}'
+            
+        design_name += f'P{pidx:02d}/{total_pointings:02d} V{vidx:02d}/{total_visits:02d}'
+
+        return design_name
+    
+    def _get_field_code(self, prefix, stage, pidx, vidx, ridx=None):
+        if self._config.field.sector is not None:
+            field = self._config.field.sector
+        else:
+            field = self._config.field.key
+
+        code = f'{prefix}_{field}_'
+
+        if stage is not None:
+            code += f'S{stage:01d}'
+
+        code += f'P{pidx:02d}V{vidx:02d}'
+
+        if ridx is not None and ridx >= 0:
+            code += f'R{ridx:02d}'
+
+        return code
 
     def _get_preprocessed_target_list_path(self, key, dir):
         return os.path.join(dir, f'{self._config.field.key}_targets_{key}.feather')

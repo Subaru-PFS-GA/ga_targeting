@@ -174,24 +174,6 @@ class ExportScript(TargetingScript):
 
     def _get_design_list_path(self, dir):
         return os.path.join(dir, f'{self._config.field.key}_designs.feather')
-    
-    def __get_field_code(self, stage, pidx, vidx, ridx=None):
-        if self._config.field.sector is not None:
-            field = self._config.field.sector
-        else:
-            field = self._config.field.key
-
-        code = f'SSP_{self.__obs_wg}_{field}_'
-
-        if stage is not None:
-            code += f'S{stage:01d}'
-
-        code += f'P{pidx:02d}V{vidx:02d}'
-
-        if ridx is not None and ridx >= 0:
-            code += f'R{ridx:02d}'
-
-        return code
 
     def __get_ppc_list_path(self):
         return os.path.join(self._outdir, f'runs/{self.__obs_run}/targets/{self.__obs_wg}', 'ppcList.ecsv')
@@ -204,12 +186,14 @@ class ExportScript(TargetingScript):
 
             # Give a name to each visit
             designs['ppc_code'] = designs[['stage', 'pointing_idx', 'visit_idx', 'repeat_idx']] \
-                .apply(lambda x: self.__get_field_code(
+                .apply(lambda x: self._get_field_code(
+                    f'SSP_{self.__obs_wg}',
                     x['stage'], x['pointing_idx'], x['visit_idx'], x['repeat_idx']), axis=1)
         else:
             # Give a name to each visit
             designs['ppc_code'] = designs[['stage', 'pointing_idx', 'visit_idx']] \
-                .apply(lambda x: self.__get_field_code(
+                .apply(lambda x: self._get_field_code(
+                    f'SSP_{self.__obs_wg}',
                     x['stage'], x['pointing_idx'], x['visit_idx']), axis=1)
 
         return designs
@@ -524,8 +508,10 @@ class ExportScript(TargetingScript):
                 raise FileNotFoundError(f'Design file {fn} not found.')
 
             # Load the design file and override name
+            # TODO: when we repeat the same field multiple times, should we
+            #       make sure that the design name is unique for each repeat?
             d = PfsDesign.read(pfsDesignId, dirName=dir)
-            d.designName = self.__get_field_code(stage, pidx, vidx)
+            d.designName = self._get_field_code(f'SSP_{self.__obs_wg}', stage, pidx, vidx)
 
             # Save the design to the output directory
             logger.info(f'Copying {fn} to {outdir}')
