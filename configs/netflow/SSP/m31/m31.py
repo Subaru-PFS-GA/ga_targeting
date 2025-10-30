@@ -204,6 +204,32 @@ config = dict(
                 }
             )
         ),
+        "gcs": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/m31/combined_gcs_catalog.csv",
+            # reader = None
+            reader_args = dict(),
+            #column_map = {'objid': 'targetid'},
+            value_map = {
+                'priority': {
+                    0: 0,
+                }
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "i_cfht": dict(
+                        mag = 'i_cfht',
+                    ),
+                },
+                limits = {
+                    'cfht_i': [16, 24.5],
+                }
+            )
+        ),
 
         # # Use the PS1 x GAIA sample as a fall-back for empty fibers
         # # This entry also add PS1 and GAIA photometry to all other objects
