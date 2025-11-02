@@ -362,7 +362,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [16, 19],
+                    'ps1_g': [18, 20],
                     'ps1_g-ps1_r': [0.25, 0.4],
                 }
             )
