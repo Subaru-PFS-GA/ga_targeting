@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION="002"
+VERSION="004"
 
 NVISITS=1                           # Number of visits to simulate, fibers can move between visits
 NREPEATS=10                         # Repeat same visit this many times
@@ -16,6 +16,7 @@ INPUT_CATALOG_ID="10092"
 
 # EXTRA_OPTIONS="--debug --skip-notebooks"
 # EXTRA_OPTIONS="--skip-notebooks"
+EXTRA_OPTIONS="--log-to-console"
 
 # for SECTOR in 'm31_E0'; do
 # for SECTOR in 'm31_W0'; do
