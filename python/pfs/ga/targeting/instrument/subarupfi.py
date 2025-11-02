@@ -1791,7 +1791,7 @@ class SubaruPFI(Instrument, FiberAllocator):
             def plot_outline(ids):
                 for ii in ids:
                     xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
-                    diagram.plot(ax, xy, mask=mask, native_frame=native_frame, **style)
+                    diagram.plot(ax, xy, mask=mask, native_frame=native_frame,**style)
 
             if corners:
                 plot_outline(self.CORNERS)
