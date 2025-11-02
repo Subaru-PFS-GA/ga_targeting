@@ -111,6 +111,7 @@ class Draco(DSphGalaxy):
 
         return config
 
+    # TODO: move elsewhere
     def get_filter_map(self):
         """
         Return a dictionary that maps between filter names used internally and the actual
