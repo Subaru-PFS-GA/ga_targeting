@@ -749,8 +749,7 @@ class Netflow():
 
         for cidx in range(self.__bench.cobras.nCobras):
             # Skip broken cobras
-            # if ~self.__bench.cobras.isGood[cidx]:
-            if self.__bench.cobras.hasProblem[cidx]:
+            if ~self.__bench.cobras.isGood[cidx]:
                 continue
 
             # Array of target focal plane coordinate indices for each target
@@ -924,8 +923,7 @@ class Netflow():
                         
                         ntidx = np.unique(ntidx)
                         nfp = fp_pos[tidx_to_fpidx_map[ntidx]]
-                        d = self.__bench.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
-                        # d = CollisionSimulator.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
+                        d = CollisionSimulator.distancesToLineSegments(nfp, np.repeat(fp, ntidx.shape), np.repeat(eb, ntidx.shape))
                         for nti in ntidx[d < collision_distance]:
                             res[(cidx, tidx)].append((ncidx, nti))
 
@@ -958,15 +956,13 @@ class Netflow():
 
         # For each broken cobra, look up the neighboring cobras and loop over them
         collisions = defaultdict(list)
-        for cidx in np.arange(self.__bench.cobras.nCobras)[self.__bench.cobras.hasProblem]:
-        # for cidx in np.arange(self.__bench.cobras.nCobras)[~self.__bench.cobras.isGood]:
+        for cidx in np.arange(self.__bench.cobras.nCobras)[~self.__bench.cobras.isGood]:
             fp_pos = np.atleast_1d(home0[cidx])
             eb_pos = self.__bench.cobras.calculateCobraElbowPositions(cidx, fp_pos)
 
             for ncidx in self.__bench.getCobraNeighbors(cidx):
                 # This is another broken cobra nothing to do with it
-                if self.__bench.cobras.hasProblem[ncidx]:
-                # if ~self.__bench.cobras.isGood[ncidx]:
+                if ~self.__bench.cobras.isGood[ncidx]:
                     continue
                 
                 # Find the targets that are visible by the neighboring cobra
@@ -980,8 +976,7 @@ class Netflow():
                     neb_pos = np.array([ eb[0] for ti, eb, an in visibility.cobras_targets[ncidx] ])
 
                     # Distance from the home position of the broken cobra to the targets
-                    d = self.__instrument.bench.distancesBetweenLineSegments(
-                    # d = CollisionSimulator.distancesBetweenLineSegments(
+                    d = CollisionSimulator.distancesBetweenLineSegments(
                         np.repeat(fp_pos, ntidx.size),
                         np.repeat(eb_pos, ntidx.size),
                         nfp_pos,

@@ -237,9 +237,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         black_dots_calibration_product = BlackDotsCalibrationProduct(pfs_black_dots_path)
 
         bench = Bench(
-            layout=layout,
-            calibrationProduct=calib_model,
-            # cobraCoach=cobra_coach,
+            cobraCoach=cobra_coach,
             blackDotsCalibrationProduct=black_dots_calibration_product,
             blackDotsMargin=black_dot_radius_margin,
         )
@@ -363,8 +361,7 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         batch_shape = (Ellipsis,) + (ndim - cobraidx.ndim) * (None,)
         centers = self.__bench.cobras.centers[cobraidx][batch_shape]
-        bad_cobra = self.__bench.cobras.hasProblem[cobraidx][batch_shape]
-        # bad_cobra = ~self.__bench.cobras.isGood[cobraidx][batch_shape]
+        bad_cobra = ~self.__bench.cobras.isGood[cobraidx][batch_shape]
         L1 = self.__bench.cobras.L1[cobraidx][batch_shape]
         L2 = self.__bench.cobras.L2[cobraidx][batch_shape]
 
