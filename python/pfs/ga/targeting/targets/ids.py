@@ -29,7 +29,13 @@ ID_PREFIX_CC_RA336_DECM12 = 0x40000000000
 # M31 fields, sectors will have four bits following
 # the 1 set
 ID_PREFIX_M31       = 0x100000000000000
+
+# 2025-09 and 2025-11
 ID_PREFIX_M31_E0    = ID_PREFIX_M31 | (0x0001 << (32))
 ID_PREFIX_M31_W0    = ID_PREFIX_M31 | (0x0002 << (32))
 ID_PREFIX_M31_GSS0  = ID_PREFIX_M31 | (0x0003 << (32))
 ID_PREFIX_M31_NWS0  = ID_PREFIX_M31 | (0x0004 << (32))
+
+# Assigned for later use
+ID_PREFIX_M31_E1    = ID_PREFIX_M31 | (0x0005 << (32))
+ID_PREFIX_M31_W1    = ID_PREFIX_M31 | (0x0006 << (32))

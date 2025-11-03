@@ -3,9 +3,16 @@ PROPOSALID = 'S25B-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
 CATID_FLUXSTD = 3006
-CATID_SCIENCE_CO = 10091
-CATID_SCIENCE_GA = 10092
-CATID_SCIENCE_GE = 10093
+
+# Before 2025-11
+# CATID_SCIENCE_CO = 10091
+# CATID_SCIENCE_GA = 10092
+# CATID_SCIENCE_GE = 10093
+
+# From 2025-11
+CATID_SCIENCE_CO = 10251
+CATID_SCIENCE_GA = 10252
+CATID_SCIENCE_GE = 10253
 
 extra_columns = {
     'proposalid': dict(
@@ -206,9 +213,7 @@ config = dict(
         ),
         "gcs": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/m31/combined_gcs_catalog.csv",
-            # reader = None
             reader_args = dict(),
-            #column_map = {'objid': 'targetid'},
             value_map = {
                 'priority': {
                     0: 0,
