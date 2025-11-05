@@ -266,7 +266,12 @@ class ExportScript(TargetingScript):
         ppc_list.meta['cobra safety margin'] = self._config.netflow_options.cobra_safety_margin
         ppc_list.meta['cobra maximum distance'] = self._config.netflow_options.cobra_maximum_distance
         ppc_list.meta['dot margin'] = self._config.instrument_options.black_dot_radius_margin
-        ppc_list.meta['dot penalty'] = self._config.netflow_options._NetflowOptionsConfig__black_dot_penalty_str
+
+        if hasattr(self._config.netflow_options, '_NetflowOptionsConfig__black_dot_penalty_str'):
+            ppc_list.meta['dot penalty'] = self._config.netflow_options._NetflowOptionsConfig__black_dot_penalty_str
+        else:
+            ppc_list.meta['dot penalty'] = self._config.netflow_options.black_dot_penalty
+
         ppc_list.meta['gurobi_parameters'] = [
             self._config.gurobi_options.seed,
             self._config.gurobi_options.presolve,
