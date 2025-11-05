@@ -103,7 +103,7 @@ config = dict(
                 prefix = 'sci',
                 min_targets = None,
                 max_targets = None,
-                non_observation_cost = 10,
+                non_observation_cost = 5,
             ),
         },
         cobra_groups = {
@@ -143,7 +143,7 @@ config = dict(
         degenmoves = 0,
         heuristics = 0.5,
         mipfocus = 1,           
-        mipgap = 0.0001,
+        mipgap = 0.00005,
         LogToConsole = 0,
         timelimit = 600, # sec
     ),
@@ -161,6 +161,6 @@ config = dict(
         ignore_cobra_group_minimum = False,
         ignore_cobra_group_maximum = False,
         ignore_reserved_fibers = False,
-        ignore_proper_motion = True,
+        ignore_proper_motion = False,
     ),
 )
