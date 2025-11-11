@@ -39,7 +39,7 @@ config = dict(
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=111.05, dec=38.4, posang=0.0, priority=1),
+        dict(ra=111.05, dec=38.4, posang=120.0, priority=1),
     ],
     netflow_options = dict(
         cobra_groups = {

@@ -39,12 +39,12 @@ config = dict(
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=117.8, dec=39.9, posang=0.0, priority=1),
+        dict(ra=117.8, dec=39.9, posang=120.0, priority=1),
     ],
     netflow_options = dict(
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 1,
+                min_targets = 0,
             ),
         }
     ),
