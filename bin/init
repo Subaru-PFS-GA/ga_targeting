@@ -11,7 +11,9 @@ source ~/.bashrc
 
 # Parse arguments
 
+PARAMS=""
 PFS_TARGETING_ENV="default"
+PFS_TARGETING_LSST="0"
 
 while (( "$#" )); do
     case "$1" in
@@ -39,18 +41,106 @@ else
     exit 1
 fi
 
+# Add default modules to PFS_TARGETING_MODULES already set in the environment config
+
+export PFS_TARGETING_MODULES="ga_targeting:${PFS_TARGETING_ROOT}:python
+ga_targeting-test:${PFS_TARGETING_ROOT}:python/test
+${PFS_TARGETING_MODULES}"
+
+# Construct the PYTHONPATH from the PFS_TARGETING_MODULES variable
+# The modules are separated by spaces, and each module consists of
+# a name, a path and a relative path to the python directory separated by colons.
+echo "Setting up PYTHONPATH from development modules"
+PFS_TARGETING_PYTHONPATH=""
+for module in $PFS_TARGETING_MODULES; do
+  mod_name=$(echo "$module" | cut -d':' -f1)
+  mod_path=$(echo "$module" | cut -d':' -f2)
+  mod_dir=$(echo "$module" | cut -d':' -f3)
+  PFS_TARGETING_PYTHONPATH="${PFS_TARGETING_PYTHONPATH}:${mod_path}/${mod_dir}"
+  echo "  added ${mod_name} to PYTHONPATH"
+done
+
+# Save PATH from the environment config file, because this should
+# preceed the PATH set by conda environment activation.
+PFS_TARGETING_PATH="$PATH"
+
+# Save PYTHONPATH from the environment config file, because this should
+# preceed the PYTHONPATH set by conda environment activation. Conda would
+# put it at the end of the PYTHONPATH, which is not what we want.
+PFS_TARGETING_PYTHONPATH="$PFS_TARGETING_PYTHONPATH:$PYTHONPATH"
+unset PYTHONPATH CONDA_PYTHON_EXE CONDA_DEFAULT_ENV
+
+# Set up environment
 echo "Activating conda environment $PFS_TARGETING_CONDAENV"
 source "$PFS_TARGETING_CONDAPATH/bin/activate" "$PFS_TARGETING_CONDAENV"
 
-# Configure git to clear the output of jupyter notebooks before commit.
+# When working with the LSST stack, create the eups package for each
+# development module.
+if [[ "$PFS_TARGETING_LSST" -eq "1" ]]; then
+  if [[ -n "$PFS_TARGETING_LSST" ]]; then
+    echo "Creating EUPS packages from development modules"
+    for module in $PFS_TARGETING_MODULES; do
+      mod_name=$(echo "$module" | cut -d':' -f1)
+      mod_path=$(echo "$module" | cut -d':' -f2)
+      mod_python=$(echo "$module" | cut -d':' -f3)
+      
+      # If the module has the ups directory, create the eups package
+      if [[ -d "$mod_path/ups" ]]; then
+        echo "  declaring EUPS package for $mod_name, version dev"
 
+        # If the EUPS module is already declared, undeclare it first to avoid
+        # conflicts.
+        eups list "${mod_name} dev" 2>/dev/null | grep . >/dev/null && {
+          eups undeclare "$mod_name" dev --force >/dev/null
+        }
+        
+        # Declare the module in EUPS
+        pushd "$mod_path" >/dev/null
+        eups declare "$mod_name" dev -r . --force 2>/dev/null
+        popd >/dev/null
+      fi
+    done
+  fi
+fi
+
+function sanitize_path() {
+  # Remove duplicate entries from a colon-separated path string
+  # Remove leading and trailing colons, and replace multiple colons with a single colon
+  echo "$1" | awk -v RS=: '!seen[$0]++ && $0 != ""' | paste -sd:
+  # echo "$1" | awk -v RS=: -v ORS=: '!a[$0]++' | sed -e 's/::\+/:/g' -e 's/^://g' -e 's/:$//g'
+}
+
+# Create the new PATH and remove duplicates
+export PATH=$(sanitize_path "$PATH:$PFS_TARGETING_PATH")
+
+# Create the new PYTHONPATH with targeting paths at the front
+# Also remove duplicates
+export PYTHONPATH=$(sanitize_path "$PFS_TARGETING_PYTHONPATH:$PYTHONPATH")
+
+# Generate .env file for vscode python debugging
+cat > .env <<EOF
+PATH="$PATH"
+PYTHONPATH="$PYTHONPATH"
+LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+
+CUDA_VISIBLE_DEVICES=""     # Hide all GPUs from TensorFlow
+
+PFSSPEC_DATA="$PFSSPEC_DATA"
+CMDFIT_DATA="$CMDFIT_DATA"
+
+PFS_TARGETING_DEBUGPORT="$PFS_TARGETING_DEBUGPORT"
+PFS_TARGETING_ROOT="$PFS_TARGETING_ROOT"
+PFS_TARGETING_DATA="$PFS_TARGETING_DATA"
+PFS_TARGETING_TEMP="$PFS_TARGETING_TEMP"
+EOF
+
+# Configure git filters to strip out notebook outputs
+# It requires a .gitattributes file under each submodule with contents:
+# `nb/**/*.ipynb filter=ipynb_stripout`
 echo "Configuring git repo"
 git config --local filter.ipynb_stripout.clean "$(which python) $(git rev-parse --show-toplevel)/bin/ipynb_stripout"
 git config --local filter.ipynb_stripout.smudge cat
 git config --local filter.ipynb_stripout.required true
-
-# PFS related settings
-export PYTHONPATH="$PFS_ISOCHRONES:$PFS_TARGETING_ROOT/python:$PFSSPEC_ROOT:$PFS_TARGETING_PYTHONPATH"
 
 # Other settings
 
@@ -71,21 +161,6 @@ export TF_CPP_MIN_LOG_LEVEL=3
 # export OMP_NUM_THREADS=12
 
 cd $PFS_TARGETING_ROOT
-
-# Generating .env file for vscode python debugging
-cat > .env <<EOF
-CUDA_VISIBLE_DEVICES=""     # Hide all GPUs from TensorFlow
-
-PFSSPEC_DATA="$PFSSPEC_DATA"
-CMDFIT_DATA="$CMDFIT_DATA"
-
-PFS_TARGETING_DEBUGPORT="$PFS_TARGETING_DEBUGPORT"
-PFS_TARGETING_ROOT="$PFS_TARGETING_ROOT"
-PFS_TARGETING_DATA="$PFS_TARGETING_DATA"
-PFS_TARGETING_TEMP="$PFS_TARGETING_TEMP"
-
-PYTHONPATH="$PYTHONPATH"
-EOF
 
 # Register command-line scripts
 function ga-pmap() {
@@ -113,11 +188,6 @@ function ga-export() {
 }
 export -f ga-export
 
-# Unset buggy vscode debugger endpoints
-unset DEBUGPY_ADAPTER_ENDPOINTS
-unset VSCODE_DEBUGPY_ADAPTER_ENDPOINTS
-unset BUNDLED_DEBUGPY_PATH
-unset 
 
 echo "Configured environment for PFS development."
 echo "Data directory is $PFS_TARGETING_DATA"
