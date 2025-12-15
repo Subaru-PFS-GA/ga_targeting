@@ -39,7 +39,7 @@ class SubaruHSC(Instrument):
         return p
 
     @staticmethod
-    def text_observation_reader(mags=None, ext=None):
+    def text_observation_reader(mags=None, ext=None, delimiter=r'\s+', skiprows=None):
         if mags is None:
             mags = ['i', 'g', 'nb515']
         
@@ -88,7 +88,10 @@ class SubaruHSC(Instrument):
             return ff
 
         reader.filter = filter
-        reader.kwargs = dict(delimiter=r'\s+')
+        reader.kwargs = dict(
+            delimiter=delimiter,
+            skiprows=skiprows
+        )
 
         return reader
     

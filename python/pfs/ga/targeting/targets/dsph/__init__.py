@@ -4,6 +4,7 @@ from .draco import Draco as __Draco
 from .fornax import Fornax as __Fornax
 from .bootes import Bootes as __Bootes
 from .ngc6822 import NGC6822 as __NGC6822
+from .sextans import Sextans as __Sextans
 
 # Singleton instances
 
@@ -13,6 +14,7 @@ Draco = __Draco()
 Fornax = __Fornax()
 Bootes = __Bootes()
 NGC6822 = __NGC6822()
+Sextans = __Sextans()
 
 GALAXIES = {
     'umi': UrsaMinor,
@@ -27,4 +29,6 @@ GALAXIES = {
     'bootes': Bootes,
     'bootesi': Bootes,
     'ngc6822': NGC6822,
+    'sex': Sextans,
+    'sextans': Sextans,
 }

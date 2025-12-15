@@ -62,7 +62,7 @@ class Whitening(Transformation):
 
     iteration_callback = property(__get_iteration_callback, __set_iteration_callback)
 
-    def create(self, *coords, iterations=10, s_cut=None, callback=None):
+    def create(self, *coords, iterations=10, r_cut=None, s_cut=None, mask=None, callback=None):
         ctype, xy = self._world_to_pixel(*coords)
 
         callback = callback if callback is not None else self.__iteration_callback
@@ -75,7 +75,15 @@ class Whitening(Transformation):
             s_cut = iterations * [s_cut]
 
         # Start with all data points included
-        mask = np.full((xy.shape[0],), True)
+        if mask is None:
+            mask = np.full((xy.shape[0],), True)
+        else:
+            mask = mask.copy()
+
+        # Initial radial cut
+        if r_cut is not None:    
+            r2 = xy[mask, 0]**2 + xy[mask, 1]**2
+            mask[mask] &= (r2 < r_cut**2)
 
         for iter in range(iterations):
             M = np.mean(xy[mask, :], axis=0)    
