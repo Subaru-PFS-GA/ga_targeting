@@ -6,7 +6,7 @@ TBW
 
 The targeting tool is currently distributed as Python source. It is intended to be used as a command-line tool and not as a library, though parts of it, such as plotting, can be useful for other purposes.
 
-The targeting tool depends on the `ga_isochones` library, the `gurobipy` linear program optimization library and several standard Python libraries. See Chapter 1 for more details on installation.
+The targeting tool depends on the `ga_common` and `ga_isochrones` libraries, the `gurobipy` linear program optimization library, several common PFS libraries as well as some standard Python libraries. See Chapter 1 for more details on installation.
 
 ## 0.2 Terminology
 

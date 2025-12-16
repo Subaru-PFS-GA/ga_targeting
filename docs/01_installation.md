@@ -29,6 +29,7 @@ Create a directory named `Subaru-PFS-GA` and clone the necessary libraries:
 
     $ mkdir ~/Subaru-PFS-GA
     $ cd ~/Subaru-PFS-GA
+    $ git clone git@github.com:Subaru-PFS-GA/ga_common.git
     $ git clone git@github.com:Subaru-PFS-GA/ga_isochrones.git
     $ git clone git@github.com:Subaru-PFS-GA/ga_targeting.git
 
@@ -102,22 +103,44 @@ The environment configuration files are located under `./configs/envs/`. The ini
 Here is a minimal example environment file that works with the directory names used above:
 
 ```./configs/envs/default.sh
-export PFS_UTILS="$HOME/Subaru-PFS/pfs_utils/python"
-export PFS_INSTDATA="$HOME/Subaru-PFS/pfs_instdata/python"
-export PFS_ICS_COBRAOPS="$HOME/Subaru-PFS/ics_cobraOps/python"
-export PFS_ICS_COBRA_CHARMER="$HOME/Subaru-PFS/ics_cobraCharmer/python"
-export PFS_ICS_FPSACTOR="$HOME/Subaru-PFS/ics_fpsActor/python"
-export PFS_ETS_FIBER_ASSIGNER="$HOME/Subaru-PFS/ets_fiberalloc"
-export PFS_SPT_OPDB="$HOME/Subaru-PFS/spt_operational_database/python"
+SUBARU_PFS_ROOT="~/Subaru-PFS"
+SUBARU_PFS_GA_ROOT="$HOME/Subaru-PFS-GA"
 
-export PFS_ISOCHRONES="$HOME/Subaru-PFS-GA/pfs_isochrones/python"
+export PFSSPEC_ROOT="$SUBARU_PFS_GA_ROOT/ga_pfsspec-all"
+export PFSSPEC_DATA="$HOME/data/pfsspec"
 
-export PFS_TARGETING_ROOT="$HOME/Subaru-PFS-GA/ga_targeting"
+export CMDFIT_ROOT="$SUBARU_PFS_GA_ROOT/ga_cmdfit"
+export CMDFIT_DATA="$HOME/data/cmdfit"
+
+export PFS_UTILS="$SUBARU_PFS_ROOT/pfs_utils"
+export PFS_INSTDATA="$SUBARU_PFS_ROOT/pfs_instdata"
+export PFS_ICS_COBRAOPS="$SUBARU_PFS_ROOT/ics_cobraOps"
+export PFS_ICS_COBRA_CHARMER="$SUBARU_PFS_ROOT/ics_cobraCharmer"
+export PFS_ICS_FPSACTOR="$SUBARU_PFS_ROOT/ics_fpsActor"
+export PFS_ETS_FIBER_ASSIGNER="$SUBARU_PFS_ROOT/ets_fiberalloc"
+export PFS_SPT_OPDB="$SUBARU_PFS_ROOT/spt_operational_database"
+export PFS_ISOCHRONES="$SUBARU_PFS_GA_ROOT/ga_isochrones"
+export PFS_GA_COMMON="$SUBARU_PFS_GA_ROOT/ga_common"
+
+export PFS_TARGETING_DEBUGPORT=5678
+export PFS_TARGETING_ROOT="$SUBARU_PFS_GA_ROOT/ga_targeting"
 export PFS_TARGETING_DATA="$HOME/data/targeting"
 export PFS_TARGETING_TEMP="$HOME/tmp/targeting"
 export PFS_TARGETING_CONDAPATH="$HOME/miniconda3"
 export PFS_TARGETING_CONDAENV="targeting"
-export PFS_TARGETING_PYTHONPATH="$PFS_UTILS:$PFS_INSTDATA:$PFS_ICS_COBRAOPS:$PFS_ICS_COBRA_CHARMER:$PFS_ETS_FIBER_ASSIGNER:$PFS_SPT_OPDB:$PFS_ISOCHRONES"
+
+export PFS_TARGETING_MODULES="pfs_utils:$PFS_UTILS:python
+pfs_instdata:$PFS_INSTDATA:python
+ics_cobraOps:$PFS_ICS_COBRAOPS:python
+ics_cobraCharmer:$PFS_ICS_COBRA_CHARMER:python
+ics_fpsActor:$PFS_ICS_FPSACTOR:python
+ets_fiberalloc:$PFS_ETS_FIBER_ASSIGNER:.
+spt_operational_database:$PFS_SPT_OPDB:python
+datamodel:$PFS_DATAMODEL:python
+ga_isochrones:$PFS_GA_ISOCHRONES:python
+ga_common:$PFS_GA_COMMON:python
+ga_targeting:$PFS_TARGETING_ROOT:python
+ga_pfsspec:$PFSSPEC_ROOT:python"
 ```
 
 Note, that `PFS_TARGETING_CONDAPATH` must point to your Anaconda installation. Find it by running
@@ -154,3 +177,22 @@ Test the installation by running
 
     $ cd ~/Subaru-PFS-GA/ga_targeting
     $ ga-netflow --help
+
+## Updating the installation
+
+In order to bump the version of the libraries, pull the latest changes from the remote git respositories.
+
+To update the targeting library, run
+
+    $ cd $PFS_TARGETING_ROOT
+    $ git fetch
+    $ git pull origin master
+
+In certain cases you might need to pull a specific branch, or a tag, so replace `master` with the desired branch or tag name.
+
+To update the PFS libraries, you typically need to pull a specific release verions. For example, you can update `pfs_utils` by running
+
+    $ cd $PFS_UTILS/..
+    $ git fetch
+    $ git checkout tags/w.2025.41
+
