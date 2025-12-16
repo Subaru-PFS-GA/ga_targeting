@@ -266,10 +266,11 @@ class SubaruPFI(Instrument, FiberAllocator):
                                           calib_model.COBRA_BROKEN_THETA_MASK |
                                           calib_model.COBRA_BROKEN_MOTOR_MASK)) != 0
             
-            assert all(calib_model.phiIn[bad_cobras] == 0.0)
-            assert all(calib_model.phiOut[bad_cobras] == -np.pi)
-            assert all(calib_model.tht0[bad_cobras] == 0.0)
-            assert all(calib_model.tht1[bad_cobras] == 0.0)
+            # Removed assertions due to update in calibration products
+            # assert all(calib_model.phiIn[bad_cobras] == 0.0)
+            # assert all(calib_model.phiOut[bad_cobras] == -np.pi)
+            # assert all(calib_model.tht0[bad_cobras] == 0.0)
+            # assert all(calib_model.tht1[bad_cobras] == 0.0)
 
             # Cobras with broken fibers, these move but cannot be tracked by the MCS
             # We have a position but we're not sure they're there

@@ -241,6 +241,9 @@ class ExportScript(TargetingScript):
         _, _, tag = self.get_last_git_commit(pfs.utils)
         ppc_list.meta['pfs_utils'] = tag
 
+        _, _, tag = self.get_last_git_commit(ics.utils)
+        ppc_list.meta['ics_utils'] = tag
+
         _, _, tag = self.get_last_git_commit(ics.cobraCharmer)
         ppc_list.meta['ics_cobraCharmer'] = tag
 
