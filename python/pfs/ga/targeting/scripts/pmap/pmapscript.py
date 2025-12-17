@@ -96,7 +96,7 @@ class PMapScript(Script):
 
         # Save the active configuration to the output directory
         path = self.__get_output_config_path()
-        self._config.save(path)
+        self._config.save(path, format='.json')
 
         logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 

@@ -50,3 +50,16 @@ TBW
 TBW
 
 These options are passed to the Gurobi optimizer transparently.
+
+## 4.7 Special configurations for dwarf spheroidal galaxies
+
+You need to update the following variables and functions:
+
+* add new ID prefix in `python/pfs/ga/targeting/targets/ids.py`, make sure this is the one used in the python class for the object
+* `pointings` in `__init__`
+* `get_pmap_config` to change the color and magnitude limits
+* `get_text_observation_reader` if the data file format is different from the default
+* `get_filter_map`, to match the i filter (old or new) used for HSC photometry
+* `get_nb_selection_mask`
+* `get_selection_mask`
+* `assign_priorities`

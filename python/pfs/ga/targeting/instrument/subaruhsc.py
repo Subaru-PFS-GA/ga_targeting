@@ -23,8 +23,22 @@ class SubaruHSC(Instrument):
             sky_sigma=0,
             zero=0))
         p.append_magnitude(Magnitude(
+            'r2',
+            latex='r2',
+            conversion=0.8e33,
+            sky=5e5,
+            sky_sigma=0,
+            zero=0))
+        p.append_magnitude(Magnitude(
             'i',
             latex='i',
+            conversion=0.8e33,
+            sky=5e5,
+            sky_sigma=0,
+            zero=0))
+        p.append_magnitude(Magnitude(
+            'i2',
+            latex='i2',
             conversion=0.8e33,
             sky=5e5,
             sky_sigma=0,
