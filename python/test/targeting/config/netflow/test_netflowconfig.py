@@ -6,6 +6,8 @@ from test_base import TestBase
 
 import pfs.ga.targeting
 from pfs.ga.targeting.config.netflow import NetflowConfig
+from pfs.ga.targeting.config.netflow.netflowoptionsconfig import NetflowOptionsConfig
+from pfs.ga.targeting.config.instrument.instrumentoptionsconfig import InstrumentOptionsConfig
 
 class NetflowConfigTest(TestBase):
     def test_init(self):
@@ -13,6 +15,8 @@ class NetflowConfigTest(TestBase):
 
     def test_default(self):
         config = NetflowConfig.default()
+        config = NetflowOptionsConfig.default()
+        config = InstrumentOptionsConfig.default()
 
     def test_example(self):
         path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), '../../../../configs/netflow/example.py')
