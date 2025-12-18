@@ -121,7 +121,7 @@ export PFS_ICS_FPSACTOR="$SUBARU_PFS_ROOT/ics_fpsActor"
 export PFS_ICS_UTILS="$SUBARU_PFS_ROOT/ics_utils"
 export PFS_ETS_FIBER_ASSIGNER="$SUBARU_PFS_ROOT/ets_fiberalloc"
 export PFS_SPT_OPDB="$SUBARU_PFS_ROOT/spt_operational_database"
-export PFS_ISOCHRONES="$SUBARU_PFS_GA_ROOT/ga_isochrones"
+export PFS_GA_ISOCHRONES="$SUBARU_PFS_GA_ROOT/ga_isochrones"
 export PFS_GA_COMMON="$SUBARU_PFS_GA_ROOT/ga_common"
 
 export PFS_TARGETING_DEBUGPORT=5678
