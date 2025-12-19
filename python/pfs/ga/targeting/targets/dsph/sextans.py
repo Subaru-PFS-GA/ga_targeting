@@ -184,7 +184,8 @@ class Sextans(DSphGalaxy):
             | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed, mask=mask)
             & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed, mask=mask)
             
-            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
+            # | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
+            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.10, None).apply(catalog, observed=observed, mask=mask)
         )
 
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
