@@ -156,6 +156,7 @@ class ImportScript(TargetingScript):
             target_list = self.load_target_list(k, target_list_config)
             target_list.name = k
             
+            self.__generate_target_list_targetid(k, target_list)
             self.__calculate_target_list_flux(k, target_list)
             self.__append_target_list_extra_columns(k, target_list)
             self.__validate_target_list(k, target_list_config, target_list)
@@ -163,6 +164,17 @@ class ImportScript(TargetingScript):
             target_lists[k] = target_list
 
         return target_lists
+
+    def __generate_target_list_targetid(self, key, target_list):
+        # Generate a target id, if not already present
+        if 'targetid' not in target_list.columns:
+            # If the target_list has a unique index, use that
+            if target_list.data.index.is_unique:
+                target_list.append_column('targetid', target_list.data.index, pd.Int64Dtype())
+                logger.info(f'Generated `targetid` column for target list `{key}` from unique index.')
+            else:
+                target_list.append_column('targetid', range(1, len(target_list.data) + 1), pd.Int64Dtype())
+                logger.info(f'Generated `targetid` column for target list `{key}` using sequential integers.')
 
     def __calculate_target_list_flux(self, key, target_list):
         # Calculate the missing flux columns

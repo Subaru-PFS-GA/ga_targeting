@@ -21,6 +21,7 @@ def load_observations(field, config):
 def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
                 mask=None, xlim_deg=[1.75, -3.75], ylim_deg=[-3.75, 1.75],
                 color_by=None, cmap='tab10', label='target priority', title='HSC targets',
+                obs_time=None,
                 **kwargs):
 
     if sample is not None and mask is None:
@@ -61,6 +62,8 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
             
     pp = field.get_pointings(SubaruPFI)
     for p in pp:
+        if obs_time is not None:
+            p.obs_time = obs_time
         pfi.plot_focal_plane(axs[2], fov, corners=True, projection=SubaruWFC(p))
 
     axs[2].set_xlim(xlim_deg)

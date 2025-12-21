@@ -2,8 +2,8 @@
 
 set -e
 
-PREFIX=SSP
-VERSION=001
+PREFIX=TEST
+VERSION=003
 
 FIELD=sextans
 STAGES="0 1 2 3"        # TODO: update stages as needed, depending on number of pointings
@@ -19,30 +19,33 @@ INPUT_CATALOG_ID="10092"
 # EXTRA_OPTIONS="--skip-notebooks --debug"
 EXTRA_OPTIONS=""
 
-FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/dSph/${FIELD}_${PREFIX}
+FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/dSph/${FIELD}
 
-PMAP_DIR=${FIELD_DIR}/pmap/${FIELD}_nb
-SAMPLE_DIR=${FIELD_DIR}/sample/${FIELD}_${PREFIX}_${VERSION}
-IMPORT_DIR=${FIELD_DIR}/import/${FIELD}_${PREFIX}_${VERSION}
-EXPORT_DIR=${FIELD_DIR}/export/${FIELD}_${PREFIX}_${VERSION}
+PMAP_DIR=${FIELD_DIR}/pmap/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
+SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
+IMPORT_DIR=${FIELD_DIR}/import/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
+EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 
-rm -r "$PMAP_DIR"
-if [ ! -d "$PMAP_DIR" ]; then
-    ga-pmap --dsph ${FIELD} \
-        --config ./configs/pmap/SSP/dSph/${FIELD}.py \
-        --out $PMAP_DIR \
-        ${EXTRA_OPTIONS}
-fi
-
-# if [ ! -d "$SAMPLE_DIR" ]; then
-#     ga-sample --dsph ${FIELD} \
-#         --config ./configs/sample/SSP/dSph/${FIELD}.py \
-#         --out $SAMPLE_DIR \
+# rm -r "$PMAP_DIR"
+# if [ ! -d "$PMAP_DIR" ]; then
+#     ga-pmap --dsph ${FIELD} \
+#         --config ./configs/pmap/${PREFIX}/dSph/${FIELD}.py \
+#         --out $PMAP_DIR \
 #         ${EXTRA_OPTIONS}
 # fi
 
+rm -r "$SAMPLE_DIR"
+if [ ! -d "$SAMPLE_DIR" ]; then
+    ga-sample --dsph ${FIELD} \
+        --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
+        --out $SAMPLE_DIR \
+        --obs-time "${OBS_TIME}" \
+        ${EXTRA_OPTIONS}
+fi
+
 # NOTE: input files to ga-import are listed in the config file
 
+# rm -r "$IMPORT_DIR"
 # if [ ! -d "$IMPORT_DIR" ]; then
 #     ga-import --dsph ${FIELD} \
 #         --config \

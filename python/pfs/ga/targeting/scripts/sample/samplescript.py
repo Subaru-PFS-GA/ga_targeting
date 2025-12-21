@@ -25,6 +25,7 @@ class SampleScript(Script):
 
         self._field = None
         self._config = None
+        self._obs_time = None
 
         self.__outdir = None
         self.__gaiadir = None
@@ -45,6 +46,7 @@ class SampleScript(Script):
         self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 field.')
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
+        self.add_arg('--obs-time', type=str, required=False, help='Observation time in ISO format.')
 
         self.add_arg('--skip-notebooks', action='store_true', help='Skip execution of evaluation notebooks.')
 
@@ -77,6 +79,9 @@ class SampleScript(Script):
         self._config.load(config_files, ignore_collisions=True)
         logger.info(f'Loaded {len(config_files)} config files from {config_files}.')
 
+        if self.is_arg('obs_time', args):
+            self._obs_time = self.get_arg('obs_time', args)
+
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
     def prepare(self):
@@ -107,7 +112,7 @@ class SampleScript(Script):
 
         # Save the active configuration to the output directory
         path = self.__get_output_config_path()
-        self._config.save(path)
+        self._config.save(path, format=".json")
 
         logger.debug(f'Configuration saved to `{os.path.abspath(path)}`.')
 
@@ -147,6 +152,7 @@ class SampleScript(Script):
                     'DEBUG': False,
                     'CONFIG_FILE': self.__get_output_config_path(),
                     'OUTPUT_PATH': self.__outdir,
+                    'OBS_TIME': self._obs_time
                 }
                 self._execute_notebook(notebook_path, parameters, self.__outdir)
 
@@ -250,7 +256,12 @@ class SampleScript(Script):
         """
 
         logger.info('Assigning priorities...')
-        self._field.assign_priorities(obs, mask=mask, isogrid=isogrid)
+        self._field.assign_priorities(
+            obs,
+            mask=mask,
+            isogrid=isogrid,
+            isochrones_name_mappings=self._config.isochrones_name_mapping)
+
         logger.info(f"HSC targets with assigned priorities: {(0 <= obs.data['priority']).sum()}.")
         logger.info(f"Unique priority classes: {np.sort(obs.data['priority'].unique())}.")
         logger.info(f"Unique exposure times: {np.sort(obs.data['exp_time'].unique())}.")
