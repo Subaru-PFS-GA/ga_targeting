@@ -49,9 +49,16 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
         cax = f.add_subplot(gs[1, :])
 
     if background is not None:
-        background.plot(axs[0], cmd, c='lightgray', observed=True)
-        background.plot(axs[1], ccd, c='lightgray', observed=True)
-        background.plot(axs[2], fov, c='lightgray', observed=True)
+        # Plot at most 20k points
+        nmax = 100000
+        if len(background) > nmax:
+            s = np.s_[::len(background) // nmax]
+        else:
+            s = np.s_[:]
+
+        background.plot(axs[0], cmd, c='lightgray', observed=True, s=s)
+        background.plot(axs[1], ccd, c='lightgray', observed=True, s=s)
+        background.plot(axs[2], fov, c='lightgray', observed=True, s=s)
 
     if sample is not None:
         sample.plot(axs[0], cmd, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
