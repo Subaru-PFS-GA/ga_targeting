@@ -68,4 +68,7 @@ class TargetListConfig(Config):
         # Catalog filter, expressed as a lambda, rendered in string
         self.mask = None
 
+        # Radius in arcseconds to cross-match sources with the rest of the catalogs
+        self.crossmatch_radius = None
+
         super().__init__()
