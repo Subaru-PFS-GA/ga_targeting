@@ -60,12 +60,12 @@ class DSphGalaxy(Galaxy):
         """
         return instrument.photometry()
 
-    def get_cmd(self, instrument=SubaruHSC):
+    def get_cmd(self, index=0, instrument=SubaruHSC):
         """
         Return the definition of the color-magnitude diagram for the given instrument.
         """
         if instrument == SubaruHSC:
-            cmd = self._hsc_cmd
+            cmd = self._hsc_cmd[index]
         elif instrument == Gaia:
             cmd = self._gaia_cmd
         else:
@@ -83,6 +83,9 @@ class DSphGalaxy(Galaxy):
             raise NotImplementedError()
 
         return ccd
+
+    def get_spatial_selection_mask(self, catalog: Catalog, radius=None):
+        return True
     
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         raise NotImplementedError()

@@ -42,30 +42,18 @@ class Sextans(DSphGalaxy):
         # }
 
         # Generate the poitings algorithmically
-        # pointings = {
-        #     SubaruPFI: [
-        #         # Inner pointings along the minor axis
-        #         Pointing.from_relative_pos(pos, sep=0.35, dir=48, posang=220, stage=1, priority=2),
-        #         Pointing.from_relative_pos(pos, sep=-0.35, dir=48, posang=220, stage=1, priority=2),
-
-        #         # Rotated outer pointings along the minor axis
-        #         Pointing.from_relative_pos(pos, sep=0.85, dir=50, posang=190, stage=3, priority=8),
-        #         Pointing.from_relative_pos(pos, sep=-0.85, dir=50, posang=190, stage=3, priority=8),
-
-        #         # Inner pointings along the major axis
-        #         Pointing.from_relative_pos(pos, sep=0.45, dir=140, posang=220, stage=0, priority=1),
-        #         Pointing.from_relative_pos(pos, sep=-0.45, dir=140, posang=220, stage=0, priority=1),
-
-        #         # Outer pointings along the major axis
-        #         Pointing.from_relative_pos(pos, sep=1.05, dir=140, posang=190, stage=2, priority=4),
-        #         Pointing.from_relative_pos(pos, sep=-1.05, dir=140, posang=190, stage=2, priority=4),
-        #     ]
-        # }
-
         pointings = {
             SubaruPFI: [
-                Pointing.from_relative_pos(pos, sep=0.30, dir=48, posang=220, stage=0, priority=1),
-                Pointing.from_relative_pos(pos, sep=-0.30, dir=48, posang=220, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=0, dir=0, posang=162, stage=1, priority=2),
+                
+                Pointing.from_relative_pos(pos, sep=0.58, dir=48, posang=162, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.58, dir=48, posang=162, stage=0, priority=1),
+
+                Pointing.from_relative_pos(pos, sep=1.74, dir=48, posang=162, stage=3, priority=4),
+                Pointing.from_relative_pos(pos, sep=-1.74, dir=48, posang=162, stage=3, priority=4),
+                
+                Pointing.from_relative_pos(pos, sep=1.0, dir=138, posang=162, stage=2, priority=8),
+                Pointing.from_relative_pos(pos, sep=-1.0, dir=138, posang=162, stage=2, priority=8),
             ]
         }
 
@@ -77,10 +65,16 @@ class Sextans(DSphGalaxy):
                          pointings=pointings)
         
         hsc = SubaruHSC.photometry()
-        self._hsc_cmd = CMD([
-            ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i2']]), limits=(-1, 4)),
-            MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
-        ])
+        self._hsc_cmd = [
+            CMD([
+                ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i2']]), limits=(-1, 4)),
+                MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
+            ]),
+            CMD([
+                ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i2']]), limits=(-1, 4)),
+                MagnitudeAxis(hsc.magnitudes['i2'], limits=(14.8, 24.5))
+            ])
+        ]
         self._hsc_ccd = CCD([
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i2']]), limits=(-1, 4)),
             ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
@@ -188,15 +182,22 @@ class Sextans(DSphGalaxy):
         return (
             ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed, mask=mask)
 
-            | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed, mask=mask)
-            & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed, mask=mask)
+            | ColorSelection(ccd.axes[1], 0.2, None).apply(catalog, observed=observed, mask=mask)
+            & ColorSelection(ccd.axes[0], None, 1.8).apply(catalog, observed=observed, mask=mask)
             
             # Original NB cut for Ursa Minor
-            # | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
+            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
 
             # Revised NB cut for Sextans
-            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.10, None).apply(catalog, observed=observed, mask=mask)
+            # | LinearSelection(ccd.axes, [-0.25, 1.0], -0.10, None).apply(catalog, observed=observed, mask=mask)
         )
+
+    def get_spatial_selection_mask(self, catalog: Catalog, radius=150):
+        if 'RA' in catalog.data and 'Dec' in catalog.data and radius is not None:
+            center = self.get_center()
+            return ConeSelection((center.ra, center.dec), radius=radius).apply(catalog)
+        else:
+            return True
 
     def get_selection_mask(
         self,
@@ -214,8 +215,8 @@ class Sextans(DSphGalaxy):
 
         # TODO: add Keyi's cut
         
-        cmd = self._hsc_cmd
-        ccd = self._hsc_ccd
+        cmd = self.get_cmd()
+        ccd = self.get_ccd()
 
         # Broadband colors
         mask = ColorSelection(cmd.axes[0], 0.12, 2.0).apply(catalog, observed=observed)
@@ -237,14 +238,14 @@ class Sextans(DSphGalaxy):
         # Always impose faint and bright magnitude cuts
         mask &= MagnitudeSelection(cmd.axes[1], bright, faint).apply(catalog, observed=observed)
 
+        # Also make a cut in the i band but allow for a g - i color of 1.5
+        mask &= MagnitudeSelection(cmd.axes[0].color.magnitudes[1], bright - 1.5, faint).apply(catalog, observed=observed)
+
         # Make sure only point sources are selected (applies to observations only)
         if 'clg' in catalog.data and 'cli' in catalog.data:
             mask &= (catalog.data['clg'] < 0.1) & (catalog.data['cli'] < 0.1)
 
-
-        if 'RA' in catalog.data and 'Dec' in catalog.data and radius is not None:
-            center = self.get_center()
-            mask &= ConeSelection((center.ra, center.dec), radius=radius).apply(catalog)
+        mask &= self.get_spatial_selection_mask(catalog, radius=radius)
 
         return mask
     
@@ -270,14 +271,14 @@ class Sextans(DSphGalaxy):
         ccd = self._hsc_ccd
 
         g0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
-        i0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
+        i0, _ = catalog.get_magnitude(hsc.magnitudes['i2'], observed=True, dered=True, mask=mask)
         gi0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['i2']]), observed=True, dered=True, mask=mask)
         gn0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), observed=True, dered=True, mask=mask)
 
         # Exclude very bright and very faint stars in case they accidentally
         # got into the sample
         keep = mask & (16 <= g0) & (g0 <= 23) & \
-                      (16 <= i0) & (i0 < 23)
+                      (15 <= i0) & (i0 < 23)
 
         # Exclude any extended sources
         clg = catalog.data['clg'][mask]
@@ -285,14 +286,17 @@ class Sextans(DSphGalaxy):
         keep &= (cli < 0.5) & (clg < 0.5)
         
         p_member = catalog.data['p_member'][mask]
-        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10 ** ((i0 - 19.0) / 2.5)) + 1).astype(int), 6), 1)
+        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10 ** ((g0 - 19.0) / 2.5)) + 1).astype(int), 6), 1)
+
+        spatial_mask = self.get_spatial_selection_mask(catalog)
 
         # Priorities
         priority = np.full_like(p_member, -1, np.int32)
 
         # Everything without membership probability
         w9 = np.isnan(p_member) | (p_member == 0.0)
-        priority[w9] = 9
+        w9 &= spatial_mask
+        priority[w9 & keep] = 9
 
         # Priority 0: bright likely members, this will be extended with DEIMOS targets
         w0 = np.isfinite(p_member) & (p_member > 0.8) & (g0 < 22.5)
@@ -334,7 +338,9 @@ class Sextans(DSphGalaxy):
 
         # Blue Horizontal Branch
         if True:
-            wHB = (priority == 9) & (g0 > 20.0) & (g0 < 20.4) & (gi0 > -0.5) & (gi0 < 0.1)
+            wHB = (priority == 9) & (g0 > 19.8) & (g0 < 20.5) & (gi0 > -0.7) & (gi0 < 0.1)
+            wHB &= (-0.1 < gn0) & (gn0 < 0.1)
+            wHB &= spatial_mask
             priority[wHB] = 3
             logger.info(f'{(keep & wHB).sum()} {self.name} BHB stars are marked as priority 3')
 
@@ -350,6 +356,7 @@ class Sextans(DSphGalaxy):
             wAGB &= (priority == 9) & (g0 > 17.25) & (g0 < 19.8) & (gi0 > -0.5) & \
                     (gn0 > 0.25 * gi0 - 0.15) & \
                     (g0 > 19.25 - 1.5 * gi0)
+            wAGB &= spatial_mask
             priority[wAGB] = 3
 
             logger.info(f'{(keep & wAGB).sum()} potential {self.name} AGB stars are marked as priority 3')
@@ -357,8 +364,9 @@ class Sextans(DSphGalaxy):
         # Stars around the tip of the RGB but red of the halo edge
         if True:
             wT = (priority == 9) & \
-                (16.8 <= g0) & (g0 <= 18.5) & (0.75 <= gi0) & (gi0 <= 1.8) & \
+                (16.8 <= g0) & (g0 <= 18.5) & (0.75 <= gi0) & (gi0 <= 2.0) & \
                 self.get_nb_selection_mask(catalog, observed=True, mask=mask)
+            wT &= spatial_mask
             priority[wT] = 3
             logger.info(f'{(keep & wT).sum()} potential {self.name} bright RGB stars are marked as priority 3')
 
@@ -370,13 +378,18 @@ class Sextans(DSphGalaxy):
         # Priority 4:
 
         # Blue Stragglers
-        x1, x2, x3, x4 = -0.7, -0.2, -0.2, 0.3
-        y1, y2, y3, y4 = 20.8, 20.8, 23.0, 23.0
-        wBS = (priority == 9) & \
-              (g0 > y1) & (g0 < y3) & ((g0 - y1) < ((y3 - y1) / (x3 - x1) * (gi0 - x1))) & \
-              ((g0 - y2) > ((y4 - y2) / (x4 - x2) * (gi0 - x2)))
-        priority[wBS] = 4
-        logger.info(f'{(keep & wBS).sum()} {self.name} Blue Straggler stars are marked as priority 4')
+        if True:
+            x1, x2, x3, x4 = -1.0, -0.2, -0.5, 0.3
+            y1, y2, y3, y4 = 21.5, 21.5, 23.0, 23.0
+            wBS = (priority == 9) & \
+                (g0 > y1) & \
+                (g0 < y3) & \
+                ((g0 - y1) < ((y3 - y1) / (x3 - x1) * (gi0 - x1))) & \
+                ((g0 - y2) > ((y4 - y2) / (x4 - x2) * (gi0 - x2)))
+            wBS &= (-0.15 < gn0) & (gn0 < 0.2)
+            wBS &= spatial_mask
+            priority[wBS] = 4
+            logger.info(f'{(keep & wBS).sum()} {self.name} Blue Straggler stars are marked as priority 4')
 
         # Assign minimum priority to non-members based on Gaia proper motions but within the probability cut
         # These are stars typically a bit bluer than the dSph RGB
@@ -390,6 +403,10 @@ class Sextans(DSphGalaxy):
                 (np.sqrt((pmra - self.pmra.value) ** 2 / (pmra_err ** 2 + self.pmra_err ** 2) +
                          (pmdec - self.pmdec.value) ** 2 / (pmdec_err ** 2 + self.pmdec_err ** 2)) > 3) & \
                 (pmra_err >= 0.0) & (pmdec_err >= 0.0) & ~np.isnan(pmra) & ~np.isnan(pmdec)
+            
+            # Use the spatial cut to speed up netflow
+            nonmem &= spatial_mask
+
             priority[nonmem] = 9
 
             logger.info(f'{(keep & nonmem).sum()} GAIA stars with high pm are demoted to priority 9')
