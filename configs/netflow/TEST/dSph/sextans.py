@@ -18,24 +18,92 @@ extra_columns = {
 }
 
 config = dict(
-    # # Override the minimum number of calibration targets
-    # netflow_options = dict(
-    #     target_classes = {
-    #         'cal': dict(
-    #             min_targets = 200,
-    #             max_targets = 300,
-    #         )
-    #     },
-    #     cobra_groups = {
-    #         'cal_location': dict(
-    #             min_targets = 15,
-    #             max_targets = 20,
-    #         )
-    #     }
-    # ),
+    # Override the minimum number of calibration targets
+    netflow_options = dict(
+        cobra_groups = {
+            'cal_location': dict(
+                min_targets = 0,
+                max_targets = 12,
+            )
+        },
+        target_classes = {
+            # 'sky': dict(
+            #     prefix = 'sky',
+            #     min_targets = 400,
+            #     max_targets = 420,
+            # ),
+            # 'cal': dict(
+            #     prefix = 'cal',
+            #     min_targets = 200,
+            #     max_targets = 300,
+            # ),
+            # Very likely members on the RGB
+            "sci_P0": {
+                "prefix": "sci",
+                # "non_observation_cost": 1000,
+                "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            # Bright p_member > 0.7
+            "sci_P1": {
+                "prefix": "sci",
+                # "non_observation_cost": 775,
+                "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            # Bright p_member > 0.0
+            "sci_P2": {
+                "prefix": "sci",
+                "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            # BHB + AGB + ToRGB
+            "sci_P3": {
+                "prefix": "sci",
+                "non_observation_cost": 465,
+                "partial_observation_cost": 100000.0
+            },
+            # Blue Stragglers
+            "sci_P4": {
+                "prefix": "sci",
+                "non_observation_cost": 360,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 0, Pace, Sestito
+            "sci_P5": {
+                "prefix": "sci",
+                "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 1
+            "sci_P6": {
+                "prefix": "sci",
+                "non_observation_cost": 450,
+                "partial_observation_cost": 100000.0
+            },
+            # Anc 2
+            "sci_P7": {
+                "prefix": "sci",
+                "non_observation_cost": 350,
+                "partial_observation_cost": 100000.0
+            },
+            # Faint dSph members
+            "sci_P8": {
+                "prefix": "sci",
+                "non_observation_cost": 130,
+                "partial_observation_cost": 100000.0
+            },
+            # Fillers
+            "sci_P9": {
+                "prefix": "sci",
+                "non_observation_cost": 10,
+                "partial_observation_cost": 100000.0
+            }
+        },
+    ),
     targets = {
         "hsc": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/sextans/sample/TEST/sextans_TEST_003/hsc_sex_priorities.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/sextans/sample/TEST/sextans_TEST_006/hsc_sex_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
