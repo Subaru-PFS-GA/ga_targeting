@@ -19,8 +19,6 @@ from .dsphgalaxy import DSphGalaxy
 
 from ...setup_logger import logger
 
-prioritize_DEIMOS = False
-
 class Sextans(DSphGalaxy):
     def __init__(self):
         ID = 'sex'
@@ -42,18 +40,19 @@ class Sextans(DSphGalaxy):
         # }
 
         # Generate the poitings algorithmically
+        posang = 42
         pointings = {
             SubaruPFI: [
-                Pointing.from_relative_pos(pos, sep=0, dir=0, posang=162, stage=1, priority=2),
-                
-                Pointing.from_relative_pos(pos, sep=0.58, dir=48, posang=162, stage=0, priority=1),
-                Pointing.from_relative_pos(pos, sep=-0.58, dir=48, posang=162, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=0.58, dir=48, posang=posang, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.58, dir=48, posang=posang, stage=0, priority=1),
 
-                Pointing.from_relative_pos(pos, sep=1.74, dir=48, posang=162, stage=3, priority=4),
-                Pointing.from_relative_pos(pos, sep=-1.74, dir=48, posang=162, stage=3, priority=4),
-                
-                Pointing.from_relative_pos(pos, sep=1.0, dir=138, posang=162, stage=2, priority=8),
-                Pointing.from_relative_pos(pos, sep=-1.0, dir=138, posang=162, stage=2, priority=8),
+                Pointing.from_relative_pos(pos, sep=0, dir=0, posang=posang, stage=1, priority=2),
+
+                Pointing.from_relative_pos(pos, sep=1.0, dir=138, posang=posang, stage=2, priority=4),
+                Pointing.from_relative_pos(pos, sep=-1.0, dir=138, posang=posang, stage=2, priority=4),
+
+                Pointing.from_relative_pos(pos, sep=1.74, dir=48, posang=posang, stage=3, priority=8),
+                Pointing.from_relative_pos(pos, sep=-1.74, dir=48, posang=posang, stage=3, priority=8),
             ]
         }
 
@@ -186,10 +185,12 @@ class Sextans(DSphGalaxy):
             & ColorSelection(ccd.axes[0], None, 1.8).apply(catalog, observed=observed, mask=mask)
             
             # Original NB cut for Ursa Minor
-            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
+            # Use this with simulations only
+            # | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
 
             # Revised NB cut for Sextans
-            # | LinearSelection(ccd.axes, [-0.25, 1.0], -0.10, None).apply(catalog, observed=observed, mask=mask)
+            # Use this with observations only
+            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.10, None).apply(catalog, observed=observed, mask=mask)
         )
 
     def get_spatial_selection_mask(self, catalog: Catalog, radius=150):
@@ -410,23 +411,6 @@ class Sextans(DSphGalaxy):
             priority[nonmem] = 9
 
             logger.info(f'{(keep & nonmem).sum()} GAIA stars with high pm are demoted to priority 9')
-
-        # # If a target has been previously observed by DEIMOS (Kirby et al. 2010), then set its priority to 0.
-        # # TODO: move this to the netflow config
-        # if prioritize_DEIMOS:
-        #     import os
-        #     from astropy.coordinates import SkyCoord
-        #     from astropy.io import fits
-
-        #     fn = os.path.expandvars('$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_moogify_member.fits.gz')
-        #     hdul = fits.open(fn)
-        #     deimos = hdul[1].data
-        #     c_deimos = SkyCoord(deimos['RA'] * u.degree, deimos['DEC'] * u.degree)
-        #     c_hsc = catalog.get_skycoords()
-        #     idx, d2d, _ = c_deimos.match_to_catalog_sky(c_hsc)
-        #     priority[idx] = 0
-
-        #     logger.info(f'{idx.size} DEIMOS stars are marked as priority 0')
 
         # Only keep stars with valid priority
         keep &= (priority >= 0) & (priority <= 9)
