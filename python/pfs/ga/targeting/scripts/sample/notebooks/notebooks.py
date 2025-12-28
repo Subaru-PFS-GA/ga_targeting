@@ -21,6 +21,7 @@ def load_observations(field, config):
 def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
                 mask=None, xlim_deg=[1.75, -3.75], ylim_deg=[-3.75, 1.75],
                 color_by=None, cmap='tab10', label='target priority', title='HSC targets',
+                obs_time=None,
                 **kwargs):
 
     if sample is not None and mask is None:
@@ -48,9 +49,16 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
         cax = f.add_subplot(gs[1, :])
 
     if background is not None:
-        background.plot(axs[0], cmd, c='lightgray', observed=True)
-        background.plot(axs[1], ccd, c='lightgray', observed=True)
-        background.plot(axs[2], fov, c='lightgray', observed=True)
+        # Plot at most 20k points
+        nmax = 100000
+        if len(background) > nmax:
+            s = np.s_[::len(background) // nmax]
+        else:
+            s = np.s_[:]
+
+        background.plot(axs[0], cmd, c='lightgray', observed=True, s=s)
+        background.plot(axs[1], ccd, c='lightgray', observed=True, s=s)
+        background.plot(axs[2], fov, c='lightgray', observed=True, s=s)
 
     if sample is not None:
         sample.plot(axs[0], cmd, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
@@ -61,6 +69,8 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
             
     pp = field.get_pointings(SubaruPFI)
     for p in pp:
+        if obs_time is not None:
+            p.obs_time = obs_time
         pfi.plot_focal_plane(axs[2], fov, corners=True, projection=SubaruWFC(p))
 
     axs[2].set_xlim(xlim_deg)

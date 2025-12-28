@@ -294,29 +294,35 @@ class ExportScript(TargetingScript):
     def __join_with_repeats(self, designs):
         # Generate a list of repeated visits
         # Iterate over pointing_idx and visit_idx of the designs DataFrame
+        stage = []
         pointing_idx = []
         visit_idx = []
         repeat_idx = []
-        for pidx, vidx, nrepeats in designs[['pointing_idx', 'visit_idx', 'nrepeats']].itertuples(index=False):
+        for stg, pidx, vidx, nrepeats in designs[['stage', 'pointing_idx', 'visit_idx', 'nrepeats']].itertuples(index=False):
             if nrepeats is None or nrepeats == 1:
+                stage.append(stg)
                 pointing_idx.append(pidx)
                 visit_idx.append(vidx)
                 repeat_idx.append(-1)
             else:
                 for ridx in range(nrepeats):
+                    stage.append(stg)
                     pointing_idx.append(pidx)
                     visit_idx.append(vidx)
                     repeat_idx.append(ridx)
 
         repeats = pd.DataFrame({
+            'stage': stage,
             'pointing_idx': pointing_idx,
             'visit_idx': visit_idx,
             'repeat_idx': repeat_idx
         })
 
-        return designs.set_index(['pointing_idx', 'visit_idx']) \
-            .join(repeats.set_index(['pointing_idx', 'visit_idx'])) \
+        designs = designs.set_index(['stage', 'pointing_idx', 'visit_idx']) \
+            .join(repeats.set_index(['stage', 'pointing_idx', 'visit_idx'])) \
             .reset_index()
+
+        return designs
 
     def __get_flux_by_band(self, assignments_all):
 

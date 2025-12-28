@@ -22,6 +22,9 @@ class SampleConfig(Config):
         # Path to the isochrones
         self.isochrones_path = isochrones_path
 
+        # Magnitude name mappings for the isochrones
+        self.isochrones_name_mapping = {}
+
         # Use the NB515 filter to define the color cuts
         self.cut_nb = cut_nb
 

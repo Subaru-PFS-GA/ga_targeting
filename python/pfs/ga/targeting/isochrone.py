@@ -13,12 +13,14 @@ class Isochrone(DiagramValueProvider):
         if not isinstance(orig, Isochrone):
             self.__DM = None
             self.__magnitudes = None
+            self.__name_mappings = None
             self.__values = None
             self.__eep = None
             self.__M_ini = None
         else:
             self.__DM = orig.__DM
             self.__magnitudes = safe_deep_copy(orig.__magnitudes)
+            self.__name_mappings = safe_deep_copy(orig.__name_mappings)
             self.__values = safe_deep_copy(orig.__values)
             self.__eep = safe_deep_copy(orig.__eep)
             self.__M_ini = safe_deep_copy(orig.M_ini)
@@ -27,6 +29,11 @@ class Isochrone(DiagramValueProvider):
         return ReadOnlyDict(self.__values)
 
     values = property(__get_values)
+
+    def __get_name_mappings(self):
+        return self.__name_mappings
+
+    name_mappings = property(__get_name_mappings)
 
     def __get_magnitudes(self):
         return ReadOnlyDict(self.__magnitudes)
@@ -74,10 +81,11 @@ class Isochrone(DiagramValueProvider):
         
         # Figure out what values we need to have all magnitudes of the photometric system
         # TODO: this could be made into a generic function
-        name_mappings = name_mappings or {}
+        self.__name_mappings = name_mappings or self.__name_mappings or {}
+
         values = []
         for i, m in enumerate(photometry.magnitudes.values()):
-            name = m.get_name(name_mappings=name_mappings)
+            name = m.get_name(name_mappings=self.__name_mappings)
             if name in isogrid.values:
                 values.append(isogrid.values[name])
 
@@ -109,18 +117,20 @@ class Isochrone(DiagramValueProvider):
                 i += 1
 
     def has_magnitude(self, magnitude: Magnitude, observed=False, name_mappings=None):
+        name_mappings = name_mappings or self.__name_mappings
         return magnitude.get_name(name_mappings=name_mappings) in self.__values
         
     def get_magnitude(self, magnitude: Magnitude, DM=None, observed=False, mask=None, name_mappings=None):
         DM = DM or self.__DM or 0
+        name_mappings = name_mappings or self.__name_mappings
         m = self.__values[magnitude.get_name(name_mappings=name_mappings)] + DM
         s_m = magnitude.mag_to_sigma(m)
 
         return m, s_m
 
-    def get_color(self, color: Color, observed=False, mask=None):
-        m1, s_m1 = self.get_magnitude(color.magnitudes[0], observed=observed)
-        m2, s_m2 = self.get_magnitude(color.magnitudes[1], observed=observed)
+    def get_color(self, color: Color, observed=False, mask=None, name_mappings=None):
+        m1, s_m1 = self.get_magnitude(color.magnitudes[0], observed=observed, mask=mask, name_mappings=name_mappings)
+        m2, s_m2 = self.get_magnitude(color.magnitudes[1], observed=observed, mask=mask, name_mappings=name_mappings)
 
         # TODO: correlated errors?
         if s_m1 is not None and s_m2 is not None:

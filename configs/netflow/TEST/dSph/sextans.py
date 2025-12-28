@@ -22,7 +22,7 @@ config = dict(
     netflow_options = dict(
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 1,
+                min_targets = 0,
                 max_targets = 12,
             )
         },
@@ -103,7 +103,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/sextans/sample/SSP/sextans_SSP_001/hsc_sex_priorities.feather",
+            path = f"$PFS_TARGETING_DATA/data/targeting/dSph/sextans/sample/TEST/sextans_TEST_006/hsc_sex_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -215,7 +215,7 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [16, 19.5],
+                    'ps1_g': [16, 19],
                     'ps1_g-ps1_r': [0.25, 0.4],
                 }
             )

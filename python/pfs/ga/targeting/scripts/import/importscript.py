@@ -35,7 +35,7 @@ class ImportScript(TargetingScript):
         self.__nrepeats = None
         self.__exp_time = None
         self.__obs_time = None
-        self.__xmatch_rad = 2           # arcseconds
+        self.__crossmatch_radius = None           # arcseconds
         self.__skip_notebooks = False
 
     def _add_args(self):
@@ -49,7 +49,7 @@ class ImportScript(TargetingScript):
         self.add_arg('--nrepeats', type=int, help='Repeat each design this many times.')
         self.add_arg('--exp-time', type=float, help='Exposure time per visit, in seconds.')
         self.add_arg('--obs-time', type=str, help='Observation time in ISO format in UTC.')        
-        self.add_arg('--xmatch-rad', type=float, help='Cross-match radius in arcseconds.')
+        self.add_arg('--crossmatch-radius', type=float, help='Cross-match radius in arcseconds.')
         self.add_arg('--skip-notebooks', action='store_true', help='Skip execution of evaluation notebooks.')    
 
     def _init_from_args_pre_logging(self, args):
@@ -70,7 +70,7 @@ class ImportScript(TargetingScript):
         self.__nrepeats = self.get_arg('nrepeats', args, self.__nrepeats)
         self.__exp_time = self.get_arg('exp_time', args, self.__exp_time)
         self.__obs_time = self.get_arg('obs_time', args, self.__obs_time)
-        self.__xmatch_rad = self.get_arg('xmatch_rad', args, self.__xmatch_rad)
+        self.__crossmatch_radius = self.get_arg('crossmatch_radius', args, self.__crossmatch_radius)
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
         # Override the configuration with the command-line arguments
@@ -156,6 +156,7 @@ class ImportScript(TargetingScript):
             target_list = self.load_target_list(k, target_list_config)
             target_list.name = k
             
+            self.__generate_target_list_targetid(k, target_list)
             self.__calculate_target_list_flux(k, target_list)
             self.__append_target_list_extra_columns(k, target_list)
             self.__validate_target_list(k, target_list_config, target_list)
@@ -163,6 +164,17 @@ class ImportScript(TargetingScript):
             target_lists[k] = target_list
 
         return target_lists
+
+    def __generate_target_list_targetid(self, key, target_list):
+        # Generate a target id, if not already present
+        if 'targetid' not in target_list.columns:
+            # If the target_list has a unique index, use that
+            if target_list.data.index.is_unique:
+                target_list.append_column('targetid', target_list.data.index, pd.Int64Dtype())
+                logger.info(f'Generated `targetid` column for target list `{key}` from unique index.')
+            else:
+                target_list.append_column('targetid', range(1, len(target_list.data) + 1), pd.Int64Dtype())
+                logger.info(f'Generated `targetid` column for target list `{key}` using sequential integers.')
 
     def __calculate_target_list_flux(self, key, target_list):
         # Calculate the missing flux columns
@@ -452,7 +464,14 @@ class ImportScript(TargetingScript):
         if netflow.targets is None:
             return None, None, None, None
         else:
-            logger.info(f'Cross-matching catalog {target_list.name} with {netflow.targets.shape[0]} already processed targets.')
+            self._config.targets[target_list.name]
+            crossmatch_radius = \
+                self.__crossmatch_radius or \
+                self._config.targets[target_list.name].crossmatch_radius or \
+                0.1           # arcseconds
+
+            logger.info(f'Cross-matching catalog `{target_list.name}` with {netflow.targets.shape[0]} already processed targets. '
+                        f'Using cross-match radius of {crossmatch_radius} arc sec.')
 
             # Coordinates of the target list
             ra, dec = target_list.get_coords()
@@ -475,9 +494,8 @@ class ImportScript(TargetingScript):
             match = pd.DataFrame({'idx': idx, 'sep2d': sep2d.arcsec})
 
             # Filter out targets that are too far away from the closest neighbor
-            mask = (match['sep2d'] <= self.__xmatch_rad * u.arcsecond)
-
-            logger.info(f'Cross-matching resulted in {mask.sum()} matches with separation less than {self.__xmatch_rad} arc sec.')
+            mask = (match['sep2d'] <= crossmatch_radius * u.arcsecond)
+            logger.info(f'Cross-matching resulted in {mask.sum()} matches with separation less than {crossmatch_radius} arc sec.')
 
             # Sort the good matches by idx and then separation
             match = match[mask].sort_values(by=['idx', 'sep2d'])
@@ -494,12 +512,14 @@ class ImportScript(TargetingScript):
             idx1 = match.index.values
             idx2 = match['idx'].values
             sep = match['sep2d'].values
+
+            logger.info(f'The median separation of the non-duplicate matches is {np.median(sep)} arc sec.')
             
             # Generate a mask that selects the targets that have matches
             mask = np.full(target_list.data.shape[0], False)
             mask[idx1] = True
 
-            logger.info(f'Cross-matching resulted in {mask.sum()} unique matches with separation less than {self.__xmatch_rad} arc sec.')
+            logger.info(f'Cross-matching resulted in {mask.sum()} unique matches with separation less than {crossmatch_radius} arc sec.')
 
             return idx1, idx2, sep, mask
 

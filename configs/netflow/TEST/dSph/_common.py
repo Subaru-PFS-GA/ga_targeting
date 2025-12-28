@@ -29,13 +29,13 @@ config = dict(
         target_classes = {
             'sky': dict(
                 prefix = 'sky',
-                min_targets = 240,
-                max_targets = 320,
+                min_targets = 400,
+                max_targets = 460,
                 non_observation_cost = 0,
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 40,
+                min_targets = 60,
                 max_targets = 240,
                 non_observation_cost = 0,
             ),
@@ -44,8 +44,8 @@ config = dict(
             'cal_location': dict(
                 # groups = np.random.randint(4, size=2394),
                 target_classes = [ 'cal' ],
-                min_targets = 8,
-                max_targets = 60,
+                min_targets = 3,
+                max_targets = 12,
                 non_observation_cost = 1000,
             ),
             'sky_instrument': dict(
@@ -58,8 +58,8 @@ config = dict(
             'sky_location': dict(
                 # groups = np.random.randint(8, size=2394),
                 target_classes = [ 'sky' ],
-                min_targets = 10,
-                max_targets = 60,
+                min_targets = 12,
+                max_targets = 20,
                 non_observation_cost = 100,
             )
         },
@@ -77,9 +77,10 @@ config = dict(
         degenmoves = 0,
         heuristics = 0.5,
         mipfocus = 1,           
-        mipgap = 0.01,
+        mipgap = 0.0,
+        mipgapabs = 100,
         LogToConsole = 1,
-        timelimit = 300 # sec
+        timelimit = 180 # sec
     ),
     debug_options = dict(
         ignore_endpoint_collisions = False,

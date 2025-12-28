@@ -17,8 +17,18 @@ config = dict(
         4.74330132e-01, 2.05290646e-01
     ],
     merge_list = [list(range(10)), list(range(10, 12))],
+    
+    # sim_path = "/datascope/subaru/user/khayasi/cmdfit/run/sext/sim/bin_chab_nb_250k_001/",
+    
     sim_path = "/datascope/subaru/user/khayasi/cmdfit/run/sext/sim/bin_chab_nb_250k_002",
     use_p_stars = False,
+
+    # sim_path = "/datascope/subaru/user/khayasi/cmdfit/run/sext/sim/bin_chab_nb_250k_003",
+    # use_p_stars = True,
+    
+    # sim_path = "/datascope/subaru/data/cmdfit/run/umi/sim/bin_chab_nb_uni_250k_001",
+    # use_p_stars = True,
     
     obs_path = "$PFS_TARGETING_DATA/data/targeting/dSph/sextans/sextans_tpall3e_g24.cat"
+    # obs_path = "/home/khayasi/Subaru-PFS-GA/ga_hscdata/sextans_within_1deg.csv"
 )
