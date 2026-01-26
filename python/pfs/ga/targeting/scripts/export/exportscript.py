@@ -393,7 +393,7 @@ class ExportScript(TargetingScript):
                         (designs['visit_idx'] == vidx) &
                         (designs['repeat_idx'] == ridx))
                 
-                if stage is not None:
+                if stage is not None and not np.isnan(stage):
                     mask &= (designs['stage'] == stage)
 
                 table.meta['ppc_code'] = ppc_code
@@ -406,7 +406,7 @@ class ExportScript(TargetingScript):
                         (assignments['pointing_idx'] == pidx) &
                         (assignments['visit_idx'] == vidx))
 
-                if stage is not None:
+                if stage is not None and not np.isnan(stage):
                     mask &= (assignments['stage'] == stage)
 
                 assert mask.sum() > 0

@@ -192,13 +192,13 @@ class TargetingScript(Script):
 
         code = f'{prefix}_{field}_'
 
-        if stage is not None:
-            code += f'S{stage:01d}'
+        if stage is not None and not np.isnan(stage):
+            code += f'S{int(stage):01d}'
 
-        code += f'P{pidx:02d}V{vidx:02d}'
+        code += f'P{int(pidx):02d}V{int(vidx):02d}'
 
-        if ridx is not None and ridx >= 0:
-            code += f'R{ridx:02d}'
+        if ridx is not None and not np.isnan(ridx) and ridx >= 0:
+            code += f'R{int(ridx):02d}'
 
         return code
 
