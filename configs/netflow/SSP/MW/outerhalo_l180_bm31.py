@@ -36,11 +36,11 @@ config = dict(
     field = dict(
         key = "outerhalo_l180_bm31_faint",
         name = "GA Outer Halo l=180 b=-31 Faint",
-        obs_time = datetime(2026, 1, 27, 6, 0, 0),
+        obs_time = datetime(2026, 1, 17, 6, 0, 0),
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=60.1462375, dec=10.6033049, posang=120.0, priority=1),
+        dict(ra=60.1462375, dec=10.6033049, posang=60.0, priority=4),
     ],
     netflow_options = dict(
        cobra_groups = {
