@@ -1,6 +1,21 @@
-from datetime import datetime, timedelta
-from pfs.ga.targeting.targets.dsph import Fornax
-from pfs.ga.targeting.instrument import SubaruHSC
+PROPOSALID = 'S25B-OT02'
+CATID_SKY_GAIA = 1006
+CATID_SKY_PS1 = 1007
+CATID_FLUXSTD = 3006
+CATID_SCIENCE_CO = 10091
+CATID_SCIENCE_GA = 10092
+CATID_SCIENCE_GE = 10093
+
+extra_columns = {
+    'proposalid': dict(
+        constant = PROPOSALID,
+        dtype = 'string',
+    ),
+    'obcode': dict(
+        pattern = "SSP_GA_S25A_{field}_{target_list}_{{targetid:d}}_{resolution}",
+        dtype = 'string'
+    )
+}
 
 config = dict(
     targets = {
@@ -10,66 +25,72 @@ config = dict(
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
             prefix = "sci",
-            epoch = "J2000.0",
-            catid = 15001,
-            proposalid = "PFS-2024-001",
-            filters = {
-                "g_hsc": dict(
-                    mag = 'obs_hsc_g',
-                    mag_err = 'err_hsc_g',
-                    # flux = "g_hsc_flux",
-                    # flux_err = "g_hsc_flux_err",
-                    # psf_mag = "g_hsc",
-                    # psf_mag_err = "g_hsc_err",
-                    # psf_flux = "g_hsc_flux",
-                    # psf_flux_err = "g_hsc_flux_err",
-                    # fiber_mag = "g_hsc",
-                    # fiber_mag_err = "g_hsc_err",
-                    # fiber_flux = "g_hsc_flux",
-                    # fiber_flux_err = "g_hsc_flux_err",
-                    # total_mag = "g_hsc",
-                    # total_mag_err = "g_hsc_err",
-                    # total_flux = "g_hsc_flux",
-                    # total_flux_err = "g_hsc_flux_err",
-                ),
-                "i_hsc": dict(
-                    mag = 'obs_hsc_i',
-                    mag_err = 'err_hsc_i',
-                ),
-                "nb515_hsc": dict(
-                    mag = 'obs_hsc_nb515',
-                    mag_err = 'err_hsc_nb515',
-                ),
-            }
+            frame='icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "g_hsc": dict(
+                        mag = 'obs_hsc_g',
+                        mag_err = 'err_hsc_g',
+                    ),
+                    "i2_hsc": dict(
+                        mag = 'obs_hsc_i2',
+                        mag_err = 'err_hsc_i2',
+                    ),
+                    "nb515_hsc": dict(
+                        mag = 'obs_hsc_nb515',
+                        mag_err = 'err_hsc_nb515',
+                    ),
+                }
+            ),
         ),
+        # Miho
         "sky": dict(
-            path = "/datascope/subaru/data/catalogs/dSph/sky_fornax.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/fornax/sky_fornax.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
                 'ra': 'RA',
                 'dec': 'Dec',
             },
-            prefix = "sky"
+            prefix = "sky",
+            catid = CATID_SKY_PS1,
+            extra_columns = extra_columns,
         ),
+        # Miho
         "fluxstd": dict(
-            path = "/datascope/subaru/data/catalogs/dSph/Fornax_GaiaFstar.csv",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/fornax/fluxstd_fornax.feather",
             reader_args = dict(),
             column_map = {
-                'obj_id': 'targetid',
+                'fluxstd_id': 'targetid',
                 'ra': 'RA',
                 'dec': 'Dec',
+                'parallax_error': 'err_parallax',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
             },
             prefix = "cal",
-            bands = {
-                b: dict(
-                    filter = f'filter_{b}',                   # Column storing filter names
-                    psf_mag = f'psf_mag_{b}',
-                    psf_mag_err = f'psf_mag_error_{b}',
-                    psf_flux = f'psf_flux_{b}',
-                    psf_flux_err = f'psf_flux_error_{b}',
-                ) for b in 'gri'
-            }
+            frame = 'icrs',
+            epoch = 2016.0,
+            catid = CATID_FLUXSTD,
+            extra_columns = extra_columns,
+            photometry = dict(
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',                     # Column storing filter names
+                        # psf_mag = f'psf_mag_{b}',                 # All None in data file
+                        # psf_mag_err = f'psf_mag_error_{b}',       # All None in data file
+                        psf_flux = f'psf_flux_{b}',
+                        psf_flux_err = f'psf_flux_error_{b}',
+                    ) for b in 'grizy'
+                },
+                limits = {
+                    'ps1_g': [16, 19.5],
+                    'ps1_g-ps1_r': [0.25, 0.4],
+                }
+            )
         ),
     },
     # Override the minimum number of calibration targets

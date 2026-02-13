@@ -37,7 +37,8 @@ class Bootes(DSphGalaxy):
         # pa0 = [ 30 ] * u.deg
 
         pointings = {
-            SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
+            SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
+                         for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
         super().__init__(ID, name, ID_PREFIX_BOOTES,
@@ -52,6 +53,7 @@ class Bootes(DSphGalaxy):
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['r']]), limits=(-1, 4)),
             MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
         ])
+        self._hsc_ccd = None
         #self._hsc_ccd = CCD([
         #    ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
         #    ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
@@ -62,6 +64,25 @@ class Bootes(DSphGalaxy):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+
+        cfht = CFHT.photometry()
+        self._cfht_cmd = CMD([
+            ColorAxis(Color([cfht.magnitudes['g'], cfht.magnitudes['r']]), limits=(0, 3)),
+            MagnitudeAxis(cfht.magnitudes['g'], limits=(15.5, 24.5))
+        ])
+
+    def get_text_observation_reader(self, instrument=SubaruHSC):
+        if instrument == SubaruHSC:
+            return SubaruHSC.text_observation_reader(
+                mags=['r', 'g'], ext=['r', 'g'])
+        else:
+            raise NotImplementedError()
+
+    def get_pmap_config(self):
+        raise NotImplementedError()
+
+    def get_sample_config(self):
+        raise NotImplementedError()
     
     def get_selection_mask(self, catalog: Catalog, nb=False, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""

@@ -31,7 +31,8 @@ class Fornax(DSphGalaxy):
         pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
 
         pointings = {
-            SubaruPFI: [ Pointing((ra, dec), posang=pa) for ra, dec, pa in zip(ra0, dec0, pa0) ]
+            SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
+                         for ra, dec, pa in zip(ra0, dec0, pa0) ]
         }
 
         super().__init__(ID, name, ID_PREFIX_FORNAX,

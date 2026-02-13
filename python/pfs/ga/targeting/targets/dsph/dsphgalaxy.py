@@ -65,7 +65,10 @@ class DSphGalaxy(Galaxy):
         Return the definition of the color-magnitude diagram for the given instrument.
         """
         if instrument == SubaruHSC:
-            cmd = self._hsc_cmd[index]
+            if index is not None and isinstance(self._hsc_cmd, Iterable):
+                cmd = self._hsc_cmd[index]
+            else:
+                cmd = self._hsc_cmd
         elif instrument == Gaia:
             cmd = self._gaia_cmd
         else:
