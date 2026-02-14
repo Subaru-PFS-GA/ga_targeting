@@ -18,8 +18,9 @@ class Sculptor(DSphGalaxy):
         ID = 'scl'
         name = 'Sculptor'
 
-        pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
+        # pos = [ '01h 00m 09.4s', '-33d 42m 32s' ]
         # pos = [ 15.0392, -33.7089 ] * u.deg               # Evan
+        pos = [ 15.018458, -33.71494 ] * u.deg           # Laszlo
         rad = 120 * u.arcmin
         DM, DM_err = 19.67, 0.1                             # Evan
         # pm, pm_err = [ 0.09, 0.02 ], [ 0.13, 0.13 ]       # Piatek et al. (2006)
@@ -27,13 +28,27 @@ class Sculptor(DSphGalaxy):
         pm_err = [ 0.003, 0.002 ] * u.mas / u.yr                          
         RV, RV_err = -110.0 * u.kilometer / u.second, 2.0
 
-        ra0 = [ 14.5, 15.1, 15.5, 15.0, 16.4, 15.06, 13.7, 14.9 ] * u.deg
-        dec0 = [ -33.7, -33.4, -33.7, -34.1, -33.9, -33.0, -33.55, -34.5 ] * u.deg
-        pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
+        # Naive pointings
+        # ra0 = [ 14.5, 15.1, 15.5, 15.0, 16.4, 15.06, 13.7, 14.9 ] * u.deg
+        # dec0 = [ -33.7, -33.4, -33.7, -34.1, -33.9, -33.0, -33.55, -34.5 ] * u.deg
+        # pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
+        # pointings = {
+        #     SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
+        #                  for ra, dec, pa in zip(ra0, dec0, pa0) ]
+        # }
 
+        # Generate the poitings algorithmically
         pointings = {
-            SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
-                         for ra, dec, pa in zip(ra0, dec0, pa0) ]
+            SubaruPFI: [
+                Pointing.from_relative_pos(pos, sep=0.2, dir=5, posang=25, stage=0, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.2, dir=5, posang=25, stage=0, priority=1),
+
+                Pointing.from_relative_pos(pos, sep=0.58, dir=95, posang=25, stage=1, priority=2),
+                Pointing.from_relative_pos(pos, sep=-0.58, dir=95, posang=25, stage=1, priority=2),
+                
+                Pointing.from_relative_pos(pos, sep=1.3, dir=5, posang=25, stage=2, priority=4),
+                Pointing.from_relative_pos(pos, sep=-1.3, dir=5, posang=25, stage=2, priority=4),
+            ]
         }
 
         super().__init__(ID, name, ID_PREFIX_SCULPTOR,

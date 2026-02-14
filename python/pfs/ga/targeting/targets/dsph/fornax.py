@@ -19,20 +19,38 @@ class Fornax(DSphGalaxy):
         ID = 'fornax'
         name = 'Fornax'
 
-        pos = [ 39.9971, -34.4492 ] * u.deg                     # Evan
+        # pos = [ 39.9971, -34.4492 ] * u.deg                     # Evan
+        pos = [ 39.98257, -34.526998 ] * u.deg                     # Laszlo
         rad = 240 * u.arcmin
         DM, DM_err = 20.77, 0.05                                # Oakes et al. (2022)
         pm = [ 0.381, -0.358 ] * u.mas / u.yr                   # Evan
         pm_err = [ 0.001, 0.002 ] * u.mas / u.yr
         RV, RV_err = (-291.0, 0.1) * u.kilometer / u.second     # Simbad
 
-        ra0 = [ 39.5, 40.4, 40.3, 39.5, 40.9, 40.5, 39.4, 39.1 ] * u.deg
-        dec0 = [ -34.2, -34.1, -34.8, -34.9, -33.8, -35.1, -34.0, -35.2 ] * u.deg
-        pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
+        # Naive pointings
+        # ra0 = [ 39.5, 40.4, 40.3, 39.5, 40.9, 40.5, 39.4, 39.1 ] * u.deg
+        # dec0 = [ -34.2, -34.1, -34.8, -34.9, -33.8, -35.1, -34.0, -35.2 ] * u.deg
+        # pa0 = [ 30, 30, 30, 30, 30, 30, 30, 30 ] * u.deg
+        # pointings = {
+        #     SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
+        #                  for ra, dec, pa in zip(ra0, dec0, pa0) ]
+        # }
 
+        # Generate the poitings algorithmically
         pointings = {
-            SubaruPFI: [ Pointing((ra, dec), posang=pa, stage=0)
-                         for ra, dec, pa in zip(ra0, dec0, pa0) ]
+            SubaruPFI: [
+                Pointing.from_relative_pos(pos, sep=0.20, dir=45, posang=45, stage=1, priority=1),
+                Pointing.from_relative_pos(pos, sep=-0.20, dir=45, posang=45, stage=1, priority=1),
+
+                Pointing.from_relative_pos(pos, sep=0.58, dir=45, posang=45, stage=2, priority=4),
+                Pointing.from_relative_pos(pos, sep=-0.58, dir=45, posang=45, stage=2, priority=4),
+
+                Pointing.from_relative_pos(pos, sep=0.50, dir=135, posang=45, stage=0, priority=2),
+                Pointing.from_relative_pos(pos, sep=-0.50, dir=135, posang=45, stage=0, priority=2),
+
+                Pointing.from_relative_pos(pos, sep=1.05, dir=135, posang=45, stage=3, priority=8),
+                Pointing.from_relative_pos(pos, sep=-1.05, dir=135, posang=45, stage=3, priority=8),
+            ]
         }
 
         super().__init__(ID, name, ID_PREFIX_FORNAX,
