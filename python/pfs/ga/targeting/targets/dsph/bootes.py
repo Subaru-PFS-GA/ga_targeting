@@ -11,6 +11,8 @@ from ...projection import Pointing
 from ...data import Catalog, Observation
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
+from ...config.pmap import PMapConfig
+from ...config.sample import SampleConfig
 from ..ids import *
 from .dsphgalaxy import DSphGalaxy
 
@@ -71,6 +73,12 @@ class Bootes(DSphGalaxy):
             MagnitudeAxis(cfht.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
+        sdss = SDSS.photometry()
+        self._sdss_cmd = CMD([
+            ColorAxis(Color([sdss.magnitudes['g'], sdss.magnitudes['r']]), limits=(0, 3)),
+            MagnitudeAxis(sdss.magnitudes['g'], limits=(15.5, 24.5))
+        ])
+
     def get_text_observation_reader(self, instrument=SubaruHSC):
         if instrument == SubaruHSC:
             return SubaruHSC.text_observation_reader(
@@ -79,17 +87,23 @@ class Bootes(DSphGalaxy):
             raise NotImplementedError()
 
     def get_pmap_config(self):
-        raise NotImplementedError()
+        config = PMapConfig(
+            cut_nb = False,
+            keep_blue = False,
+            extents = [[0.1, 1.5], [17.0, 23]],
+            merge_list = [np.s_[:10], np.s_[10:]]
+        )
+
+        return config
 
     def get_sample_config(self):
-        raise NotImplementedError()
+        config = SampleConfig()
+        return config
     
     def get_selection_mask(self, catalog: Catalog, nb=False, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
 
-        # TODO: add Keyi's cut
-        
-        cmd = self._hsc_cmd
+        cmd = self._sdss_cmd
         #ccd = self._hsc_ccd
 
         # Broadband colors
@@ -97,7 +111,7 @@ class Bootes(DSphGalaxy):
 
         # Narrow band
         if nb:
-            raise NotImplementedError
+            raise NotImplementedError()
 
         # Probability-based cut (map) - nonzero membership probability
         if probcut is not None:

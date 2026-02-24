@@ -5,3 +5,4 @@ from .subaruhsc import SubaruHSC
 from .subarutelescope import SubaruTelescope
 from .gaia import Gaia
 from .cfht import CFHT
+from .sdss import SDSS
