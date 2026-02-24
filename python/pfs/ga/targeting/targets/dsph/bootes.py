@@ -86,6 +86,25 @@ class Bootes(DSphGalaxy):
         else:
             raise NotImplementedError()
 
+    def get_cmd(self, index=0, instrument=SubaruHSC):
+        """
+        Return the definition of the color-magnitude diagram for the given instrument.
+        """
+
+        return self._sdss_cmd
+
+        # if instrument == SubaruHSC:
+        #     if index is not None and isinstance(self._hsc_cmd, Iterable):
+        #         cmd = self._hsc_cmd[index]
+        #     else:
+        #         cmd = self._hsc_cmd
+        # elif instrument == Gaia:
+        #     cmd = self._gaia_cmd
+        # else:
+        #     raise NotImplementedError()
+            
+        # return cmd
+
     def get_pmap_config(self):
         config = PMapConfig(
             cut_nb = False,
@@ -100,14 +119,14 @@ class Bootes(DSphGalaxy):
         config = SampleConfig()
         return config
     
-    def get_selection_mask(self, catalog: Catalog, nb=False, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
+    def get_selection_mask(self, catalog: Catalog, nb=False, blue=False, probcut=None, observed=None, bright=17, faint=23):
         """Return true for objects within sharp magnitude cuts."""
 
         cmd = self._sdss_cmd
         #ccd = self._hsc_ccd
 
         # Broadband colors
-        mask = ColorSelection(cmd.axes[0], 0.08, 2.0).apply(catalog, observed=observed)
+        mask = ColorSelection(cmd.axes[0], 0.1, 1.5).apply(catalog, observed=observed)
 
         # Narrow band
         if nb:
