@@ -197,7 +197,7 @@ class Draco(DSphGalaxy):
         ccd = self._hsc_ccd
 
         g0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
-        i0, _ = catalog.get_magnitude(hsc.magnitudes['g'], observed=True, dered=True, mask=mask)
+        i0, _ = catalog.get_magnitude(hsc.magnitudes['i'], observed=True, dered=True, mask=mask)
         gi0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), observed=True, dered=True, mask=mask)
         gn0, _ = catalog.get_color(Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), observed=True, dered=True, mask=mask)
 

@@ -9,12 +9,15 @@ from pfs.ga.common.photometry import Photometry, Magnitude, Color
 from ...instrument import *
 from ...projection import Pointing
 from ...data import Catalog, Observation
-from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ... import Isochrone
+from ...selection import ColorSelection, MagnitudeSelection, LinearSelection, IsochroneSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ...config.pmap import PMapConfig
 from ...config.sample import SampleConfig
 from ..ids import *
 from .dsphgalaxy import DSphGalaxy
+
+from ...setup_logger import logger
 
 class Bootes(DSphGalaxy):
     def __init__(self):
@@ -79,10 +82,13 @@ class Bootes(DSphGalaxy):
             MagnitudeAxis(sdss.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
-    def get_text_observation_reader(self, instrument=SubaruHSC):
+    def get_text_observation_reader(self, instrument=CFHT):
         if instrument == SubaruHSC:
             return SubaruHSC.text_observation_reader(
                 mags=['r', 'g'], ext=['r', 'g'])
+        elif instrument == CFHT:
+            return CFHT.text_observation_reader(
+                mags=['g', 'r'], ext=['g', 'r'])
         else:
             raise NotImplementedError()
 
@@ -109,7 +115,7 @@ class Bootes(DSphGalaxy):
         config = PMapConfig(
             cut_nb = False,
             keep_blue = False,
-            extents = [[0.1, 1.5], [17.0, 23]],
+            extents = [[0.0, 1.5], [16.8, 23]],
             merge_list = [np.s_[:10], np.s_[10:]]
         )
 
@@ -147,84 +153,134 @@ class Bootes(DSphGalaxy):
 
         return mask
     
-    def _get_hsc_dered_mags_colors(self, catalog, mask):
-        hsc = SubaruHSC.photometry()
-        [ (g0, _), (r0, _), (gr0, _) ] = catalog.get_diagram_values([
-                    hsc.magnitudes['g'],
-                    hsc.magnitudes['r'],
-                    Color([hsc.magnitudes['g'], hsc.magnitudes['r']])
-                ], observed=True, mask=mask)
+    # def _get_cfht_dered_mags_colors(self, catalog, mask):
+    #     cfht = CFHT.photometry()
+    #     [ (g0, _), (r0, _), (gr0, _) ] = catalog.get_diagram_values([
+    #                 cfht.magnitudes['g'],
+    #                 cfht.magnitudes['r'],
+    #                 Color([cfht.magnitudes['g'], cfht.magnitudes['r']])
+    #             ], observed=True, mask=mask)
         
-        return g0, r0, gr0
+    #     raise NotImplementedError()
 
-    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
+    #     return g0, r0, gr0
+
+    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None, isochrones_name_mappings=None):
         """Assign priority classes based on photometry"""
 
-        mask = mask if mask is not None else np.s_[:]
+        mask = mask.copy() if mask is not None else np.full(catalog.shape[0], True, dtype=bool)
 
-        g0, r0, gr0 = self._get_hsc_dered_mags_colors(catalog, mask)
-        clg = catalog.data['clg'][mask]
-        clr = catalog.data['clr'][mask]
+        logger.info(f'Assigning prioritis to {self.name} stars.')
+        logger.info(f'HSC catalog size: {catalog.shape[0]}, using {mask.sum()} unmasked stars.')
 
-        priority = np.full(g0.shape, -1, np.int32)
+        # CFHT data in Munoz et al. (2018) is given in SDSS magnitudes
+        cfht = CFHT.photometry()
 
-        if 'p_member' in catalog.data:
-            prob = catalog.data['p_member'][mask]
-            code = np.full(prob.shape, 0, dtype=np.int32)
+        g0, _ = catalog.get_magnitude(cfht.magnitudes['g'], observed=True, dered=True, mask=mask)
+        r0, _ = catalog.get_magnitude(cfht.magnitudes['r'], observed=True, dered=True, mask=mask)
+        gr0, _ = catalog.get_color(Color([cfht.magnitudes['g'], cfht.magnitudes['r']]), observed=True, dered=True, mask=mask)
 
-            top_pri = np.maximum(np.floor((r0 - 16)/(21.5 - 16) * 8).astype(int) - 7, -7) # top pri goes from 0-4 based on brightness 
-            bot_pri = np.maximum(np.floor((r0 - 16)/(21.5 - 16) * 6).astype(int) + 3, 3) # bot pri goes from 3-8 based on brightness
-          
-            w = ~np.isnan(prob)
-            priority[w] = np.minimum(np.maximum(bot_pri[w] - np.rint(prob[w] * (bot_pri[w] - top_pri[w])).astype(int), 0), 9)
-            
-            # Everything without membership probability
-            w = np.isnan(prob) | (prob == 0.0)
-            priority[w] = 9
-            code[w] = 0
-            
-            # Blue Horizontal Branch
-            w = (g0 > 19.1) & (g0 < 19.7) & (gr0 > -0.5) & (gr0 < 0.2) & (clr <= 0.5) & (clg < 0.5)
-            priority[w] = 6
-            code[w] = 0
-            
-            # Very bright stars, this does nothing because there aren't any of those
-            w = (r0 <= 16) & (clr <= 0.5) & (clg <= 0.5)
-            priority[w] = 9
-            code[w] = 1
-            
-            # Very faint stars with lowest priority
-            w = (r0 >= 23) & (clr <= 0.5) & (clg <= 0.5)
-            priority[w] = 9
-            code[w] = 2
+        # Exclude very bright and very faint stars in case they accidentally
+        # got into the sample
+        keep = mask & (16 <= g0) & (g0 <= 23) & \
+                      (16 <= r0) & (r0 < 23)
+        
+        p_member = catalog.data['p_member'][mask]
+        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10 ** ((r0 - 19.0) / 2.5)) + 1).astype(int), 6), 1)
 
-            # Possible extended sources, regardless of magnitude
-            w = (clr > 0.5) | (clg > 0.5)
-            priority[w] = 9
-            code[w] = 3
+        # Priorities
+        priority = np.full_like(p_member, -1, np.int32)
 
-            # Assign minimum priority to non-members based on Gaia proper motions but within the probability cut
-            # These are stars typically a bit bluer than the dSph RGB
-            if 'pmra' in catalog.data.columns:
-                pmra = catalog.data['pmra'][mask]
-                pmra_err = catalog.data['err_pmra'][mask]
-                pmdec = catalog.data['pmdec'][mask]
-                pmdec_err = catalog.data['err_pmdec'][mask]
+        # Everything without membership probability
+        w9 = np.isnan(p_member) | (p_member == 0.0)
+        priority[w9] = 9
 
-                nonmem = (code == 0) & (prob > 0) & \
-                    (np.sqrt((pmra - self.pmra.value) ** 2 / (pmra_err ** 2 + self.pmra_err ** 2) +
-                             (pmdec - self.pmdec.value) ** 2 / (pmdec_err ** 2 + self.pmdec_err ** 2)) > 3) & \
-                    (pmra_err >= 0.0) & (pmdec_err >= 0.0) & ~np.isnan(pmra) & ~np.isnan(pmdec)
-                priority[nonmem] = 9
-        else:
-           raise NotImplementedError
+        # Priority 0: bright likely members, this will be extended with DEIMOS targets
+        w0 = np.isfinite(p_member) & (p_member > 0.8) & (g0 < 22.5)
+        priority[w0] = 0
+        logger.info(f'{(keep & w0).sum()} {self.name} stars are marked as priority 0')
 
-        exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)
+        # Make cuts based on membership
 
-        keep = (g0 < 23) & (priority <= 9) & (code == 0)
+        # Priority 1:
+        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 22.5)
+        priority[w1] = 1
+        logger.info(f'{(keep & w1).sum()} {self.name} stars are marked as priority 1')
+
+        # Priority 2:
+        w2 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0) & (g0 < 22.5)
+        priority[w2] = 2
+        logger.info(f'{(keep & w2).sum()} {self.name} stars are marked as priority 2')
+
+        # Special cuts to include blue stars
+
+        # Priority 3:
+
+        # Blue Horizontal Branch
+        wHB = (priority == 9) & (g0 > 19.2) & (g0 < 20.7) & (gr0 > -0.7) & (gr0 < 0.2)
+        priority[wHB] = 3
+        logger.info(f'{(keep & wHB).sum()} {self.name} BHB stars are marked as priority 3')
+
+        # Potential AGB stars
+        # These are stars that are bluer than the RGB but has no membership estimate
+        # because we have no reliable models for them
+        if isogrid is not None:
+            iso_blue = Isochrone()
+            iso_blue.from_isogrid(cfht, isogrid, Fe_H=-2.5, log_t=10.1, DM=19.557)
+            iso_sel = IsochroneSelection(iso_blue, self._cfht_cmd.axes, selection_axis=0,
+                                         selection_direction='-', DM=19.557, error_sigma=[0, 0])
+            wAGB = iso_sel.apply(catalog, mask=mask)
+            wAGB &= (priority == 9) & (g0 > 17.25) & (g0 < 20.6) & (gr0 > -0.5) & \
+                    (g0 > 19.15 - 1.5 * gr0)
+                    # (gn0 > 0.25 * gr0 - 0.15) & \
+            priority[wAGB] = 3
+
+            logger.info(f'{(keep & wAGB).sum()} potential {self.name} AGB stars are marked as priority 3')
+
+        # Stars around the tip of the RGB but red of the halo edge
+        # wT = (priority == 9) & \
+        #      (16.8 <= g0) & (g0 <= 18.5) & (0.75 <= gr0) & (gr0 <= 1.8) & \
+        #      self.get_nb_selection_mask(catalog, observed=True, mask=mask)
+        # priority[wT] = 3
+        # logger.info(f'{(keep & wT).sum()} potential {self.name} bright RGB stars are marked as priority 3')
+
+        # Priority 8: - faint likely members, there's a lot of them
+        w8 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.0)
+        priority[w8] = 8
+        logger.info(f'{(keep & w8).sum()} {self.name} stars are marked as priority 8')
+
+        # Priority 4:
+
+        # Blue Stragglers
+        x1, x2, x3, x4 = -1.0, -0.2, -0.6, 0.3
+        y1, y2, y3, y4 = 20.8, 20.8, 23.0, 23.0
+        wBS = (priority == 9) & \
+              (g0 > y1) & (g0 < y3) & ((g0 - y1) < ((y3 - y1) / (x3 - x1) * (gr0 - x1))) & \
+              ((g0 - y2) > ((y4 - y2) / (x4 - x2) * (gr0 - x2)))
+        priority[wBS] = 4
+        logger.info(f'{(keep & wBS).sum()} {self.name} Blue Straggler stars are marked as priority 4')
+
+        # Assign minimum priority to non-members based on Gaia proper motions but within the probability cut
+        # These are stars typically a bit bluer than the dSph RGB
+        if 'pmra' in catalog.data.columns:
+            pmra = catalog.data['pmra'][mask]
+            pmra_err = catalog.data['err_pmra'][mask]
+            pmdec = catalog.data['pmdec'][mask]
+            pmdec_err = catalog.data['err_pmdec'][mask]
+
+            nonmem = (priority >= 0) & (p_member > 0) & \
+                (np.sqrt((pmra - self.pmra.value) ** 2 / (pmra_err ** 2 + self.pmra_err ** 2) +
+                         (pmdec - self.pmdec.value) ** 2 / (pmdec_err ** 2 + self.pmdec_err ** 2)) > 3) & \
+                (pmra_err >= 0.0) & (pmdec_err >= 0.0) & ~np.isnan(pmra) & ~np.isnan(pmdec)
+            priority[nonmem] = 9
+
+            logger.info(f'{(keep & nonmem).sum()} GAIA stars with high pm are demoted to priority 9')
+
+        # Only keep stars with valid priority
+        keep &= (priority >= 0) & (priority <= 9)
 
         catalog.data['priority'] = -1
-        catalog.data['priority'][mask][keep] = priority[keep]
+        catalog.data.loc[keep, 'priority'] = priority[keep]
 
         catalog.data['exp_time'] = np.nan
-        catalog.data['exp_time'][mask][keep] = exp_time[keep]
+        catalog.data.loc[keep, 'exp_time'] = exp_time[keep]
