@@ -20,7 +20,8 @@ def load_observations(field, config):
 
 def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
                 mask=None, xlim_deg=[1.75, -3.75], ylim_deg=[-3.75, 1.75],
-                color_by=None, cmap='tab10', label='target priority', title='HSC targets',
+                color_by=None, cmap='tab10', clim=None,
+                label='target priority', title='HSC targets',
                 obs_time=None,
                 **kwargs):
 
@@ -56,9 +57,9 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
         else:
             s = np.s_[:]
 
-        background.plot(axs[0], cmd, c='lightgray', observed=True, s=s)
-        background.plot(axs[1], ccd, c='lightgray', observed=True, s=s)
-        background.plot(axs[2], fov, c='lightgray', observed=True, s=s)
+        background.plot(axs[0], cmd, c='gray', observed=True, s=s)
+        background.plot(axs[1], ccd, c='gray', observed=True, s=s)
+        background.plot(axs[2], fov, c='gray', observed=True, s=s)
 
     if sample is not None:
         sample.plot(axs[0], cmd, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
@@ -66,6 +67,8 @@ def plot_sample(field, background, sample, cmd, ccd, pfi, fov, wcs,
         l = sample.plot(axs[2], fov, c=c, observed=True, mask=mask, cmap=cmap, **kwargs)
     else:
         l = None
+
+    axs[0].grid()
             
     pp = field.get_pointings(SubaruPFI)
     for p in pp:
