@@ -72,13 +72,13 @@ class Bootes(DSphGalaxy):
 
         cfht = CFHT.photometry()
         self._cfht_cmd = CMD([
-            ColorAxis(Color([cfht.magnitudes['g'], cfht.magnitudes['r']]), limits=(0, 3)),
+            ColorAxis(Color([cfht.magnitudes['g'], cfht.magnitudes['r']]), limits=(-1.5, 3)),
             MagnitudeAxis(cfht.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
         sdss = SDSS.photometry()
         self._sdss_cmd = CMD([
-            ColorAxis(Color([sdss.magnitudes['g'], sdss.magnitudes['r']]), limits=(0, 3)),
+            ColorAxis(Color([sdss.magnitudes['g'], sdss.magnitudes['r']]), limits=(-1.5, 3)),
             MagnitudeAxis(sdss.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
@@ -183,27 +183,33 @@ class Bootes(DSphGalaxy):
         # Exclude very bright and very faint stars in case they accidentally
         # got into the sample
         keep = mask & (16 <= g0) & (g0 <= 23) & \
-                      (16 <= r0) & (r0 < 23)
+                      (16 <= r0) & (r0 < 23) & \
+                      (-0.4 <= gr0) & (gr0 < 2)
         
         p_member = catalog.data['p_member'][mask]
         exp_time = 1800 * np.maximum(np.minimum(np.rint(5 * np.sqrt(10 ** ((r0 - 19.0) / 2.5)) + 1).astype(int), 6), 1)
+
+        # We have no narrow-band data for Bootes, so we will not be able to select stars based on that.
+        # This means that membership probability declines significantly toward the tip of the RGB, hence
+        # we assign priorities based on brightness rather than membership. None-zero membership is used to
+        # select the region where RGB stars are likely.
 
         # Priorities
         priority = np.full_like(p_member, -1, np.int32)
 
         # Everything without membership probability
-        w9 = np.isnan(p_member) | (p_member == 0.0)
+        w9 = (~np.isfinite(p_member) | (p_member == 0)) & (g0 > 17.5)
         priority[w9] = 9
 
-        # Priority 0: bright likely members, this will be extended with DEIMOS targets
-        w0 = np.isfinite(p_member) & (p_member > 0.8) & (g0 < 22.5)
+        # Priority 0: bright likely members
+        w0 = np.isfinite(p_member) & (p_member > 0) & (g0 < 20.0)
         priority[w0] = 0
         logger.info(f'{(keep & w0).sum()} {self.name} stars are marked as priority 0')
 
         # Make cuts based on membership
 
         # Priority 1:
-        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.7) & (g0 < 22.5)
+        w1 = (priority == -1) & np.isfinite(p_member) & (p_member > 0.5) & (g0 < 22.5)
         priority[w1] = 1
         logger.info(f'{(keep & w1).sum()} {self.name} stars are marked as priority 1')
 
@@ -216,23 +222,38 @@ class Bootes(DSphGalaxy):
 
         # Priority 3:
 
-        # Blue Horizontal Branch
-        wHB = (priority == 9) & (g0 > 19.2) & (g0 < 20.7) & (gr0 > -0.7) & (gr0 < 0.2)
-        priority[wHB] = 3
-        logger.info(f'{(keep & wHB).sum()} {self.name} BHB stars are marked as priority 3')
+        # # Blue Horizontal Branch
+        # wHB = (priority == 9) & (g0 > 19) & \
+        #       (g0 < 20) & (gr0 > -0.5) & (gr0 < 0.2)
+        # priority[wHB] = 3
+        # logger.info(f'{(keep & wHB).sum()} {self.name} BHB stars are marked as priority 3')
 
-        # Potential AGB stars
-        # These are stars that are bluer than the RGB but has no membership estimate
-        # because we have no reliable models for them
+        # # Potential AGB stars
+        # # These are stars that are bluer than the RGB but has no membership estimate
+        # # because we have no reliable models for them
+        # if isogrid is not None:
+        #     iso_blue = Isochrone()
+        #     iso_blue.from_isogrid(cfht, isogrid, Fe_H=-2.5, log_t=10.1, DM=19.11)
+        #     iso_sel = IsochroneSelection(iso_blue, self._cfht_cmd.axes, selection_axis=0,
+        #                                  selection_direction='-', DM=19.11, error_sigma=[0, 0])
+        #     wAGB = iso_sel.apply(catalog, mask=mask)
+        #     wAGB &= (priority == 9) & (g0 > 17.25) & (g0 < 20.6) & (gr0 > -0.5) & \
+        #             (g0 > 17)
+        #             # (g0 > 19.15 - 1.5 * gr0)
+        #             # (gn0 > 0.25 * gr0 - 0.15) & \
+        #     priority[wAGB] = 3
+
+        #     logger.info(f'{(keep & wAGB).sum()} potential {self.name} AGB stars are marked as priority 3')
+
+        # Blue stars bluer than the RGB
+        # This should include BHB stars and blue stragglers
         if isogrid is not None:
             iso_blue = Isochrone()
-            iso_blue.from_isogrid(cfht, isogrid, Fe_H=-2.5, log_t=10.1, DM=19.557)
+            iso_blue.from_isogrid(cfht, isogrid, Fe_H=-2.5, log_t=10.1, DM=19.11)
             iso_sel = IsochroneSelection(iso_blue, self._cfht_cmd.axes, selection_axis=0,
-                                         selection_direction='-', DM=19.557, error_sigma=[0, 0])
+                                         selection_direction='-', DM=19.11, error_sigma=[0, 0])
             wAGB = iso_sel.apply(catalog, mask=mask)
-            wAGB &= (priority == 9) & (g0 > 17.25) & (g0 < 20.6) & (gr0 > -0.5) & \
-                    (g0 > 19.15 - 1.5 * gr0)
-                    # (gn0 > 0.25 * gr0 - 0.15) & \
+            wAGB &= (priority == 9) & (g0 > 17.25) & (g0 < 22) & (gr0 > -0.5)
             priority[wAGB] = 3
 
             logger.info(f'{(keep & wAGB).sum()} potential {self.name} AGB stars are marked as priority 3')
@@ -252,7 +273,7 @@ class Bootes(DSphGalaxy):
         # Priority 4:
 
         # Blue Stragglers
-        x1, x2, x3, x4 = -1.0, -0.2, -0.6, 0.3
+        x1, x2, x3, x4 = -1.0, -0.1, -0.6, 0.2
         y1, y2, y3, y4 = 20.8, 20.8, 23.0, 23.0
         wBS = (priority == 9) & \
               (g0 > y1) & (g0 < y3) & ((g0 - y1) < ((y3 - y1) / (x3 - x1) * (gr0 - x1))) & \
