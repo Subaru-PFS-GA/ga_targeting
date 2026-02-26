@@ -102,8 +102,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/SSP/ursaminor_003/hsc_umi_priorities.feather",
+            path = "$PFS_TARGETING_DATA/dSph/bootes/sample/SSP/bootes/hsc_bootes_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -114,298 +113,31 @@ config = dict(
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
-                    "g_hsc": dict(
-                        mag = 'obs_hsc_g',
-                        mag_err = 'err_hsc_g',
+                    "g_sdss": dict(
+                        mag = 'obs_sdss_g',
+                        mag_err = 'err_sdss_g',
                     ),
-                    "i_hsc": dict(
-                        mag = 'obs_hsc_i',
-                        mag_err = 'err_hsc_i',
+                    "r_sdss": dict(
+                        mag = 'obs_sdss_r',
+                        mag_err = 'err_sdss_r',
                     ),
-                    "nb515_hsc": dict(
-                        mag = 'obs_hsc_nb515',
-                        mag_err = 'err_hsc_nb515',
-                    ),
+                #     "g_hsc": dict(
+                #         mag = 'obs_hsc_g',
+                #         mag_err = 'err_hsc_g',
+                #     ),
+                #     "i_hsc": dict(
+                #         mag = 'obs_hsc_i',
+                #         mag_err = 'err_hsc_i',
+                #     ),
+                #     "nb515_hsc": dict(
+                #         mag = 'obs_hsc_nb515',
+                #         mag_err = 'err_hsc_nb515',
+                #     ),
                 }
             )
         ),
-        "anc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi.anc-short_exposures.feather",
-            # reader = None
-            reader_args = dict(),
-            column_map = {'objid': 'targetid'},
-            value_map = {
-                'priority': {
-                    0: 5,
-                    1: 6,
-                    2: 7
-                }
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = extra_columns,
-            photometry = dict(
-                filters = {
-                    "g_ps1": dict(
-                        mag = 'obs_ps_g',
-                        mag_err = 'err_ps_g',
-                    ),
-                    "r_ps1": dict(
-                        mag = 'obs_ps_r',
-                        mag_err = 'err_ps_r',
-                    ),
-                    "i_ps1": dict(
-                        mag = 'obs_ps_i',
-                        mag_err = 'err_ps_i',
-                    ),
-                    "z_ps1": dict(
-                        mag = 'obs_ps_z',
-                        mag_err = 'err_ps_z',
-                    ),
-                },
-                limits = {
-                    'ps1_g': [16, 23],
-                    'ps1_i': [16, 23],
-                }
-            )
-        ),
-        "pace": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_pace_low.csv",
-            column_map =
-            {
-                'source_id': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec',
-                'pmRA': 'pmra',
-                'e_pmRA': 'err_pmra',
-                'pmDE': 'pmdec',
-                'e_pmDE': 'err_pmdec',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 5,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['Gmag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        mag = 'Gmag',
-                    ),
-                    "bp_gaia": dict(
-                        mag = 'BPmag',
-                    ),
-                    "rp_gaia": dict(
-                        mag = 'RPmag',
-                    ),
-                },
-                limits = {
-                    'gaia_g': [16, 23],
-                }
-            )
-        ),
-        "sestito": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_sestito.csv",
-            column_map =
-            {
-                'name': 'targetid',
-                'ra_epoch2000': 'RA',
-                'dec_epoch2000': 'Dec',
-                'pmra_error': 'err_pmra',
-                'pmdec_error': 'err_pmdec',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2000.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 5,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['phot_g_mean_mag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        mag = 'phot_g_mean_mag',
-                    ),
-                    "rp_gaia": dict(
-                        mag = 'phot_rp_mean_mag',
-                    ),
-                },
-                limits = {
-                    'gaia_g': [16, 23],
-                }
-            )
-        ),
-        "jingkun": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/umi_jingkun.csv",
-            column_map =
-            {
-                'name': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 5,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['phot_g_mean_mag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        mag = 'phot_g_mean_mag',
-                    ),
-                },
-                limits = {
-                    'gaia_g': [16, 23],
-                }
-            )
-        ),
-        "pristine": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/UMi_VMP_G16.fits",
-            column_map = {
-                'source_id': 'targetid',
-                'Plx': 'parallax',
-                'pmRA': 'pmra',
-                'pmDE': 'pmdec',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 5,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['RPmag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        mag = 'Gmag',
-                        mag_err = 'e_Gmag'
-                    ),
-                    "bp_gaia": dict(
-                        mag = 'BPmag',
-                        mag_err = 'e_BPmag'
-                    ),
-                    "rp_gaia": dict(
-                        mag = 'RPmag',
-                        mag_err = 'e_RPmag'
-                    ),
-                },
-                limits = {
-                    'gaia_rp': [16, 23],
-                }
-            )
-        ),
-
-        # Use the PS1 x GAIA sample as a fall-back for empty fibers
-        # This entry also add PS1 and GAIA photometry to all other objects
-        "gaia": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/PS1_GAIA_point_source_Ursaminor_2_dobos.csv",
-            column_map = {
-                'source_id': 'targetid',
-                'ra': 'RA',
-                'dec': 'Dec',
-                'radial_velocity': 'rv',
-                'ref_epoch': 'epoch',
-            },
-            prefix = "sci",
-            frame= 'icrs',
-            epoch = 2016.0,
-            catid = CATID_SCIENCE_GA,
-            extra_columns = {
-                **extra_columns,
-                'priority': dict(
-                    constant = 9,
-                    dtype = 'int',
-                ),
-                'exp_time': dict(
-                    lambda_args = ['rPSFMag'],
-                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
-                    dtype = 'int'
-                )
-            },
-            photometry = dict(
-                filters = {
-                    "g_gaia": dict(
-                        flux = 'phot_g_mean_flux',
-                        flux_err = 'phot_g_mean_flux_error'
-                    ),
-                    "bp_gaia": dict(
-                        flux = 'phot_bp_mean_flux',
-                        flux_err = 'phot_bp_mean_flux_error'
-                    ),
-                    "rp_gaia": dict(
-                        flux = 'phot_rp_mean_flux',
-                        flux_err = 'phot_rp_mean_flux_error'
-                    ),
-                    "g_ps1": dict(
-                        mag = 'gPSFMag',
-                        mag_err = 'gPSFMagErr',
-                    ),
-                    "r_ps1": dict(
-                        mag = 'rPSFMag',
-                        mag_err = 'rPSFMagErr',
-                    ),
-                    "i_ps1": dict(
-                        mag = 'iPSFMag',
-                        mag_err = 'iPSFMagErr',
-                    ),
-                    "z_ps1": dict(
-                        mag = 'zPSFMag',
-                        mag_err = 'zPSFMagErr',
-                    ),
-                    "y_ps1": dict(
-                        mag = 'yPSFMag',
-                        mag_err = 'yPSFMagErr',
-                    ),
-                },
-                limits = {
-                    'gaia_rp': [16, 23],
-                }
-            )
-        ),
-
         "sky": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sky_ursaminor.feather",
+            path = "$PFS_TARGETING_DATA/dSph/bootes/sky_bootesi_v2.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -417,56 +149,9 @@ config = dict(
             extra_columns = extra_columns,
         ),
 
-        # DOBOS
-        # "fluxstd": dict(
-        #     path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/PS1_UMI_fluxstd_2_dobos.feather",
-        #     reader_args = dict(),
-        #     column_map = {
-        #         'obj_id': 'targetid',
-        #         # 'ra': 'RA',
-        #         # 'dec': 'Dec',
-        #         'parallax_error': 'err_parallax',
-        #         'pmra_error': 'err_pmra',
-        #         'pmdec_error': 'err_pmdec',
-        #         'radial_velocity': 'rv',
-        #         'radial_velocity_error': 'err_rv',
-        #     },
-        #     # mask = 'lambda df: df["prob_f_star"] > 0.5',
-        #     # mask = 'lambda df: df["prob_f_star"] > 0.1',
-        #     prefix = "cal",
-        #     frame = 'icrs',
-        #     epoch = 2016.0,
-        #     catid = SCIENCE_GA_CATID,
-        #     extra_columns = extra_columns,
-        #     photometry = dict(
-        #         filters = {
-        #             'g_ps1': dict(
-        #                 mag = 'gPSFMag',
-        #                 mag_err = 'gPSFMagErr'
-        #             ),
-        #             'r_ps1': dict(
-        #                 mag = 'rPSFMag',
-        #                 mag_err = 'rPSFMagErr'
-        #             ),
-        #             'i_ps1': dict(
-        #                 mag = 'iPSFMag',
-        #                 mag_err = 'iPSFMagErr'
-        #             ),
-        #             'z_ps1': dict(
-        #                 mag = 'zPSFMag',
-        #                 mag_err = 'zPSFMagErr'
-        #             ),
-        #             'y_ps1': dict(
-        #                 mag = 'yPSFMag',
-        #                 mag_err = 'yPSFMagErr'
-        #             )
-        #         }
-        #     )
-        # ),
-
         # MIHO NEW
         "fluxstd": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/fluxstd_ursaminor_miho_20250228.feather",
+            path = "$PFS_TARGETING_DATA/dSph/bootes/fluxstd_bootesi_v2.feather",
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
@@ -498,27 +183,5 @@ config = dict(
                 }
             )
         ),
-
-        "guide": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/guide_ursaminor.feather",
-            reader_args = dict(),
-            prefix = "ag",
-            photometry = dict(
-                filters = {
-                    "gaia_g": dict(
-                        flux = "flux_gaia_g",
-                        flux_err = "err_flux_gaia_g",
-                    ),
-                    "gaia_bp": dict(
-                        flux = "flux_gaia_bp",
-                        flux_err = "err_flux_gaia_bp",
-                    ),
-                    "gaia_rp": dict(
-                        flux = "flux_gaia_rp",
-                        flux_err = "err_flux_gaia_rp",
-                    )
-                }
-            )
-        )
     },
 )
