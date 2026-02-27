@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../ga_common"
+		}
+		{
+			"path": "../../../../datascope/subaru/data/targeting/MW"
+		}
+	],
+	"settings": {}
+}

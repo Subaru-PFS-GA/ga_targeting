@@ -1,0 +1,33 @@
+export PFSSPEC_ROOT="/home/dobos/project/pfsspec-all"
+export PFSSPEC_DATA="/datascope/subaru/data/pfsspec"
+export CMDFIT_DATA="/datascope/subaru/data/cmdfit"
+export PFS_UTILS="/home/dobos/project/Subaru-PFS/pfs_utils"
+export PFS_INSTDATA="/home/dobos/project/Subaru-PFS/pfs_instdata"
+export PFS_ICS_COBRAOPS="/home/dobos/project/Subaru-PFS/ics_cobraOps"
+export PFS_ICS_COBRA_CHARMER="/home/dobos/project/Subaru-PFS/ics_cobraCharmer"
+export PFS_ICS_FPSACTOR="/home/dobos/project/Subaru-PFS/ics_fpsActor"
+export PFS_ICS_UTILS="/home/dobos/project/Subaru-PFS/ics_utils"
+export PFS_ETS_FIBER_ASSIGNER="/home/dobos/project/Subaru-PFS/ets_fiberalloc"
+export PFS_SPT_OPDB="/home/dobos/project/Subaru-PFS/spt_operational_database"
+export PFS_DATAMODEL='/home/dobos/project/Subaru-PFS/datamodel'
+export PFS_GA_ISOCHRONES="/home/dobos/project/ga_isochrones"
+export PFS_GA_COMMON="/home/dobos/project/ga_common"
+export PFS_TARGETING_DEBUGPORT=5698
+export PFS_TARGETING_ROOT="/home/dobos/project/ga_targeting"
+export PFS_TARGETING_DATA="/datascope/subaru"
+export PFS_TARGETING_TEMP="/home/dobos/project/ga_targeting/tmp"
+export PFS_TARGETING_CONDAPATH="/datascope/slurm/miniconda3"
+export PFS_TARGETING_CONDAENV="dobos-torch"
+export PFS_TARGETING_MODULES="pfs_utils:$PFS_UTILS:python
+pfs_instdata:$PFS_INSTDATA:python
+ics_cobraOps:$PFS_ICS_COBRAOPS:python
+ics_cobraCharmer:$PFS_ICS_COBRA_CHARMER:python
+ics_fpsActor:$PFS_ICS_FPSACTOR:python
+ics_utils:$PFS_ICS_UTILS:python
+ets_fiberalloc:$PFS_ETS_FIBER_ASSIGNER:.
+spt_operational_database:$PFS_SPT_OPDB:python
+datamodel:$PFS_DATAMODEL:python
+ga_isochrones:$PFS_GA_ISOCHRONES:python
+ga_common:$PFS_GA_COMMON:python
+ga_targeting:$PFS_TARGETING_ROOT:python
+ga_pfsspec:$PFSSPEC_ROOT:python"
