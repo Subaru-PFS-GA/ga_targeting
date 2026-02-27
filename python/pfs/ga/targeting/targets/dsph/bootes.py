@@ -9,6 +9,7 @@ from pfs.ga.common.photometry import Photometry, Magnitude, Color
 from ...instrument import *
 from ...projection import Pointing
 from ...data import Catalog, Observation
+from ...io import ObservationSerializer
 from ... import Isochrone
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection, IsochroneSelection
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
@@ -82,10 +83,59 @@ class Bootes(DSphGalaxy):
             MagnitudeAxis(sdss.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
-    def get_text_observation_reader(self, instrument=CFHT):
+    def get_text_observation_reader(self, instrument=SubaruHSC):
         if instrument == SubaruHSC:
-            return SubaruHSC.text_observation_reader(
-                mags=['r', 'g'], ext=['r', 'g'])
+            mags = ['g', 'r']
+            ext = ['g', 'r']
+
+            reader = ObservationSerializer(format='.csv')
+            reader.append_photometry(SubaruHSC.photometry())
+            reader.column_map = {
+                'ID': 'objid',
+                'RA': 'RA',
+                'Dec': 'Dec',
+            }
+            reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
+
+            for m in mags:
+                reader.column_map[f'{m[0]}psf'] = f'obs_hsc_{m}'
+                reader.column_map[f'{m[0]}psferr'] = f'err_hsc_{m}'
+
+            for m in ext:
+                reader.column_map[f'a_{m[0]}'] = f'ext_hsc_{m}'
+
+            # These have to be done is separate loops because column order matters!
+
+            for m in mags:
+                reader.column_names.append(f'{m[0]}psf')
+
+            for m in mags:
+                reader.column_names.append(f'{m[0]}psferr')
+
+            for m in ext:
+                reader.column_names.append(f'a_{m[0]}')
+
+            for m in mags:
+                reader.column_names.append(f'cl{m[0]}')
+
+            def filter(df):
+                ff = None
+                for m in mags:
+                    if m != 'n':
+                        f = df[f'cl{m[0]}'] < 0.1
+                        if ff is None:
+                            ff = f
+                        else:
+                            ff = ff | f
+                return ff
+
+            reader.filter = filter
+            reader.kwargs = dict(
+                delimiter=',',
+                skiprows=1
+            )
+
+            return reader
         elif instrument == CFHT:
             return CFHT.text_observation_reader(
                 mags=['g', 'r'], ext=['g', 'r'])
@@ -97,19 +147,19 @@ class Bootes(DSphGalaxy):
         Return the definition of the color-magnitude diagram for the given instrument.
         """
 
-        return self._sdss_cmd
-
-        # if instrument == SubaruHSC:
-        #     if index is not None and isinstance(self._hsc_cmd, Iterable):
-        #         cmd = self._hsc_cmd[index]
-        #     else:
-        #         cmd = self._hsc_cmd
-        # elif instrument == Gaia:
-        #     cmd = self._gaia_cmd
-        # else:
-        #     raise NotImplementedError()
+        if instrument == SubaruHSC:
+            if index is not None and isinstance(self._hsc_cmd, Iterable):
+                cmd = self._hsc_cmd[index]
+            else:
+                cmd = self._hsc_cmd
+        elif instrument == Gaia:
+            cmd = self._gaia_cmd
+        elif instrument == CFHT:
+            cmd = self._sdss_cmd        # Munoz
+        else:
+            raise NotImplementedError()
             
-        # return cmd
+        return cmd
 
     def get_pmap_config(self):
         config = PMapConfig(
@@ -128,8 +178,8 @@ class Bootes(DSphGalaxy):
     def get_selection_mask(self, catalog: Catalog, nb=False, blue=False, probcut=None, observed=None, bright=17, faint=23):
         """Return true for objects within sharp magnitude cuts."""
 
-        cmd = self._sdss_cmd
-        #ccd = self._hsc_ccd
+        cmd = self._hsc_cmd
+        # ccd = self._hsc_ccd
 
         # Broadband colors
         mask = ColorSelection(cmd.axes[0], 0.1, 1.5).apply(catalog, observed=observed)
