@@ -25,7 +25,7 @@ class CFHT(Instrument):
         return p
 
     @staticmethod
-    def text_observation_reader(mags=None, ext=None, delimiter=r'\s+', skiprows=1):
+    def text_observation_reader(mags=None, ext=None, delimiter=r',', skiprows=1):
         if mags is None:
             mags = ['g', 'r']
         
