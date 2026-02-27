@@ -1395,16 +1395,18 @@ class Netflow():
         if prefix in self.__netflow_options.science_prefix:
             # Only update exp_time if it is still NA or the new exp_time is larger than
             # the existing one
-            update_mask = np.array(targets.loc[idx2, 'exp_time'].reset_index(drop=True).isna() |
-                                   ((input_targets['exp_time'].reset_index(drop=True)) >
-                                    (targets.loc[idx2, 'exp_time'].reset_index(drop=True))).fillna(False))
+            update_mask = np.array(
+                targets.loc[idx2, 'exp_time'].reset_index(drop=True).isna() |
+                (input_targets['exp_time'].reset_index(drop=True) > targets.loc[idx2, 'exp_time'].reset_index(drop=True)).fillna(False),
+                dtype=bool)
             pd_update_column(targets, idx2[update_mask], 'exp_time', input_targets['exp_time'][update_mask], np.float64)
 
             # Only update priority if it is still NA or the new priority is smaller than
             # the existing one
-            update_mask = np.array(targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
-                                   ((input_targets['priority'].reset_index(drop=True)) <
-                                    (targets.loc[idx2, 'priority'].reset_index(drop=True))).fillna(False))
+            update_mask = np.array(
+                targets.loc[idx2, 'priority'].reset_index(drop=True).isna() |
+                (input_targets['priority'].reset_index(drop=True) < targets.loc[idx2, 'priority'].reset_index(drop=True)).fillna(False),
+                dtype=bool)
             pd_update_column(targets, idx2[update_mask], 'priority', input_targets['priority'][update_mask], np.int32)
 
             # Update the target class labels if the priority is updated.
@@ -1412,8 +1414,10 @@ class Netflow():
             # If some science targets are also flux standards, we allocate fibers to them
             # as flux standards. Care must be taken to process these as science targets by the GA pipeline.
 
-            priority_mask = np.array(~targets.loc[idx2[update_mask], 'priority'].isna() &
-                                     (targets.loc[idx2[update_mask], 'prefix'] == 'sci'))
+            priority_mask = np.array(
+                ~targets.loc[idx2[update_mask], 'priority'].isna() &
+                (targets.loc[idx2[update_mask], 'prefix'] == 'sci'),
+                dtype=bool)
             targets.loc[idx2[update_mask][priority_mask], 'class'] = \
                 targets.loc[idx2[update_mask][priority_mask], ['prefix', 'priority']].apply(
                     # lambda r: f"{r['prefix']}_P{r['priority']}",
@@ -1425,9 +1429,10 @@ class Netflow():
             #       purposes of target class minimum and maximum, as well as cobra group minima and maxima
 
             # Update the non-observation cost based on the values in the catalog
-            update_mask = np.array(targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True).isna() |
-                                    ((input_targets['non_observation_cost'].reset_index(drop=True)) >
-                                    (targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True))).fillna(False))
+            update_mask = np.array(
+                targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True).isna() |
+                (input_targets['non_observation_cost'].reset_index(drop=True) > targets.loc[idx2, 'non_observation_cost'].reset_index(drop=True)).fillna(False),
+                dtype=bool)
             pd_update_column(targets,
                              idx2[update_mask],
                              'non_observation_cost',
