@@ -102,7 +102,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/dSph/bootes/sample/SSP/bootes/hsc_bootes_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/sample/SSP/bootes_hsc/hsc_bootes_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -113,31 +113,27 @@ config = dict(
             extra_columns = extra_columns,
             photometry = dict(
                 filters = {
-                    "g_sdss": dict(
-                        mag = 'obs_sdss_g',
-                        mag_err = 'err_sdss_g',
+                    # "g_sdss": dict(
+                    #     mag = 'obs_sdss_g',
+                    #     mag_err = 'err_sdss_g',
+                    # ),
+                    # "r_sdss": dict(
+                    #     mag = 'obs_sdss_r',
+                    #     mag_err = 'err_sdss_r',
+                    # ),
+                    "g_hsc": dict(
+                        mag = 'obs_hsc_g',
+                        mag_err = 'err_hsc_g',
                     ),
-                    "r_sdss": dict(
-                        mag = 'obs_sdss_r',
-                        mag_err = 'err_sdss_r',
+                    "r_hsc": dict(
+                        mag = 'obs_hsc_r',
+                        mag_err = 'err_hsc_r',
                     ),
-                #     "g_hsc": dict(
-                #         mag = 'obs_hsc_g',
-                #         mag_err = 'err_hsc_g',
-                #     ),
-                #     "i_hsc": dict(
-                #         mag = 'obs_hsc_i',
-                #         mag_err = 'err_hsc_i',
-                #     ),
-                #     "nb515_hsc": dict(
-                #         mag = 'obs_hsc_nb515',
-                #         mag_err = 'err_hsc_nb515',
-                #     ),
                 }
             )
         ),
         "sky": dict(
-            path = "$PFS_TARGETING_DATA/dSph/bootes/sky_bootesi_v2.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/sky_bootesi_v2.feather",
             reader_args = dict(),
             column_map = {
                 'sky_id': 'targetid',
@@ -151,7 +147,7 @@ config = dict(
 
         # MIHO NEW
         "fluxstd": dict(
-            path = "$PFS_TARGETING_DATA/dSph/bootes/fluxstd_bootesi_v2.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/fluxstd_bootesi_v2.feather",
             reader_args = dict(),
             column_map = {
                 'fluxstd_id': 'targetid',
