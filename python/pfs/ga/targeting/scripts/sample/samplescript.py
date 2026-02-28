@@ -135,7 +135,10 @@ class SampleScript(Script):
             gaia = None
 
         # Define the cut based on membership probability
-        probcut = ProbabilityCut(pmap, 1, self._config.lp_member_limit)
+        if self._config.lp_member_limit is not None:
+            probcut = ProbabilityCut(pmap, 1, self._config.lp_member_limit)
+        else:
+            probcut = None
 
         # Apply the selection and assing probabilites
         selection, mask = self.__assign_probabilities(hsc, pmap, probcut)
