@@ -102,7 +102,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/sample/SSP/bootes_hsc/hsc_bootes_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/sample/SSP/bootes_SSP_002/hsc_bootes_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -128,6 +128,41 @@ config = dict(
                     "r_hsc": dict(
                         mag = 'obs_hsc_r',
                         mag_err = 'err_hsc_r',
+                    ),
+                    "g_ps1": dict(
+                        mag = 'obs_ps1_g',
+                        mag_err = 'err_ps1_g',
+                    ),
+                    "r_ps1": dict(
+                        mag = 'obs_ps1_r',
+                        mag_err = 'err_ps1_r',
+                    ),
+                    "i_ps1": dict(
+                        mag = 'obs_ps1_i',
+                        mag_err = 'err_ps1_i',
+                    ),
+                    "z_ps1": dict(
+                        mag = 'obs_ps1_z',
+                        mag_err = 'err_ps1_z',
+                    ),
+                    "y_ps1": dict(
+                        mag = 'obs_ps1_y',
+                        mag_err = 'err_ps1_y',
+                    ),
+                    "g_gaia": dict(
+                        mag = 'gaia_g',
+                        flux = 'flux_gaia_g',
+                        flux_err = 'err_flux_gaia_g',
+                    ),
+                    "bp_gaia": dict(
+                        mag = 'gaia_bp',
+                        flux = 'flux_gaia_bp',
+                        flux_err = 'err_flux_gaia_bp',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'gaia_rp',
+                        flux = 'flux_gaia_rp',
+                        flux_err = 'err_flux_gaia_rp',
                     ),
                 }
             )

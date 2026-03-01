@@ -6,13 +6,13 @@ config = dict(
     # pmap_path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/pmap/bootes",
     
     # Sato
-    obs_path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/bootes_hsc_sato_v2.csv",
+    obs_path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/bootes_hsc_ps1_gaia_matched.csv",
     pmap_path = "$PFS_TARGETING_DATA/data/targeting/dSph/bootes/pmap/bootes_hsc",
     
     isochrones_path = "$PFS_TARGETING_DATA/data/cmdfit/isochrones/dartmouth/import/afep0_cfht_sdss_hsc",
     cut_nb = False,
     keep_blue = False,
     lp_member_limit = None,
-    gaia_crossmatch = True,
+    gaia_crossmatch = False,            # Input catalog is already cross-matched with GAIA
     gaia_crossmatch_radius = 0.1
 )

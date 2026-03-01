@@ -51,6 +51,7 @@ class Bootes(DSphGalaxy):
             SubaruPFI: [
                 Pointing.from_relative_pos(pos, sep=0.22, dir=40, posang=0, stage=0, priority=1),
                 Pointing.from_relative_pos(pos, sep=-0.22, dir=40, posang=0, stage=0, priority=1),
+                Pointing(pos, posang=0, stage=1, priority=4),
             ]
         }
 
@@ -92,54 +93,42 @@ class Bootes(DSphGalaxy):
 
     def get_text_observation_reader(self, instrument=SubaruHSC):
         if instrument == SubaruHSC:
-            mags = ['g', 'r']
-            ext = ['g', 'r']
+            # This is the reader config for the HSC × PS1 × GAIA file from Kohei
+
+            # mags = ['g', 'r']
+            # ext = ['g', 'r']
 
             reader = ObservationSerializer(format='.csv')
             reader.append_photometry(SubaruHSC.photometry())
+            reader.append_photometry(PS1.photometry())
+            reader.append_photometry(Gaia.photometry())
+
+
             reader.column_map = {
-                'ID': 'objid',
-                'RA': 'RA',
-                'Dec': 'Dec',
+                'hsc_targetid': 'objid',
+                'hsc_ra': 'RA',
+                'hsc_dec': 'Dec',
+                
+                'hsc_g': 'obs_hsc_g',
+                'hsc_r': 'obs_hsc_r',
+                'hsc_a_g': 'ext_hsc_g',
+                'hsc_a_r': 'ext_hsc_r',
+
+                'ps1_g': 'obs_ps1_g',
+                'ps1_r': 'obs_ps1_r',
+                'ps1_i': 'obs_ps1_i',
+                'ps1_z': 'obs_ps1_z',
+                'ps1_y': 'obs_ps1_y',
+
+                # 'gaia_g': 'obs_gaia_g',
+                # 'gaia_bp': 'obs_gaia_bp',
+                # 'gaia_rp': 'obs_gaia_rp',
             }
-            reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
+            
+            #reader.column_names = ['ID', 'RA', 'Dec', 'X', 'Y']
 
-            for m in mags:
-                reader.column_map[f'{m[0]}psf'] = f'obs_hsc_{m}'
-                reader.column_map[f'{m[0]}psferr'] = f'err_hsc_{m}'
-
-            for m in ext:
-                reader.column_map[f'a_{m[0]}'] = f'ext_hsc_{m}'
-
-            # These have to be done is separate loops because column order matters!
-
-            for m in mags:
-                reader.column_names.append(f'{m[0]}psf')
-
-            for m in mags:
-                reader.column_names.append(f'{m[0]}psferr')
-
-            for m in ext:
-                reader.column_names.append(f'a_{m[0]}')
-
-            for m in mags:
-                reader.column_names.append(f'cl{m[0]}')
-
-            def filter(df):
-                ff = None
-                for m in mags:
-                    if m != 'n':
-                        f = df[f'cl{m[0]}'] < 0.1
-                        if ff is None:
-                            ff = f
-                        else:
-                            ff = ff | f
-                return ff
-
-            reader.filter = filter
             reader.kwargs = dict(
-                delimiter=',',
-                skiprows=1
+                delimiter=','
             )
 
             return reader

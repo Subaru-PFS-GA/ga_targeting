@@ -3,10 +3,10 @@
 set -e
 
 PREFIX=SSP
-VERSION=001
+VERSION=002
 
 FIELD=bootes
-STAGES="0" # 1 2 3"        # TODO: update stages as needed, depending on number of pointings
+STAGES="0 1" # 2 3"        # TODO: update stages as needed, depending on number of pointings
 
 NVISITS=6
 NFRAMES=2
@@ -63,6 +63,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #             ./configs/netflow/${PREFIX}/dSph/_common.py \
 #             ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
 #         --exp-time ${EXP_TIME} \
+#         --obs-time "${OBS_TIME}" \
 #         --out ${IMPORT_DIR} \
 #         ${EXTRA_OPTIONS}
 # fi
