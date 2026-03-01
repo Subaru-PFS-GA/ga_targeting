@@ -351,6 +351,13 @@ class ExportScript(TargetingScript):
             'y_cfht': 'y',
         }
 
+        photo_pref = {
+            'ps1': 0,
+            'gaia': 1,
+            'hsc': 2,
+            'cfht': 3,
+        }
+
         if self._config.export_options is not None and self._config.export_options.filter_map is not None:
             filter_map = self._config.export_options.filter_map
         else:
@@ -364,12 +371,32 @@ class ExportScript(TargetingScript):
 
         for i, (_, ff, flux, flux_err) in enumerate(assignments_all[['filter', 'psf_flux', 'psf_flux_err']].to_records()):
             for j, f in enumerate(ff):
-                if f in filter_bands:
+                # If the filter is known and the flux is not a Nan or similar, add it to the list of fluxes for that band
+                if f in filter_bands and np.isfinite(flux[j]):
                     b = filter_bands[f]
-                    if b is not None and filter[b][i] is None:
-                        filter[b][i] = filter_map[f] if f in filter_map else f        ####
-                        psf_flux[b][i] = flux[j]
-                        psf_flux_err[b][i] = flux_err[j]
+
+                    if b is not None:
+                        if filter[b][i] is None:
+                            filter[b][i] = []
+                            psf_flux[b][i] = []
+                            psf_flux_err[b][i] = []
+
+                        filter[b][i].append(filter_map[f] if f in filter_map else f)
+                        psf_flux[b][i].append(flux[j])
+                        psf_flux_err[b][i].append(flux_err[j])
+
+        # Since only one flux per band is allowed, use a preference list for
+        # photometric system and pick the best flux
+        for b in bands:
+            for i in range(len(assignments_all)):
+                if isinstance(filter[b][i], list):
+                    # Sort by preference
+                    sorted_filters = sorted(
+                        zip(filter[b][i], psf_flux[b][i], psf_flux_err[b][i]),
+                        key=lambda x: photo_pref.get(x[0].split('_')[1], 100))
+                    # Get the first
+
+                    filter[b][i], psf_flux[b][i], psf_flux_err[b][i] = sorted_filters[0]
 
         return filter, psf_flux, psf_flux_err
 
@@ -460,7 +487,7 @@ class ExportScript(TargetingScript):
                 pfi_y = np.array(assignments['fp_y'][mask], dtype=np.float64)
 
                 # Group available fluxes into bands with filter names for each target
-                filter, psf_flux, psf_flux_err = self.__get_flux_by_band(assignments[mask])                    
+                filter, psf_flux, psf_flux_err = self.__get_flux_by_band(assignments[mask])
 
                 # Put together the table
 
