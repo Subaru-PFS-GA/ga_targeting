@@ -13,7 +13,7 @@ NFRAMES=2
 EXP_TIME=1800
 OBS_TIME="2026-03-16T12:00:00"          # UTC, 2am in Hawaii
 OBS_RUN="2026-03"
-PROPOSAL_ID="S25B-OT02"
+PROPOSAL_ID="S26A-OT02"
 INPUT_CATALOG_ID="10092"
 
 # EXTRA_OPTIONS="--skip-notebooks --debug"
@@ -87,21 +87,21 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #     indir=$outdir
 # done
 
-# rm -r "$EXPORT_DIR"
-if [ ! -d "$EXPORT_DIR" ]; then
-    ga-export \
-        --in ${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_?_${VERSION} \
-        --out ${EXPORT_DIR} \
-        --input-catalog-id $INPUT_CATALOG_ID \
-        --proposal-id $PROPOSAL_ID \
-        --nframes $NFRAMES \
-        --obs-run "$OBS_RUN" \
-        ${EXTRA_OPTIONS}
-fi
+# # rm -r "$EXPORT_DIR"
+# if [ ! -d "$EXPORT_DIR" ]; then
+#     ga-export \
+#         --in ${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_?_${VERSION} \
+#         --out ${EXPORT_DIR} \
+#         --input-catalog-id $INPUT_CATALOG_ID \
+#         --proposal-id $PROPOSAL_ID \
+#         --nframes $NFRAMES \
+#         --obs-run "$OBS_RUN" \
+#         ${EXTRA_OPTIONS}
+# fi
 
 
-# cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
+cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
 
-# cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
-#     | sed '/^#/d' | sed '/^ppc_code/d' \
-#     >> "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
+cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
+    | sed '/^#/d' | sed '/^ppc_code/d' \
+    >> "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
