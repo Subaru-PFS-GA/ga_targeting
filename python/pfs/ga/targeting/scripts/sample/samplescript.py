@@ -162,8 +162,12 @@ class SampleScript(Script):
     def __load_observations(self):
         reader = self._field.get_text_observation_reader()
         obs = reader.read(os.path.expandvars(self._config.obs_path))
-        return obs
 
+        logger.info(f'Loaded {obs.data.shape[0]} observations from `{self._config.obs_path}`.')
+        logger.info(f'Observation columns: {obs.data.columns.tolist()}.')
+
+        return obs
+        
     def __load_pmap(self):
         cmd = self._field.get_cmd()
         pmap = ProbabilityMap(cmd.axes)

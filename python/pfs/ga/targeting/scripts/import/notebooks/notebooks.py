@@ -134,8 +134,8 @@ def plot_target_list(target_list, pfi, center, pointings=None):
     if pointings is not None:
         plot_pointings(axs[0], pfi, wcs, wfc, fov, pointings, c='red')
 
-    axs[0].set_xlim(1.5, -1.5)
-    axs[0].set_ylim(-1.5, 1.5)
+    axs[0].set_xlim(1.5, -2.5)
+    axs[0].set_ylim(-2.5, 1.5)
 
     # Plot a color-magnitude diagram using the first two filters of the first photometric
     # system available in the target list that has at least two filters defined in the data set
