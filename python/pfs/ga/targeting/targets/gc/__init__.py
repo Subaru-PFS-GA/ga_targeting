@@ -1,0 +1,21 @@
+from .NGC6341 import NGC6341 as __NGC6341
+from .NGC7078 import NGC7078 as __NGC7078
+from .NGC7089 import NGC7089 as __NGC7089
+from .NGC7099 import NGC7099 as __NGC7099
+from .NGC1904 import NGC1904 as __NGC1904
+
+# Singleton instances
+
+NGC6341 = __NGC6341()
+NGC7078 = __NGC7078()
+NGC7089 = __NGC7089()
+NGC7099 = __NGC7099()
+NGC1904 = __NGC1904()
+
+GCS = {
+    'NGC6341': NGC6341,
+    'NGC7078': NGC7078,
+    'NGC7089': NGC7089,
+    'NGC7099': NGC7099,
+    'NGC1904': NGC1904,
+}
