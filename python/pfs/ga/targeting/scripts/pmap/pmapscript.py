@@ -5,6 +5,7 @@ from pfs.ga.common.scripts import Script
 import pfs.ga.targeting
 from ...targets.dsph import GALAXIES as DSPH_FIELDS
 from ...targets.m31 import M31_SECTORS
+from ...targets.gc import GCS
 from ...config.pmap import PMapConfig
 from ...io import Hdf5SimulationReader
 from ...instrument import SubaruHSC
@@ -26,6 +27,8 @@ class PMapScript(Script):
         self._use_p_stars = False
         self._config = None
 
+        self.__sim_path = None
+        self.__obs_path = None
         self.__outdir = None
         self.__skip_notebooks = False
 
@@ -37,10 +40,13 @@ class PMapScript(Script):
     def _add_args(self):
         super()._add_args()
 
+        self.add_arg('--sim-path', type=str, required=False, help='Path to the simulation directory.')
+        self.add_arg('--obs-path', type=str, required=False, help='Path to the observation directory.')
         self.add_arg('--out', type=str, required=True, help='Path to the output directory.')
 
         self.add_arg('--dsph', type=str, choices=DSPH_FIELDS.keys(), help='Name of a predefined dSph target.')
         self.add_arg('--m31', type=str, choices=M31_SECTORS, help='Name of a predefined M31 field.')
+        self.add_arg('--gc', type=str, choices=GCS.keys(), help='Name of a predefined GC field.')
 
         self.add_arg('--config', type=str, required=True, nargs='+', help='Path to the configuration file.')
 
@@ -49,6 +55,8 @@ class PMapScript(Script):
     def _init_from_args_pre_logging(self, args):
         super()._init_from_args_pre_logging(args)
 
+        self.__sim_path = self.get_arg('sim_path', args, self.__sim_path)
+        self.__obs_path = self.get_arg('obs_path', args, self.__obs_path)
         self.__outdir = self.get_arg('out', args, self.__outdir)
 
     def _init_from_args(self, args):
@@ -60,6 +68,9 @@ class PMapScript(Script):
         if self.is_arg('m31', args):
             self._field = M31_SECTORS[self.get_arg('m31', args)]
 
+        if self.is_arg('gc', args):
+            self._field = GCS[self.get_arg('gc', args)]
+
         # If a field is specified, load its default configuration      
         if self._field is not None:
             self._config = self._field.get_pmap_config()
@@ -70,6 +81,12 @@ class PMapScript(Script):
         config_files = self.get_arg('config', args)
         self._config.load(config_files, ignore_collisions=True)
         logger.info(f'Loaded {len(config_files)} config files from {config_files}.')
+
+        if self.__sim_path is not None:
+            self._config.sim_path = self.__sim_path
+
+        if self.__obs_path is not None:
+            self._config.obs_path = self.__obs_path
 
         self.__skip_notebooks = self.get_arg('skip_notebooks', args, self.__skip_notebooks)
 
@@ -113,6 +130,8 @@ class PMapScript(Script):
                 parameters = {
                     'DEBUG': False,
                     'CONFIG_FILE': self.__get_output_config_path(),
+                    'SIM_PATH': self._config.sim_path,
+                    'OBS_PATH': self._config.obs_path,
                     'OUTPUT_PATH': self.__outdir,
                     'BINARIES': self.is_arg('m31'),
                 }
