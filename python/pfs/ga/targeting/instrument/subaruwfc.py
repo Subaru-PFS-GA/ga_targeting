@@ -106,7 +106,7 @@ class SubaruWFC(Instrument, TelescopeProjection):
             cent=np.array([[self.pointing.ra, self.pointing.dec]]).T,
             # cent=np.array([self.pointing.ra, self.pointing.dec]),
             pa=self.pointing.posang,
-            time=self.pointing.obs_time.to_string())
+            time=self.pointing.obs_time.to_string() if self.pointing.obs_time is not None else None,)
 
         radec = sky_pos[:2, :].T
         r = coords[..., 0]**2 + coords[..., 1]**2

@@ -140,13 +140,14 @@ class ImportScript(TargetingScript):
 
         # Execute the evaluation notebooks
         if not self.__skip_notebooks:
-            for notebook in ['targets']:
+            for notebook in ['targets', 'target_lists']:
                 logger.info(f'Executing evaluation notebook `{notebook}`...')
                 notebook_path = os.path.join(os.path.dirname(pfs.ga.targeting.__file__), f'scripts/import/notebooks/{notebook}.ipynb')
                 parameters = {
                     'DEBUG': False,
                     'CONFIG_FILE': self._get_output_config_path(),
                     'OUTPUT_PATH': self._outdir,
+                    'OBS_TIME': self.__obs_time.isoformat() if self.__obs_time is not None else None
                 }
                 self._execute_notebook(notebook_path, parameters, self._outdir)
     
