@@ -151,18 +151,18 @@ config = dict(
                     ),
                     "g_gaia": dict(
                         mag = 'gaia_g',
-                        flux = 'flux_gaia_g',
-                        flux_err = 'err_flux_gaia_g',
+                        # flux = 'flux_gaia_g',
+                        # flux_err = 'err_flux_gaia_g',
                     ),
                     "bp_gaia": dict(
                         mag = 'gaia_bp',
-                        flux = 'flux_gaia_bp',
-                        flux_err = 'err_flux_gaia_bp',
+                        # flux = 'flux_gaia_bp',
+                        # flux_err = 'err_flux_gaia_bp',
                     ),
                     "rp_gaia": dict(
                         mag = 'gaia_rp',
-                        flux = 'flux_gaia_rp',
-                        flux_err = 'err_flux_gaia_rp',
+                        # flux = 'flux_gaia_rp',
+                        # flux_err = 'err_flux_gaia_rp',
                     ),
                 }
             )

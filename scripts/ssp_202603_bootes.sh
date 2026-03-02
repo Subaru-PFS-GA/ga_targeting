@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION=002
+VERSION=003
 
 FIELD=bootes
 STAGES="0 1" # 2 3"        # TODO: update stages as needed, depending on number of pointings
@@ -44,7 +44,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #       also make sure the NB cut is the correct one, use the
 #       revised NB cut for Sextans here.
 
-# rm -r "$SAMPLE_DIR"
+# # rm -r "$SAMPLE_DIR"
 # if [ ! -d "$SAMPLE_DIR" ]; then
 #     ga-sample --dsph ${FIELD} \
 #         --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
@@ -56,7 +56,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 # NOTE: input files to ga-import are listed in the netflow config file
 #       make sure the file path matches the version number!
 
-# rm -r "$IMPORT_DIR"
+# # rm -r "$IMPORT_DIR"
 # if [ ! -d "$IMPORT_DIR" ]; then
 #     ga-import --dsph ${FIELD} \
 #         --config \
@@ -100,7 +100,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 # fi
 
 
-cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
+# cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
 
 cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
     | sed '/^#/d' | sed '/^ppc_code/d' \
