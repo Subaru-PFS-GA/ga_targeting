@@ -3,7 +3,7 @@
 set -e
 
 PREFIX=SSP
-VERSION="001"
+VERSION="002"
 
 NVISITS=6
 NFRAMES=2
@@ -51,7 +51,7 @@ for FIELD in l91_b60 l89_b60; do
     #         ${EXTRA_OPTIONS}
     # fi
 
-    # rm -Rf "${EXPORT_DIR}"
+    # # rm -Rf "${EXPORT_DIR}"
     # if [ ! -d "$EXPORT_DIR" ]; then
     #     ga-export \
     #         --in "${NETFLOW_DIR}" \
@@ -65,8 +65,8 @@ for FIELD in l91_b60 l89_b60; do
 
     # cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
 
-    #cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
-    #    | sed '/^#/d' | sed '/^ppc_code/d' \
-    #    >> "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
+    cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
+       | sed '/^#/d' | sed '/^ppc_code/d' \
+       >> "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
 
 done
