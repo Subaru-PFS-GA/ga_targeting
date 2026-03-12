@@ -1776,10 +1776,10 @@ class SubaruPFI(Instrument, FiberAllocator):
         
         return coords, mask
 
-    def plot_focal_plane(self, ax: plt.Axes, diagram, res=None, projection=None, **kwargs):
-        corners = kwargs.pop('corners', False)
-        blocks = kwargs.pop('blocks', False)
-        fill = kwargs.pop('fill', False)
+    def plot_focal_plane(self, ax: plt.Axes, diagram, res=None, projection=None,
+                         corners=False, blocks=False, fill=False,
+                         scalex=True, scaley=True,
+                         **kwargs):
 
         res = res if res is not None else 36
         native_frame = diagram._get_native_frame()
@@ -1789,7 +1789,9 @@ class SubaruPFI(Instrument, FiberAllocator):
             def plot_outline(ids):
                 for ii in ids:
                     xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
-                    diagram.plot(ax, xy, mask=mask, native_frame=native_frame,**style)
+                    diagram.plot(ax, xy, mask=mask, native_frame=native_frame,
+                                 scalex=scalex, scaley=scaley,
+                                 **style)
 
             if corners:
                 plot_outline(self.CORNERS)
@@ -1800,7 +1802,9 @@ class SubaruPFI(Instrument, FiberAllocator):
             style = styles.red_fill(**kwargs)
             for ii in self.CORNERS:
                 xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
-                diagram.fill(ax, xy, mask=mask, native_frame=native_frame, **style)
+                diagram.fill(ax, xy, mask=mask, native_frame=native_frame,
+                             scalex=scalex, scaley=scaley,
+                             **style)
 
     def plot_cobras(self, ax, diagram, data=None, cmap='viridis', vmin=None, vmax=None,
                     scalex=True, scaley=True,
