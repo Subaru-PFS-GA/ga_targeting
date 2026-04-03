@@ -91,6 +91,24 @@ class Bootes(DSphGalaxy):
             MagnitudeAxis(sdss.magnitudes['g'], limits=(15.5, 24.5))
         ])
 
+    # TODO: move elsewhere
+    def get_filter_map(self):
+        """
+        Return a dictionary that maps between filter names used internally and the actual
+        filter names that are to be written into the exported target lists and design files.
+
+        This is just a final hack because propagating the new filter names through the stack
+        can take a significant effort. 
+        """
+
+        # Bootes I was observed with the new HSC filters
+        filter_map = {
+            'r_hsc': 'r2_hsc',
+            'i_hsc': 'i2_hsc',
+        }
+
+        return filter_map
+
     def get_text_observation_reader(self, instrument=SubaruHSC):
         if instrument == SubaruHSC:
             # This is the reader config for the HSC × PS1 × GAIA file from Kohei
