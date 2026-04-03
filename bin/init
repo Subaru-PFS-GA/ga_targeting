@@ -188,6 +188,10 @@ function ga-export() {
 }
 export -f ga-export
 
+function ga-catalog() {
+    `realpath ./bin/wrap` "-m pfs.ga.targeting.scripts.catalog.catalogscript" "$@"
+}
+export -f ga-catalog
 
 echo "Configured environment for PFS development."
 echo "Data directory is $PFS_TARGETING_DATA"
