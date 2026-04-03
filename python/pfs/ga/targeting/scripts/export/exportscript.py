@@ -93,6 +93,7 @@ class ExportScript(TargetingScript):
         if self.__nrepeats is not None:
             self._config.field.nrepeats = self.__nrepeats
 
+        # TODO: use function self._create_field_from_args(self.__input_args)
         if self.is_arg('dsph', self.__input_args):
             self._field = DSPH_FIELDS[self.get_arg('dsph', self.__input_args)]
 
@@ -335,9 +336,9 @@ class ExportScript(TargetingScript):
             'i_ps1': 'i',
             'z_ps1': 'z',
             'y_ps1': 'y',
-            'g_gaia': 'g',
-            'bp_gaia': 'b',
-            'rp_gaia': 'r',
+            'g_gaia': 'r',
+            'bp_gaia': 'g',
+            'rp_gaia': 'i',
             'g_hsc': 'g',
             'r_hsc': 'r',
             'r2_hsc': 'r',
@@ -363,6 +364,9 @@ class ExportScript(TargetingScript):
         else:
             filter_map = {}
 
+        if self._field is not None and hasattr(self._field, 'get_filter_map'):
+            filter_map = {**filter_map, **self._field.get_filter_map()}
+
         bands = 'bgrizy'
 
         filter = { b: len(assignments_all) * [None,] for b in bands }
@@ -387,8 +391,8 @@ class ExportScript(TargetingScript):
 
         # Since only one flux per band is allowed, use a preference list for
         # photometric system and pick the best flux
-        for b in bands:
-            for i in range(len(assignments_all)):
+        for i in range(len(assignments_all)):
+            for b in bands:
                 if isinstance(filter[b][i], list):
                     # Sort by preference
                     sorted_filters = sorted(
