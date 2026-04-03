@@ -53,6 +53,16 @@ class Sextans(DSphGalaxy):
 
                 Pointing.from_relative_pos(pos, sep=1.74, dir=48, posang=posang, stage=3, priority=8),
                 Pointing.from_relative_pos(pos, sep=-1.74, dir=48, posang=posang, stage=3, priority=8),
+
+                Pointing.from_relative_pos(pos, sep=2.1, dir=138 + 16.5, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=2.1, dir=138 - 16.5, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=-2.1, dir=138 + 16.5, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=-2.1, dir=138 - 16.5, posang=posang, stage=4, priority=16),
+
+                Pointing.from_relative_pos(pos, sep=1.55, dir=138 + 49, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=1.55, dir=138 - 49, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=-1.55, dir=138 + 49, posang=posang, stage=4, priority=16),
+                Pointing.from_relative_pos(pos, sep=-1.55, dir=138 - 49, posang=posang, stage=4, priority=16),
             ]
         }
 
