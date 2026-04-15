@@ -14,6 +14,9 @@ import pfs.datamodel
 import pfs.utils
 import pfs.instdata
 import ics.cobraCharmer
+
+import ics.utils
+
 import pfs.ga.targeting
 from gurobipy import gurobi
 from pfs.datamodel import TargetType, PfsDesign
