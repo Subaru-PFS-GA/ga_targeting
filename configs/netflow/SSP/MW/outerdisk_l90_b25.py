@@ -5,7 +5,7 @@ DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/MW/outerdisk_l90_b25_SSP'
 PROPOSALID = 'S25A-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
-CATID_FLUXSTD = 3006
+CATID_FLUXSTD = 3011
 CATID_SCIENCE_CO = 10091
 CATID_SCIENCE_GA = 10092
 CATID_SCIENCE_GE = 10093
@@ -35,11 +35,11 @@ config = dict(
     field = dict(
         key = "outerdisk_l90_b25_faint",
         name = "GA Outer Disk l=90 b=25 Faint",
-        obs_time = datetime(2025, 6, 30, 12, 0, 0),
+        obs_time = datetime(2026, 5, 17, 6, 0, 0),
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=279.0, dec=60.45, posang=120.0, priority=1),
+        dict(ra=279.0145, dec=60.467667, posang=0.0, priority=9),
     ],
     targets = {
         # # Federico
@@ -81,10 +81,13 @@ config = dict(
             column_map = column_map,
             value_map = {
                 'priority': {
-                    0: 1,
-                    1: 2,
-                    2: 3,
-                    3: 4
+                    1: 1,
+                    2: 2,
+                    3: 3,
+                    4: 4,
+                    5: 5,
+                    8: 8,
+                    9: 9
                 }
             },
             prefix = "sci",
@@ -153,6 +156,80 @@ config = dict(
         #     )
         # ),
         # Miho
+        "sdssv": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/CC/SDSS-V/minesweeper_v1.0.0_mag16.0.feather",
+            #mask = 'lambda df: df["input_catalogs"] == "Gaia"',
+            column_map = column_map,
+            value_map = {
+                'priority': {
+                    1: 0
+                }
+            },
+            prefix = "sci",
+            # epoch = "J2000.0",
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "bp_gaia": dict(
+                        mag = 'BP',
+                    ),
+                    "g_gaia": dict(
+                        mag = 'G',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'RP',
+                    )
+                },
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',
+                        psf_flux = f'psf_flux_{b}',
+                        #psf_flux_err = f'psf_flux_error_{b}',
+                    ) for b in 'gri'
+                },
+                #limits = {
+                #    'ps1_g-ps1_r': [-0.5, 1.5],
+                #}
+            )
+        ),
+        "segue": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/CC/SEGUE/segue_sspparam_mag16.5.feather",
+            #mask = 'lambda df: df["input_catalogs"] == "Gaia"',
+            column_map = column_map,
+            value_map = {
+                'priority': {
+                    1: 0
+                }
+            },
+            prefix = "sci",
+            # epoch = "J2000.0",
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "bp_gaia": dict(
+                        mag = 'phot_bp_mean_mag',
+                    ),
+                    "g_gaia": dict(
+                        mag = 'phot_g_mean_mag',
+                    ),
+                    "rp_gaia": dict(
+                        mag = 'phot_rp_mean_mag',
+                    )
+                },
+                bands = {
+                    b: dict(
+                        filter = f'filter_{b}',
+                        psf_flux = f'psf_flux_{b}',
+                        #psf_flux_err = f'psf_flux_error_{b}',
+                    ) for b in 'gri'
+                },
+                #limits = {
+                #    'ps1_g-ps1_r': [-0.5, 1.5],
+                #}
+            )
+        ),
         "sky": dict(
             path = f'{DATA_DIR}/l90b25_sky.csv',
             reader_args = dict(),
