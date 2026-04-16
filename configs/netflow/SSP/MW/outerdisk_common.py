@@ -26,6 +26,7 @@ config = dict(
         cobra_move_cost = R'lambda dist: 5 * dist',
         per_target_non_obs_cost = True,
         collision_distance = 2.0,
+        cobra_safety_margin = 0.1, # mm
         forbidden_targets = [],
         forbidden_pairs = [],
         # science_prefix = ['sci'],
@@ -110,7 +111,7 @@ config = dict(
             'cal_location': dict(
                 # groups = np.random.randint(4, size=2394),
                 target_classes = [ 'cal' ],
-                min_targets = 5,
+                min_targets = 1,
                 max_targets = 60,
                 non_observation_cost = 1000,
             ),
