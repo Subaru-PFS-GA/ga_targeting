@@ -40,7 +40,7 @@ config = dict(
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=276.28191, dec=60.70011, posang=0.0, priority=9),
+        dict(ra=276.28191, dec=60.70011, posang=120.0, priority=9),
     ],
     targets = {
         # # Federico
