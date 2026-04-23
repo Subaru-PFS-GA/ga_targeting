@@ -40,7 +40,7 @@ config = dict(
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=287.75, dec=-22.20, posang=0.0, priority=100),
+        dict(ra=287.75, dec=-22.20, posang=0.0, priority=9),
     ],
     targets = {
         # Miho
