@@ -86,11 +86,16 @@ class CatalogScript(TargetingScript, Progress):
         target_lists = self.load_preprocessed_target_lists()
         
         # Reindex targets lists by __target_idx for easier lookup; exclude sky targets
-        target_lists = {
-            k: target_list.data.set_index('__target_idx', verify_integrity=True)
-            for k, target_list in target_lists.items()
-            if k != 'sky'
-        }
+        tss = {}
+        for k, target_list in target_lists.items():
+            if k != 'sky':
+                if '__target_idx' in target_list.data.columns:
+                    tss[k] = target_list.data.set_index('__target_idx', verify_integrity=True, inplace=False)
+                else:
+                    # Keep the original index column, for compatibility with older target lists that don't have __target_idx
+                    logger.warning(f'Target list `{k}` does not have `__target_idx` column, using original index for lookup.')
+
+        target_lists = tss
 
         # Load the final, merged assignments list
         assignments = self._load_fiber_assignments_all_list()
@@ -122,7 +127,7 @@ class CatalogScript(TargetingScript, Progress):
             'epoch': float,
             'penalty': float,
             'exp_time': float,
-            'priority': pd.Int16Dtype(),
+            'priority': pd.Float64Dtype(),
             'target_class': pd.StringDtype(),
             'done_visits': pd.Int16Dtype(),
             'req_visits': pd.Int16Dtype(),

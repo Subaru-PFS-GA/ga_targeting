@@ -277,7 +277,7 @@ class ImportScript(TargetingScript):
             set_extra_column_constant('epoch', 'string', 'J2016.0', None)
            
         set_extra_column_constant('catid', pd.Int32Dtype(), -1, self._config.targets[key].catid)
-        set_extra_column_constant('priority', pd.Int32Dtype(), None, self._config.targets[key].priority)
+        set_extra_column_constant('priority', pd.Float64Dtype(), None, self._config.targets[key].priority)
         set_extra_column_constant('exp_time', pd.Float64Dtype(), None, self._config.targets[key].exp_time)
 
         # Create required columns with default values
