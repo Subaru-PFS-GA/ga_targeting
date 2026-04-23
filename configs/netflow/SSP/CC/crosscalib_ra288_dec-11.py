@@ -3,10 +3,10 @@ from datetime import datetime
 DATA_DIR = '$PFS_TARGETING_DATA/data/targeting/CC/crosscalib_ra288_dec-11'
 
 # TODO: update these IDs
-PROPOSALID = 'S25A-OT02'
+PROPOSALID = 'S26A-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
-CATID_FLUXSTD = 3006
+CATID_FLUXSTD = 3012
 CATID_SCIENCE_CO = 10091
 CATID_SCIENCE_GA = 10092
 CATID_SCIENCE_GE = 10093
@@ -36,11 +36,11 @@ config = dict(
     field = dict(
         key = "crosscalib_ra288_decm11",
         name = "Cross-Calibration ra=288 dec=-11",
-        obs_time = datetime(2025, 6, 1, 15, 0, 0),
+        obs_time = datetime(2026, 5, 15, 15, 0, 0),
         id_prefix = ID_PREFIX
     ),
     pointings = [
-        dict(ra=288.35, dec=-11.45, posang=0.0, priority=200),
+        dict(ra=288.35, dec=-11.45, posang=0.0, priority=9),
     ],
     targets = {
         # Miho
@@ -205,7 +205,7 @@ config = dict(
                 'pmdec': 'pmdec',
                 'pmdec_error': 'err_pmdec',
             },
-            mask = 'lambda df: df["prob_f_star"] > 0.5',
+            mask = 'lambda df: df["is_fstar_gaia"] == True',
             prefix = "cal",
             catid = CATID_FLUXSTD,
             extra_columns = {
@@ -229,9 +229,9 @@ config = dict(
                         psf_flux_err = f'psf_flux_error_{b}',
                     ) for b in 'grizy'
                 },
-                # limits = {
-                #     'ps1_g': [16.5, 18.5],
-                # }
+                #limits = {
+                #     'ps1_g': [13.5, 18.5],
+                #}
             )
         ),
     },
