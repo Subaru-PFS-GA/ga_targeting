@@ -25,6 +25,7 @@ config = dict(
         black_dot_penalty = R'lambda dist: 10 / (dist + 1)',
         cobra_move_cost = R'lambda dist: 5 * dist',
         collision_distance = 2.0,
+        cobra_safety_margin = 0.1, # mm
         forbidden_targets = [],
         forbidden_pairs = [],
         science_prefix = ['sci', 'cal'],
