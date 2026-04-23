@@ -1,4 +1,4 @@
-PROPOSALID = 'S25A-OT02'
+PROPOSALID = 'S26A-OT02'
 CATID_SKY_GAIA = 1006
 CATID_SKY_PS1 = 1007
 CATID_FLUXSTD = 3006
@@ -12,7 +12,7 @@ extra_columns = {
         dtype = 'string',
     ),
     'obcode': dict(
-        pattern = "SSP_GA_S25A_{field}_{target_list}_{{targetid:d}}_{resolution}",
+        pattern = "SSP_GA_S26A_{field}_{target_list}_{{targetid:d}}_{resolution}",
         dtype = 'string'
     )
 }
@@ -49,6 +49,26 @@ config = dict(
             "sci_P2": {
                 "prefix": "sci",
                 "non_observation_cost": 1000,
+                "partial_observation_cost": 100000.0
+            },
+            "sci_P2.1": {
+                "prefix": "sci",
+                "non_observation_cost": 900,
+                "partial_observation_cost": 100000.0
+            },
+            "sci_P2.2": {
+                "prefix": "sci",
+                "non_observation_cost": 800,
+                "partial_observation_cost": 100000.0
+            },
+            "sci_P2.3": {
+                "prefix": "sci",
+                "non_observation_cost": 700,
+                "partial_observation_cost": 100000.0
+            },
+            "sci_P2.4": {
+                "prefix": "sci",
+                "non_observation_cost": 600,
                 "partial_observation_cost": 100000.0
             },
             # BHB + AGB + ToRGB
@@ -103,7 +123,8 @@ config = dict(
     targets = {
         "hsc": dict(
             # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/ursaminor_obs.feather",
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/SSP/ursaminor_003/hsc_umi_priorities.feather",
+            # path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/SSP/ursaminor_003/hsc_umi_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/sample/SSP/ursaminor_SSP_010/hsc_umi_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -125,7 +146,7 @@ config = dict(
                     "nb515_hsc": dict(
                         mag = 'obs_hsc_nb515',
                         mag_err = 'err_hsc_nb515',
-                    ),
+                    )
                 }
             )
         ),
@@ -499,26 +520,26 @@ config = dict(
             )
         ),
 
-        "guide": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/guide_ursaminor.feather",
-            reader_args = dict(),
-            prefix = "ag",
-            photometry = dict(
-                filters = {
-                    "gaia_g": dict(
-                        flux = "flux_gaia_g",
-                        flux_err = "err_flux_gaia_g",
-                    ),
-                    "gaia_bp": dict(
-                        flux = "flux_gaia_bp",
-                        flux_err = "err_flux_gaia_bp",
-                    ),
-                    "gaia_rp": dict(
-                        flux = "flux_gaia_rp",
-                        flux_err = "err_flux_gaia_rp",
-                    )
-                }
-            )
-        )
+        # "guide": dict(
+        #     path = "$PFS_TARGETING_DATA/data/targeting/dSph/ursaminor/guide_ursaminor.feather",
+        #     reader_args = dict(),
+        #     prefix = "ag",
+        #     photometry = dict(
+        #         filters = {
+        #             "gaia_g": dict(
+        #                 flux = "flux_gaia_g",
+        #                 flux_err = "err_flux_gaia_g",
+        #             ),
+        #             "gaia_bp": dict(
+        #                 flux = "flux_gaia_bp",
+        #                 flux_err = "err_flux_gaia_bp",
+        #             ),
+        #             "gaia_rp": dict(
+        #                 flux = "flux_gaia_rp",
+        #                 flux_err = "err_flux_gaia_rp",
+        #             )
+        #         }
+        #     )
+        # )
     },
 )
