@@ -1634,19 +1634,15 @@ class Netflow():
         if 'req_visits' not in self.__targets.columns:
             pd_append_column(self.__targets, 'req_visits', 0, np.int32)
 
-        # Some targets have already be observed
-        done_mask = (self.__targets['done_visits'] > 0) & (self.__targets['done_visits'] >= self.__targets['req_visits'])
-
         # Calculate the number of required visits from the exposure time
         # The default is 0 for calibration targets. Some targets are both flux
         # standards and science targets, so we calculate the number of required visits
         # based on the presence of exp_time
 
         exp_time_mask = self.__targets['exp_time'].notna()
-        mask = (~done_mask | cal_mask) & exp_time_mask
         pd_update_column(
-            self.__targets, mask, 'req_visits',
-            np.ceil(self.__targets['exp_time'][mask] / self.__visit_exp_time), dtype=np.int32)
+            self.__targets, exp_time_mask, 'req_visits',
+            np.ceil(self.__targets['exp_time'][exp_time_mask] / self.__visit_exp_time), dtype=np.int32)
 
         hist = np.bincount(self.__targets[sci_mask]['req_visits'])
         logger.info(f'Histogram of required visits: {hist}')
@@ -2819,6 +2815,10 @@ class Netflow():
             # Map the indices of target assignments to the target list index
             tidx = np.array([ ti for ti in self.__target_assignments[vidx].keys() ])
             tidx = self.__cache_to_target_map[tidx]
+
+            # Calculate the number of targets getting extra visits
+            extra_count = np.sum(self.__targets.loc[tidx, 'done_visits'] > 0)
+            logger.info(f"Visit {vidx}: {extra_count} targets are getting extra visits that have already been observed.")
 
             # Update the number of done visits
             self.__targets.loc[tidx, 'done_visits'] = self.__targets.loc[tidx, 'done_visits'] + visit.pointing.nrepeats
