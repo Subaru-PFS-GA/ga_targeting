@@ -1,4 +1,5 @@
 import astropy.units as u
+import pandas as pd
 from datetime import datetime, timedelta, tzinfo
 from collections import defaultdict
 
@@ -55,11 +56,11 @@ class M31(Galaxy):
         ##
         # TODO: make sure the position angles are updated below
         
-        ('none', 'GSS_2',      '00:38:59.79',  '+39:14:15.7', 110.0, 0, 0),
-        ('none', 'GSS_3',      '00:48:23.81',  '+39:16:42.8', 110.0, 0, 0),
-        ('none', 'GSS_4',      '00:42:49.51',  '+38:53:14.9', 110.0, 0, 0),
-        ('none', 'GSS_5',      '00:52:39.04',  '+38:30:07.3', 110.0, 0, 0),
-        ('none', 'GSS_6',      '00:47:33.81',  '+38:09:19.1', 110.0, 0, 0),
+        ('m31_GSS1', 'GSS_2',      '00:38:59.79',  '+39:14:15.7', 110.0, 0, 0),
+        ('m31_GSS1', 'GSS_3',      '00:48:23.81',  '+39:16:42.8', 110.0, 0, 0),
+        ('m31_GSS1', 'GSS_4',      '00:42:49.51',  '+38:53:14.9', 110.0, 0, 0),
+        ('m31_GSS1', 'GSS_5',      '00:52:39.04',  '+38:30:07.3', 110.0, 0, 0),
+        ('m31_GSS1', 'GSS_6',      '00:47:33.81',  '+38:09:19.1', 110.0, 0, 0),
 
         
         ('none', 'diskW_4',    '00:34:26.15',  '+41:07:09.7', 120.0, 0, 0),
@@ -288,7 +289,7 @@ class M31(Galaxy):
 
         return mask
     
-    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
+    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None, isochrones_name_mappings=None):
         """
         Assign priority classes based on photometry
         """
@@ -365,6 +366,52 @@ class M31(Galaxy):
 
         catalog.data['exp_time'] = np.nan
         catalog.data.loc[keep, 'exp_time'] = exp_time[keep]
+
+        # remove previously observed targets from overlap regions
+        previous_targets_df = pd.read_feather('/datascope/subaru/data/targeting/m31/m31_GSS0_SSP/netflow/m31_GSS0_1_SSP_004/m31_assignments.feather')
+
+        valid = (
+            previous_targets_df['targetid'].notna()
+            & (previous_targets_df['targetid'] != -1)
+        ) # not sure if these are real targets
+
+        previous_targets_df_valid = (
+            previous_targets_df.loc[valid]
+            .reset_index(drop=True)
+        )
+
+        previous_targets = Observation(data=previous_targets_df_valid)
+
+        targetid_to_idx = {
+            tid: i for i, tid in enumerate(previous_targets_df_valid['targetid'])
+        }
+
+        idx = catalog.data['objid'].map(targetid_to_idx)
+        target_mask = idx.notna()
+
+        catalog.merge(
+            previous_targets,
+            idx.fillna(0).astype(int),
+            columns=['done_visits'],
+            mask=target_mask
+        )
+
+        catalog.data['done_visits'] = catalog.data['done_visits'].fillna(0).astype(int)
+        print('sum of catalog done visits:')
+        print(np.sum(catalog.data['done_visits']))
+
+        # lookup = previous_targets_df.set_index('targetid')['done_visits']
+
+        # catalog['done_visits'] = (
+        #     catalog.data['objid']
+        #     .map(lookup)
+        #     .fillna(0)
+        #     .astype(int)
+        # )
+        
+        
+
+
 
 
     def assign_priorities_old(self, catalog: Catalog, mask=None, isogrid=None):
