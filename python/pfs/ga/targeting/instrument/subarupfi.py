@@ -1787,7 +1787,8 @@ class SubaruPFI(Instrument, FiberAllocator):
         native_frame = diagram._get_native_frame()
 
         if not fill:
-            style = styles.solid_line(**kwargs)
+            #style = styles.solid_line(**kwargs)
+            style = styles.sanitize_style(**kwargs)
             def plot_outline(ids):
                 for ii in ids:
                     xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
@@ -1801,12 +1802,12 @@ class SubaruPFI(Instrument, FiberAllocator):
             if blocks:
                 plot_outline(self.BLOCKS)
         else:
-            style = styles.red_fill(**kwargs)
             for ii in self.CORNERS:
+                style = styles.color_fill(**kwargs)
                 xy, mask = self.__get_outline(ii, res, native_frame=native_frame, projection=projection)
                 diagram.fill(ax, xy, mask=mask, native_frame=native_frame,
                              scalex=scalex, scaley=scaley,
-                             **style)
+                            **style)
 
     def plot_cobras(self, ax, diagram, data=None, cmap='viridis', vmin=None, vmax=None,
                     scalex=True, scaley=True,
