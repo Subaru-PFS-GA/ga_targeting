@@ -1,3 +1,5 @@
+import os
+
 from pfs.ga.common.config import Config
 
 class InstrumentOptionsConfig(Config):
@@ -7,7 +9,7 @@ class InstrumentOptionsConfig(Config):
         self.layout = 'calibration'
 
         # Temp directory for cobra coach output
-        self.cobra_coach_dir = '/tmp/$USER/cobra_coach'
+        self.cobra_coach_dir = os.path.expandvars('/tmp/$USER/cobraCoach')
 
         # Version of the cobra coach module to be used
         self.cobra_coach_module_version = None
