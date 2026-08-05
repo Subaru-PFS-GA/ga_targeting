@@ -13,7 +13,7 @@ config = dict(
     ),
     instrument_options = dict(
         layout = 'calibration',
-        cobra_coach_dir = '/tmp/cobra_coach',
+        cobra_coach_dir = '/tmp/mihoishigaki/cobra_coach',
         # cobra_coach_dir = '/home/mihoishigaki/tmp/cobra_coach',
         # cobra_coach_module_version = None,
         # instdata_path = None,
@@ -37,14 +37,14 @@ config = dict(
             'sky': dict(
                 prefix = 'sky',
                 min_targets = 100,
-                max_targets = 420,
-                non_observation_cost = 0,
+                max_targets = 400,
+                non_observation_cost = 100,
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 40,
-                max_targets = 240,
-                non_observation_cost = 0,
+                min_targets = 20,
+                max_targets = 200,
+                non_observation_cost = 100,
             ),
             'sci_P0': dict(
                 prefix = 'sci',
