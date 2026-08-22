@@ -93,6 +93,8 @@ class M31(Galaxy):
     
         ID = 'm31'
         name = 'M31'
+        self.sector = sector
+        self.field = field
 
         pos = [ '00h 42m 44.33s', '+41d 16m 07.5s' ]
         rad = 6 * u.deg
