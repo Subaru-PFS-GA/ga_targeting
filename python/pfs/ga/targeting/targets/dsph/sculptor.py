@@ -9,6 +9,7 @@ from ...instrument import *
 from ...projection import Pointing
 from ...data import Catalog, Observation
 from ...selection import ColorSelection, MagnitudeSelection, LinearSelection
+from ...config.pmap import PMapConfig
 from ...config.netflow import NetflowConfig, FieldConfig, PointingConfig
 from ..ids import *
 from .dsphgalaxy import DSphGalaxy
@@ -74,6 +75,49 @@ class Sculptor(DSphGalaxy):
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
 
+    def get_pmap_config(self):
+        config = PMapConfig(
+            cut_nb = True,
+            keep_blue = True,
+            extents = [[0.1, 2.0], [17.0, 23.5]],
+            merge_list = [np.s_[:10], np.s_[10:]]
+        )
+
+        return config
+
+    # TODO: move elsewhere
+    def get_filter_map(self):
+        """
+        Return a dictionary that maps between filter names used internally and the actual
+        filter names that are to be written into the exported target lists and design files.
+
+        This is just a final hack because propagating the new filter names through the stack
+        can take a significant effort. 
+        """
+
+        # Sculptor was imaged with i band in 2015 and 2016.  Evan Kirby emailed
+        # Yutaka Komiyama on October 5, 2026, to ask which filter is used in the
+        # Sculptor photometry catalog.  For now, I assume i2_hsc instead of
+        # i_old_hsc.
+        filter_map = {
+            # 'r_hsc': 'r2_hsc',
+            'i_hsc': 'i2_hsc',
+        }
+
+        return filter_map
+
+    def get_nb_selection_mask(self, catalog: Catalog, observed=None, mask=None):
+        ccd = self._hsc_ccd
+
+        return (
+            ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed, mask=mask)
+
+            | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed, mask=mask)
+            & ColorSelection(ccd.axes[0], None, 1.65).apply(catalog, observed=observed, mask=mask)
+            
+            | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed, mask=mask)
+        )
+    
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=16, faint=23.5):
         """Return true for objects within sharp magnitude cuts."""
 
@@ -87,14 +131,7 @@ class Sculptor(DSphGalaxy):
 
         # Narrow band
         if nb:
-            mask &= (
-                ColorSelection(ccd.axes[0], 0.12, 0.5).apply(catalog, observed=observed)
-
-                | ColorSelection(ccd.axes[1], 0.1, None).apply(catalog, observed=observed)
-                & ColorSelection(ccd.axes[0], None, 2.0).apply(catalog, observed=observed)
-                
-                | LinearSelection(ccd.axes, [-0.25, 1.0], -0.15, None).apply(catalog, observed=observed)
-            )
+            mask &= self.get_nb_selection_mask(catalog, observed=observed)
 
         # Probability-based cut (map) - nonzero membership probability
         if probcut is not None:
@@ -103,14 +140,18 @@ class Sculptor(DSphGalaxy):
         # Allow blue
         if blue:
             mask |= (
-                ColorSelection(self.ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
+                ColorSelection(ccd.axes[0], None, 0.12).apply(catalog, observed=observed)
             )
 
         # Always impose faint and bright magnitude cuts
         mask &= MagnitudeSelection(cmd.axes[1], bright, faint).apply(catalog, observed=observed)
 
+        # Make sure only point sources are selected (applies to observations only)
+        if 'clg' in catalog.data and 'cli' in catalog.data:
+            mask &= (catalog.data['clg'] < 0.1) & (catalog.data['cli'] < 0.1)
+
         return mask
-    
+
     def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
         """Assign priority classes based on photometry"""
 

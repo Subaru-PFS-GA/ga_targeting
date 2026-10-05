@@ -31,27 +31,27 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #       the NB model magnitudes are off. Refer to 
 #       python/pfs/ga/targeting/targets/dsph/sextans.py:189
 
-rm -r "$PMAP_DIR"
-if [ ! -d "$PMAP_DIR" ]; then
-    ga-pmap --dsph ${FIELD} \
-        --config ./configs/pmap/${PREFIX}/dSph/${FIELD}.py \
-        --out $PMAP_DIR \
-        ${EXTRA_OPTIONS}
-fi
+# rm -r "$PMAP_DIR"
+# if [ ! -d "$PMAP_DIR" ]; then
+#     ga-pmap --dsph ${FIELD} \
+#         --config ./configs/pmap/${PREFIX}/dSph/${FIELD}.py \
+#         --out $PMAP_DIR \
+#         ${EXTRA_OPTIONS}
+# fi
 
 # NOTE: pmap file is listed in the config file
 #       make sure the file path matches the version number!
 #       also make sure the NB cut is the correct one, use the
 #       revised NB cut for Sextans here.
 
-# # rm -r "$SAMPLE_DIR"
-# if [ ! -d "$SAMPLE_DIR" ]; then
-#     ga-sample --dsph ${FIELD} \
-#         --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
-#         --out $SAMPLE_DIR \
-#         --obs-time "${OBS_TIME}" \
-#         ${EXTRA_OPTIONS}
-# fi
+# rm -r "$SAMPLE_DIR"
+if [ ! -d "$SAMPLE_DIR" ]; then
+    ga-sample --dsph ${FIELD} \
+        --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
+        --out $SAMPLE_DIR \
+        --obs-time "${OBS_TIME}" \
+        ${EXTRA_OPTIONS}
+fi
 
 # NOTE: input files to ga-import are listed in the netflow config file
 #       make sure the file path matches the version number!
