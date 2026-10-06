@@ -45,18 +45,18 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #       revised NB cut for Sextans here.
 
 # rm -r "$SAMPLE_DIR"
-if [ ! -d "$SAMPLE_DIR" ]; then
-    ga-sample --dsph ${FIELD} \
-        --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
-        --out $SAMPLE_DIR \
-        --obs-time "${OBS_TIME}" \
-        ${EXTRA_OPTIONS}
-fi
+# if [ ! -d "$SAMPLE_DIR" ]; then
+#     ga-sample --dsph ${FIELD} \
+#         --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
+#         --out $SAMPLE_DIR \
+#         --obs-time "${OBS_TIME}" \
+#         ${EXTRA_OPTIONS}
+# fi
 
 # NOTE: input files to ga-import are listed in the netflow config file
 #       make sure the file path matches the version number!
 
-# # rm -r "$IMPORT_DIR"
+# rm -r "$IMPORT_DIR"
 # if [ ! -d "$IMPORT_DIR" ]; then
 #     ga-import --dsph ${FIELD} \
 #         --config \
@@ -68,24 +68,24 @@ fi
 #         ${EXTRA_OPTIONS}
 # fi
 
-# indir=$IMPORT_DIR
-# for stage in $STAGES; do
-#     outdir=${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_${stage}_${VERSION}
-#     if [ ! -d "$outdir" ]; then
-#         ga-netflow --dsph ${FIELD} \
-#             --config \
-#                 ./configs/netflow/${PREFIX}/dSph/_common.py \
-#                 ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
-#             --stage ${stage} \
-#             --nvisits ${NVISITS} \
-#             --exp-time ${EXP_TIME} \
-#             --obs-time "${OBS_TIME}" \
-#             --in $indir \
-#             --out $outdir \
-#             ${EXTRA_OPTIONS}
-#     fi
-#     indir=$outdir
-# done
+indir=$IMPORT_DIR
+for stage in $STAGES; do
+    outdir=${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_${stage}_${VERSION}
+    if [ ! -d "$outdir" ]; then
+        ga-netflow --dsph ${FIELD} \
+            --config \
+                ./configs/netflow/${PREFIX}/dSph/_common.py \
+                ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
+            --stage ${stage} \
+            --nvisits ${NVISITS} \
+            --exp-time ${EXP_TIME} \
+            --obs-time "${OBS_TIME}" \
+            --in $indir \
+            --out $outdir \
+            ${EXTRA_OPTIONS}
+    fi
+    indir=$outdir
+done
 
 # # rm -r "$EXPORT_DIR"
 # if [ ! -d "$EXPORT_DIR" ]; then
