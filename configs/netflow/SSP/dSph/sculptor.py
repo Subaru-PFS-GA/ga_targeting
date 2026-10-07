@@ -28,7 +28,7 @@ config = dict(
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 0,
+                min_targets = 60,
                 max_targets = 240,
             ),
             # Very likely members on the RGB + DEIMOS stars
@@ -233,7 +233,7 @@ config = dict(
                 },
                 limits = {
                     'gaia_g': [15, 20.5],
-                    'gaia_bp-gaia_rp': [0.15, 0.35],
+                    'gaia_bp-gaia_g': [0.15, 0.35],
                 }
             )
         ),
