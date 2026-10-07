@@ -28,7 +28,7 @@ config = dict(
             ),
             'cal': dict(
                 prefix = 'cal',
-                min_targets = 60,
+                min_targets = 0,
                 max_targets = 240,
             ),
             # Very likely members on the RGB + DEIMOS stars
