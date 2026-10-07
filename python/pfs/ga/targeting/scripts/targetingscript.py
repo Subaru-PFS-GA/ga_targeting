@@ -222,7 +222,8 @@ class TargetingScript(Script):
             json.dump(target_list.photometry, f,
                       indent=4, cls=PhotometryEncoder)
 
-    def _load_preprocessed_target_list(self, key, path):
+    @staticmethod
+    def _load_preprocessed_target_list(key, path):
         """
         Load a preprocessed target list. This target list already has column names
         mapped to internal column names and the flux columns unwrapped so this function

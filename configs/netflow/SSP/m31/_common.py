@@ -19,6 +19,10 @@ config = dict(
         # fiberids_path = None,
         black_dot_radius_margin = 1.65,
         # spectrograph_modules = [1, 2, 3, 4],
+        # sm = [1 ,2 ,3, 4],
+        # cobraSafetyMargin=0.1,
+        # fiducialsAvoidDistance=2.9,
+        # brokenCobrasMargin=0.23,
     ),
     netflow_options = dict(
         black_dot_penalty = R'lambda dist: 10 / (dist + 1)',

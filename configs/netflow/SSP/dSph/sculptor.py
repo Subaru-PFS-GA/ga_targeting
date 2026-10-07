@@ -232,8 +232,8 @@ config = dict(
                     ) for b in 'grizy'
                 },
                 limits = {
-                    'ps1_g': [16, 19.5],
-                    'ps1_g-ps1_r': [0.25, 0.4],
+                    'gaia_g': [15, 20.5],
+                    'gaia_bp-gaia_rp': [0.15, 0.35],
                 }
             )
         ),

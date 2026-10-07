@@ -117,13 +117,3 @@ class M33(M31):
                 ext_out=['g', 'i', 'nb515'])
         else:
             raise NotImplementedError()
-        
-    def assign_probabilities(self, catalog, pmap, population_id=-1, mask=None):
-         # Membership probability
-        lp_member, lp_member_mask = pmap.lookup_lp_member(catalog, mask=mask)
-
-        ix = np.where(mask)[0]
-
-        catalog.data['p_member'] = np.nan
-        catalog.data.loc[catalog.data.index[ix[lp_member_mask]], 'p_member'] = np.exp(lp_member[:, population_id][lp_member_mask])
-

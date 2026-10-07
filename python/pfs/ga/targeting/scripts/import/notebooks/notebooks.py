@@ -26,9 +26,13 @@ def load_target_lists(config, output_path, prefix=None):
         if prefix is None or config.targets[key].prefix in prefix:
             # Try loading from the output directory, then from the source directory
             fn = os.path.expandvars(os.path.join(output_path, f'{config.field.key}_targets_{key}.feather'))
-            if not os.path.isfile(fn):
+            if os.path.isfile(fn):
+                # Preprocessed lists have mapped column names and unwrapped fluxes,
+                # the column mapping of the config must not be applied again
+                target_lists[key] = NetflowScript._load_preprocessed_target_list(key, fn)
+            else:
                 fn = os.path.expandvars(config.targets[key].path)
-            target_lists[key] = NetflowScript.load_target_list(key, config.targets[key], fn)
+                target_lists[key] = NetflowScript.load_target_list(key, config.targets[key], fn)
     return target_lists
 
 def print_photometry(target_lists):

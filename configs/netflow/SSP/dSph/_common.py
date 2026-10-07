@@ -21,6 +21,10 @@ config = dict(
         # spectrograph_modules = [1, 2, 3, 4],
     ),
     netflow_options = dict(
+        # sm = [1 ,2 ,3, 4],
+        # cobraSafetyMargin=0.1,
+        # fiducialsAvoidDistance=2.9,
+        # brokenCobrasMargin=0.23,
         black_dot_penalty = R'lambda dist: 10 / (dist + 1)',
         cobra_move_cost = R'lambda dist: 5 * dist',
         collision_distance = 2.0,

@@ -1,7 +1,7 @@
 import numpy as np
 
 config = dict(
-    obs_path = "$PFS_TARGETING_DATA/data/targeting/m31/M33_PFS-SSP.csv",
+    obs_path = "$PFS_TARGETING_DATA/data/targeting/m33/M33_PFS-SSP_mlprob.csv",
     pmap_path = "$PFS_TARGETING_DATA/data/targeting/m31/m31_PFS_22_SSP/pmap/m31_PFS_22_SSP_099",
     isochrones_path = "$CMDFIT_DATA/isochrones/dartmouth/import/afep0_cfht_sdss_hsc",
     cut_nb = True,
