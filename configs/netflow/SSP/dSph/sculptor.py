@@ -149,6 +149,48 @@ config = dict(
                 }
             ),
         ),
+        "anc": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/scl.anc.feather",
+            # reader = None
+            reader_args = dict(),
+            column_map = {'objid': 'targetid'},
+            value_map = {
+                'priority': {
+                    0: 5,
+                    1: 6,
+                    2: 7
+                }
+            },
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = extra_columns,
+            photometry = dict(
+                filters = {
+                    "g_ps1": dict(
+                        mag = 'obs_ps_g',
+                        mag_err = 'err_ps_g',
+                    ),
+                    "r_ps1": dict(
+                        mag = 'obs_ps_r',
+                        mag_err = 'err_ps_r',
+                    ),
+                    "i_ps1": dict(
+                        mag = 'obs_ps_i',
+                        mag_err = 'err_ps_i',
+                    ),
+                    "z_ps1": dict(
+                        mag = 'obs_ps_z',
+                        mag_err = 'err_ps_z',
+                    ),
+                },
+                limits = {
+                    'ps1_g': [16, 23],
+                    'ps1_i': [16, 23],
+                }
+            )
+        ),
         # Miho
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/sky_sculptor.feather",
