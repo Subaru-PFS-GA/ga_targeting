@@ -136,3 +136,4 @@ bin/init
 
 
 *.code-workspace
+configs/envs/default.sh

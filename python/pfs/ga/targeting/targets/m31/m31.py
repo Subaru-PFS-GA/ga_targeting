@@ -141,17 +141,17 @@ class M31(Galaxy):
         # CMD and CCD definitions with color and magnitude limits for M31
 
         hsc = SubaruHSC.photometry()
-        self.__hsc_cmd = CMD([
+        self._hsc_cmd = CMD([
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
             MagnitudeAxis(hsc.magnitudes['g'], limits=(15.5, 24.5))
         ])
-        self.__hsc_ccd = CCD([
+        self._hsc_ccd = CCD([
             ColorAxis(Color([hsc.magnitudes['g'], hsc.magnitudes['i']]), limits=(-1, 4)),
             ColorAxis( Color([hsc.magnitudes['g'], hsc.magnitudes['nb515']]), limits=(-0.5, 0.5))
         ])
 
         gaia = Gaia.photometry()
-        self.__gaia_cmd = CMD([
+        self._gaia_cmd = CMD([
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
@@ -175,9 +175,9 @@ class M31(Galaxy):
         Return the definition of the color-magnitude diagram for the given instrument.
         """
         if instrument == SubaruHSC:
-            cmd = self.__hsc_cmd
+            cmd = self._hsc_cmd
         elif instrument == Gaia:
-            cmd = self.__gaia_cmd
+            cmd = self._gaia_cmd
         else:
             raise NotImplementedError()
             
@@ -188,7 +188,7 @@ class M31(Galaxy):
         Return the definition of the color-color diagram for the given instrument.
         """
         if instrument == SubaruHSC:
-            ccd = self.__hsc_ccd
+            ccd = self._hsc_ccd
         else:
             raise NotImplementedError()
 
@@ -257,8 +257,8 @@ class M31(Galaxy):
     def get_selection_mask(self, catalog: Catalog, nb=True, blue=False, probcut=None, observed=None, bright=19.0, faint=30.0):
         """Return true for objects within sharp magnitude cuts."""
 
-        cmd = self.__hsc_cmd
-        ccd = self.__hsc_ccd
+        cmd = self._hsc_cmd
+        ccd = self._hsc_ccd
 
         # Broadband colors
         mask = ColorSelection(cmd.axes[0], 0.95, 4.0).apply(catalog, observed=observed)
