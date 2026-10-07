@@ -290,10 +290,14 @@ class M31(Galaxy):
 
         return mask
     
-    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None):
+    def assign_priorities(self, catalog: Catalog, mask=None, isogrid=None, isochrones_name_mappings=None):
         """
         Assign priority classes based on photometry
         """
+
+        cli_key = 'cli'
+        if 'cli2' in catalog.data.columns:
+            cli_key = 'cli2'
 
         mask = mask.copy() if mask is not None else np.full(catalog.shape[0], True, dtype=bool)
 
@@ -316,7 +320,7 @@ class M31(Galaxy):
 
         # Exclude any extended sources
         clg = catalog.data['clg'][mask]
-        cli = catalog.data['cli'][mask]
+        cli = catalog.data[cli_key][mask]
         keep &= (cli < 0.5) & (clg < 0.5)
         
         p_member = catalog.data['p_member'][mask]

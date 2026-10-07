@@ -1,8 +1,10 @@
 # outstanding issues:
-# - pmap needs to be updates; Kohei will look at it on Oct 9
+# - HSC photometry is an unholy mix of i_old and i2.  Can't do anything about that.
+# - pmap needs to be updated; Kohei will look at it on Oct 9
 # - no ancillary targets
 # - targets_list.ipynb color-coding by priority is not working
 # - Miho's new flux standards raise a key error ("g") in targets_list.ipynb
+# - netflow raises a NotImplementedError regarding blocked fibers
 
 
 #!/bin/bash

@@ -107,3 +107,23 @@ class M33(M31):
             ColorAxis(Color([gaia.magnitudes['bp'], gaia.magnitudes['rp']]), limits=(0, 3)),
             MagnitudeAxis(gaia.magnitudes['g'], limits=(11, 22))
         ])
+        
+    def get_text_observation_reader(self, instrument=SubaruHSC):
+        if instrument == SubaruHSC:
+            return SubaruHSC.text_observation_reader_m33(
+                mags_in=['g', 'i2', 'n'],
+                mags_out=['g', 'i', 'nb515'],
+                ext_in=['g', 'i2', 'n'],
+                ext_out=['g', 'i', 'nb515'])
+        else:
+            raise NotImplementedError()
+        
+    def assign_probabilities(self, catalog, pmap, population_id=-1, mask=None):
+         # Membership probability
+        lp_member, lp_member_mask = pmap.lookup_lp_member(catalog, mask=mask)
+
+        ix = np.where(mask)[0]
+
+        catalog.data['p_member'] = np.nan
+        catalog.data.loc[catalog.data.index[ix[lp_member_mask]], 'p_member'] = np.exp(lp_member[:, population_id][lp_member_mask])
+

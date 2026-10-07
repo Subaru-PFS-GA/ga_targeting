@@ -127,6 +127,12 @@ class SubaruHSC(Instrument):
         reader.column_map = {
             'RA': 'RA',
             'Dec': 'Dec',
+            'i2psf': 'ipsf',
+            'i2psferr': 'ipsferr',
+            'a_i2': 'i2',
+            'r2psf': 'rpsf',
+            'r2psferr': 'rpsferr',
+            'a_r2': 'r2',
         }
         #reader.column_names = ['RA', 'Dec', 'xi', 'eta']
 
@@ -136,6 +142,69 @@ class SubaruHSC(Instrument):
 
         for m in ext:
             reader.column_map[f'a_{m[0]}'] = f'ext_hsc_{m}'
+
+        # These have to be done is separate loops because column order matters!
+
+        #for m in mags:
+        #    reader.column_names.append(f'{m[0]}psf')
+
+        #for m in mags:
+        #    reader.column_names.append(f'{m[0]}psferr')
+
+        #for m in mags:
+        #    reader.column_names.append(f'cl{m[0]}')
+
+        #for m in ext:
+        #    reader.column_names.append(f'a_{m[0]}')
+
+        def filter(df):
+            ff = None
+            for m in mags:
+                if m[0] != 'n':
+                    f = df[f'cl{m[0]}'] < 0.1
+                    if ff is None:
+                        ff = f
+                    else:
+                        ff = ff | f
+            return ff
+
+        reader.filter = filter
+        reader.kwargs = dict(delimiter=',')
+
+        return reader
+    
+    def text_observation_reader_m33(mags_in=None, mags_out=None, ext_in=None, ext_out=None):
+        if mags_in is None:
+            mags_in = ['g', 'i2', 'n']
+            mags_out = ['g', 'i', 'nb515']
+        if mags_out is None:
+            mags_out = mags_in
+        
+        if ext_in is None:
+            ext_in = ['g', 'i2', 'n']
+            ext_out = ['g', 'i', 'nb515']
+        if ext_out is None:
+            ext_out = ext_in
+
+        reader = ObservationSerializer(format='.csv')
+        reader.append_photometry(SubaruHSC.photometry())
+        #reader.column_names.append(f'targetid')
+        
+        # M31 files have no unique object id, generate one
+        reader.idcol = 'objid'
+        
+        reader.column_map = {
+            'RA': 'RA',
+            'Dec': 'Dec',
+        }
+        #reader.column_names = ['RA', 'Dec', 'xi', 'eta']
+
+        for m1, m2 in zip(mags_in, mags_out):
+            reader.column_map[f'{m1}psf'] = f'obs_hsc_{m2}'
+            reader.column_map[f'{m1}psferr'] = f'err_hsc_{m2}'
+
+        for m1, m2 in zip(ext_in, ext_out):
+            reader.column_map[f'a_{m1}'] = f'ext_hsc_{m2}'
 
         # These have to be done is separate loops because column order matters!
 

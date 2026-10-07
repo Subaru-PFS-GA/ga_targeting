@@ -8,7 +8,7 @@ set -e
 # One minor change is that we add Globular Clusters to the target lists, so design IDs will change.
 
 PREFIX=SSP
-VERSION="007"
+VERSION="001"
 
 NVISITS=1                           # Number of visits to simulate, fibers can move between visits
 NREPEATS=10                         # Repeat same visit this many times
@@ -28,9 +28,9 @@ EXTRA_OPTIONS="--log-to-console"
 # for SECTOR in 'm31_GSS0' 'm31_NWS0'; do
 for SECTOR in 'm33_NW'; do
 
-    SECTOR_DIR="$PFS_TARGETING_DATA/data/targeting/m31/${SECTOR}_${PREFIX}"
+    SECTOR_DIR="$PFS_TARGETING_DATA/data/targeting/m33/${SECTOR}_${PREFIX}"
     # PMAP_DIR="${SECTOR_DIR}/pmap/${SECTOR}_${PREFIX}_${VERSION}"
-    SAMPLE_DIR="$PFS_TARGETING_DATA/data/targeting/m31/m31_all_${PREFIX}/${SECTOR_DIR}/sample/m31_all_${PREFIX}"
+    SAMPLE_DIR="${SECTOR_DIR}/sample/${SECTOR}_${PREFIX}_${VERSION}"
     IMPORT_DIR="${SECTOR_DIR}/import/${SECTOR}_${PREFIX}_${VERSION}"
     NETFLOW_DIR="${SECTOR_DIR}/netflow/${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
     EXPORT_DIR="${SECTOR_DIR}/export/${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
