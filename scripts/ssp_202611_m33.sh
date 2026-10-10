@@ -37,7 +37,7 @@ for SECTOR in 'm33_NW'; do
 
     # Line 106 of ${CONFIG_FILE} needs to be changed to point to the correct directory.
     # CONFIG_FILE="./configs/netflow/${PREFIX}/m31/${SECTOR}.py"    
-    M31_CONFIG_FILE="./configs/netflow/${PREFIX}/m31/m31.py"
+    M33_CONFIG_FILE="./configs/netflow/${PREFIX}/m31/m33.py"
     SECTOR_CONFIG_FILE="./configs/netflow/${PREFIX}/m31/${SECTOR}.py"
 
     mkdir -p "${SECTOR_DIR}"
@@ -68,7 +68,7 @@ for SECTOR in 'm33_NW'; do
     # if [ ! -d "$IMPORT_DIR" ]; then
     #     ga-import \
     #         --m31 ${SECTOR} \
-    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${M31_CONFIG_FILE} ${SECTOR_CONFIG_FILE} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${M33_CONFIG_FILE} ${SECTOR_CONFIG_FILE} \
     #         --nrepeats ${NREPEATS} \
     #         --exp-time ${EXP_TIME} \
     #         --out "${IMPORT_DIR}" \
@@ -79,7 +79,7 @@ for SECTOR in 'm33_NW'; do
     # if [ ! -d "$NETFLOW_DIR" ]; then
     #     ga-netflow \
     #         --m31 ${SECTOR} \
-    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${M31_CONFIG_FILE} ${SECTOR_CONFIG_FILE} \
+    #         --config ./configs/netflow/${PREFIX}/m31/_common.py ${M33_CONFIG_FILE} ${SECTOR_CONFIG_FILE} \
     #         --nvisits ${NVISITS} \
     #         --nrepeats ${NREPEATS} \
     #         --exp-time ${EXP_TIME} \

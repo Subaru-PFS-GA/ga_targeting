@@ -116,7 +116,7 @@ config = dict(
         },
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 0,
+                min_targets = 3,
             )
         }
     ),
