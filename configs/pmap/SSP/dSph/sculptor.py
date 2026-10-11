@@ -17,7 +17,7 @@ config = dict(
         4.74330132e-01, 2.05290646e-01
     ],
     merge_list = [list(range(10)), list(range(10, 12))],
-    sim_path = "/datascope/subaru/data/cmdfit/run/scl/sim/mix_bin_100k_5",
+    sim_path = "/raid/pfs/data/cmdfit/run/scl/sim/mix_bin_100k_5",
     # use_p_stars = True,
     
     obs_path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/sculptor_tpall3e_g24.cat"

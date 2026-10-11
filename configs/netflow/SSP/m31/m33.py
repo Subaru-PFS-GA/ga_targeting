@@ -71,6 +71,12 @@ config = dict(
                 "non_observation_cost": 360,
                 "partial_observation_cost": 100000.0
             },
+            # Sestito & Kobayashi (2026)
+            "sci_P4.1": {
+                "prefix": "sci",
+                "non_observation_cost": 600,
+                "partial_observation_cost": 100000.0
+            },
             # Bright p_member > 0.1
             "sci_P5": {
                 "prefix": "sci",
@@ -104,7 +110,7 @@ config = dict(
         },
         cobra_groups = {
             'cal_location': dict(
-                min_targets = 3,
+                min_targets = 2,
             )
         }
     ),
@@ -113,7 +119,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m33/m33_NW_SSP/sample/m33_NW_SSP_001/hsc_m33_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m33/m33_W_SSP/sample/m33_W_SSP_001/hsc_m33_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},
@@ -235,7 +241,52 @@ config = dict(
                 }
             )
         ),
-
+        "sestito_kobayashi26": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/m33/M33_SestitoKobayashi.csv",
+            reader_args = dict(),
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 4.1,
+                    dtype = 'float',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['PHOT_G_MEAN_MAG'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            column_map = {
+                'SOURCE_ID': 'targetid',
+                'RA': 'RA',
+                'DEC': 'Dec',
+                'PMRA': 'pmra',
+                'PMDEC': 'pmdec',
+                'EBV': 'ebv',
+                'PMRA_ERROR': 'err_pmra',
+                'PMDEC_ERROR': 'err_pmdec',
+            },
+            photometry = dict(
+                filters = {
+                    'g_gaia': dict(
+                        mag = 'PHOT_G_MEAN_MAG',
+                    ),
+                    'bp_gaia': dict(
+                        mag = 'PHOT_BP_MEAN_MAG',
+                    ),
+                    'rp_gaia': dict(
+                        mag = 'PHOT_RP_MEAN_MAG',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),        
         # # Use the PS1 x GAIA sample as a fall-back for empty fibers
         # # This entry also add PS1 and GAIA photometry to all other objects
         # "gaia": dict(

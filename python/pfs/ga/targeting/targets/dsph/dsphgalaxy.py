@@ -123,6 +123,6 @@ class DSphGalaxy(Galaxy):
             arms = 'bmn',
             nvisits = 1,
             exp_time = 30 * 60.,        # 3 hr total
-            obs_time = datetime(2025, 5, 25, 0, 0, 0) + timedelta(hours=10),
+            obs_time = datetime(2026, 11, 6, 22, 30, 0) + timedelta(hours=10),
             resolution = 'm',
         )

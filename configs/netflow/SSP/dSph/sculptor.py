@@ -89,6 +89,24 @@ config = dict(
                 "non_observation_cost": 600,
                 "partial_observation_cost": 100000.0
             },
+            # DART
+            "sci_P5.1": {
+                "prefix": "sci",
+                "non_observation_cost": 300,
+                "partial_observation_cost": 100000.0
+            },
+            # APOGEE
+            "sci_P5.2": {
+                "prefix": "sci",
+                "non_observation_cost": 200,
+                "partial_observation_cost": 100000.0
+            },
+            # Jensen24
+            "sci_P5.3": {
+                "prefix": "sci",
+                "non_observation_cost": 150,
+                "partial_observation_cost": 100000.0
+            },
             # Anc 1
             "sci_P6": {
                 "prefix": "sci",
@@ -191,6 +209,189 @@ config = dict(
                 }
             )
         ),
+        "sestito23": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/Sculptor_Sestito23.csv",
+            reader_args = dict(),
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 0,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['G'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'pmra': 'pmra',
+                'pmdec': 'pmdec',
+                'EBV': 'ebv',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
+                'RV': 'rv',
+            },
+            photometry = dict(
+                filters = {
+                    'g_gaia': dict(
+                        mag = 'G',
+                    ),
+                    'bp_gaia': dict(
+                        mag = 'BP',
+                    ),
+                    'rp_gaia': dict(
+                        mag = 'RP',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),        
+        "dart": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/Sculptor_DART.csv",
+            reader_args = dict(),
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5.1,
+                    dtype = 'float',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['G'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'EBV': 'ebv',
+                'vel': 'rv',
+            },
+            photometry = dict(
+                filters = {
+                    'g_gaia': dict(
+                        mag = 'G',
+                    ),
+                    'bp_gaia': dict(
+                        mag = 'BP',
+                    ),
+                    'rp_gaia': dict(
+                        mag = 'RP',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),        
+        "apogee": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/Sculptor_APOGEE_minusDART.csv",
+            reader_args = dict(),
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5.2,
+                    dtype = 'float',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['G'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'EBV': 'ebv',
+                'pmra': 'pmra',
+                'pmdec': 'pmdec',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
+                'VHELIO_AVG': 'rv',
+            },
+            photometry = dict(
+                filters = {
+                    'g_gaia': dict(
+                        mag = 'G',
+                    ),
+                    'bp_gaia': dict(
+                        mag = 'BP',
+                    ),
+                    'rp_gaia': dict(
+                        mag = 'RP',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),        
+        "jensen24": dict(
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/Sculptor_J24candidates_minus_DART_APOGEE_Sestito23.csv",
+            reader_args = dict(),
+            prefix = "sci",
+            frame= 'icrs',
+            epoch = 2016.0,
+            catid = CATID_SCIENCE_GA,
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 5.3,
+                    dtype = 'float',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['phot_g_mean_mag'],
+                    lambda_func = "lambda r0: 1800 * np.maximum(np.minimum(np.rint(5 * ((r0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
+            },
+            column_map = {
+                'source_id': 'targetid',
+                'ra': 'RA',
+                'dec': 'Dec',
+                'EBV': 'ebv',
+                'pmra': 'pmra',
+                'pmdec': 'pmdec',
+                'pmra_error': 'err_pmra',
+                'pmdec_error': 'err_pmdec',
+            },
+            photometry = dict(
+                filters = {
+                    'g_gaia': dict(
+                        mag = 'phot_g_mean_mag',
+                    ),
+                    'bp_gaia': dict(
+                        mag = 'phot_bp_mean_mag',
+                    ),
+                    'rp_gaia': dict(
+                        mag = 'phot_rp_mean_mag',
+                    ),
+                },
+                limits = {
+                    'gaia_g': [16, 23],
+                }
+            )
+        ),        
         # Miho
         "sky": dict(
             path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/sky_sculptor.feather",

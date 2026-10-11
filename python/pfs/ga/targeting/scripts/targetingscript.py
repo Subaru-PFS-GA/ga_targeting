@@ -200,6 +200,8 @@ class TargetingScript(Script):
         if ridx is not None and not np.isnan(ridx) and ridx >= 0:
             code += f'R{int(ridx):02d}'
 
+        code += f'_{self._config.field.field}'
+
         return code
 
     def _get_preprocessed_target_list_path(self, key, dir):

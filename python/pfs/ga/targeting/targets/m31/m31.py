@@ -231,7 +231,7 @@ class M31(Galaxy):
             arms = 'bmn',
             nvisits = 10,
             exp_time = 30 * 60.,        # 5 hr total
-            obs_time = datetime(2025, 9, 13, 23, 0, 0) + timedelta(hours=10),
+            obs_time = datetime(2026, 11, 6, 23, 0, 0) + timedelta(hours=10),
             resolution = 'm'
         )
     

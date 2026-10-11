@@ -9,7 +9,7 @@
 set -e
 
 PREFIX=SSP
-VERSION=001
+VERSION=002
 
 FIELD=sculptor
 STAGES="0 1 2"        # TODO: update stages as needed, depending on number of pointings
@@ -23,12 +23,13 @@ PROPOSAL_ID="S26B-OT02"
 INPUT_CATALOG_ID="10092"
 
 # EXTRA_OPTIONS="--skip-notebooks --debug"
-EXTRA_OPTIONS=""
+EXTRA_OPTIONS="--skip-notebooks"
 
 FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/dSph/${FIELD}
 
 PMAP_DIR=${FIELD_DIR}/pmap/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
-SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
+# SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
+SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_001
 IMPORT_DIR=${FIELD_DIR}/import/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 
@@ -62,38 +63,38 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 # NOTE: input files to ga-import are listed in the netflow config file
 #       make sure the file path matches the version number!
 
-rm -r "$IMPORT_DIR"
-if [ ! -d "$IMPORT_DIR" ]; then
-    ga-import --dsph ${FIELD} \
-        --config \
-            ./configs/netflow/${PREFIX}/dSph/_common.py \
-            ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
-        --exp-time ${EXP_TIME} \
-        --obs-time "${OBS_TIME}" \
-        --out ${IMPORT_DIR} \
-        ${EXTRA_OPTIONS}
-fi
+# rm -rf "$IMPORT_DIR"
+# if [ ! -d "$IMPORT_DIR" ]; then
+#     ga-import --dsph ${FIELD} \
+#         --config \
+#             ./configs/netflow/${PREFIX}/dSph/_common.py \
+#             ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
+#         --exp-time ${EXP_TIME} \
+#         --obs-time "${OBS_TIME}" \
+#         --out ${IMPORT_DIR} \
+#         ${EXTRA_OPTIONS}
+# fi
 
-# indir=$IMPORT_DIR
-# for stage in $STAGES; do
-#     outdir=${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_${stage}_${VERSION}
-#     if [ ! -d "$outdir" ]; then
-#         ga-netflow --dsph ${FIELD} \
-#             --config \
-#                 ./configs/netflow/${PREFIX}/dSph/_common.py \
-#                 ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
-#             --stage ${stage} \
-#             --nvisits ${NVISITS} \
-#             --exp-time ${EXP_TIME} \
-#             --obs-time "${OBS_TIME}" \
-#             --in $indir \
-#             --out $outdir \
-#             ${EXTRA_OPTIONS}
-#     fi
-#     indir=$outdir
-# done
+indir=$IMPORT_DIR
+for stage in $STAGES; do
+    outdir=${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_${stage}_${VERSION}
+    if [ ! -d "$outdir" ]; then
+        ga-netflow --dsph ${FIELD} \
+            --config \
+                ./configs/netflow/${PREFIX}/dSph/_common.py \
+                ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
+            --stage ${stage} \
+            --nvisits ${NVISITS} \
+            --exp-time ${EXP_TIME} \
+            --obs-time "${OBS_TIME}" \
+            --in $indir \
+            --out $outdir \
+            ${EXTRA_OPTIONS}
+    fi
+    indir=$outdir
+done
 
-# # rm -r "$EXPORT_DIR"
+# rm -r "$EXPORT_DIR"
 # if [ ! -d "$EXPORT_DIR" ]; then
 #     ga-export \
 #         --in ${FIELD_DIR}/netflow/${PREFIX}/${FIELD}_${NVISITS}_?_${VERSION} \
