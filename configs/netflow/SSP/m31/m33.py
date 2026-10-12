@@ -192,20 +192,26 @@ config = dict(
         #     )
         # ),
         "pne": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m31/m31.pne.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m33/m33_pne_cfht.feather",
             # reader = None
             reader_args = dict(),
             #column_map = {'objid': 'targetid'},
-            value_map = {
-                'priority': {
-                    0: 0,
-                }
+            extra_columns = {
+                **extra_columns,
+                'priority': dict(
+                    constant = 0,
+                    dtype = 'int',
+                ),
+                'exp_time': dict(
+                    lambda_args = ['g_cfht'],
+                    lambda_func = "lambda g0: 1800 * np.maximum(np.minimum(np.rint(5 * ((g0 - 16) / (23.0 - 16.0)) + 1).astype(int), 6), 1)",
+                    dtype = 'int'
+                )
             },
             prefix = "sci",
             frame= 'icrs',
             epoch = 2016.0,
             catid = CATID_SCIENCE_GA,
-            extra_columns = extra_columns,
             photometry = dict(
                 filters = {
                     "g_cfht": dict(

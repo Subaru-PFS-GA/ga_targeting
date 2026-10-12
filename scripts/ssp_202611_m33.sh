@@ -8,7 +8,7 @@ set -e
 # One minor change is that we add Globular Clusters to the target lists, so design IDs will change.
 
 PREFIX=SSP
-VERSION="002"
+VERSION="003"
 
 NVISITS=1                           # Number of visits to simulate, fibers can move between visits
 NREPEATS=10                         # Repeat same visit this many times
@@ -90,17 +90,17 @@ for SECTOR in 'm33_W'; do
             ${EXTRA_OPTIONS}
     fi
 
-    rm -Rf "${EXPORT_DIR}"
-    if [ ! -d "${EXPORT_DIR}" ]; then
-        ga-export \
-            --in "${NETFLOW_DIR}" \
-            --out "${EXPORT_DIR}" \
-            --input-catalog-id ${INPUT_CATALOG_ID} \
-            --proposal-id "${PROPOSAL_ID}" \
-            --nrepeats ${NREPEATS} \
-            --nframes ${NFRAMES} \
-            --obs-run "${OBS_RUN}" \
-            ${EXTRA_OPTIONS}
-    fi
+    # rm -Rf "${EXPORT_DIR}"
+    # if [ ! -d "${EXPORT_DIR}" ]; then
+    #     ga-export \
+    #         --in "${NETFLOW_DIR}" \
+    #         --out "${EXPORT_DIR}" \
+    #         --input-catalog-id ${INPUT_CATALOG_ID} \
+    #         --proposal-id "${PROPOSAL_ID}" \
+    #         --nrepeats ${NREPEATS} \
+    #         --nframes ${NFRAMES} \
+    #         --obs-run "${OBS_RUN}" \
+    #         ${EXTRA_OPTIONS}
+    # fi
 
 done
