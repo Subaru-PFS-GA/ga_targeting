@@ -141,7 +141,7 @@ config = dict(
 
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/sample/SSP/sculptor_SSP_001/hsc_scl_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/dSph/sculptor/sample/SSP/sculptor_SSP_003/hsc_scl_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},

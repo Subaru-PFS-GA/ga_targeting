@@ -80,13 +80,13 @@ config = dict(
             # Bright p_member > 0.1
             "sci_P5": {
                 "prefix": "sci",
-                "non_observation_cost": 600,
+                "non_observation_cost": 280,
                 "partial_observation_cost": 100000.0
             },
             # Faint p_member > 0.1
             "sci_P6": {
                 "prefix": "sci",
-                "non_observation_cost": 450,
+                "non_observation_cost": 180,
                 "partial_observation_cost": 100000.0
             },
             # Anc 1
@@ -119,7 +119,7 @@ config = dict(
     ),
     targets = {
         "hsc": dict(
-            path = "$PFS_TARGETING_DATA/data/targeting/m33/m33_W_SSP/sample/m33_W_SSP_001/hsc_m33_priorities.feather",
+            path = "$PFS_TARGETING_DATA/data/targeting/m33/m33_W_SSP/sample/m33_W_SSP_003/hsc_m33_priorities.feather",
             # reader = None
             reader_args = dict(),
             column_map = {'objid': 'targetid'},

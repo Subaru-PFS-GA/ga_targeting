@@ -31,7 +31,7 @@ for SECTOR in 'm33_W'; do
     SECTOR_DIR="$PFS_TARGETING_DATA/data/targeting/m33/${SECTOR}_${PREFIX}"
     # PMAP_DIR="${SECTOR_DIR}/pmap/${SECTOR}_${PREFIX}_${VERSION}"
     # SAMPLE_DIR="${SECTOR_DIR}/sample/${SECTOR}_${PREFIX}_${VERSION}"
-    SAMPLE_DIR="${SECTOR_DIR}/sample/${SECTOR}_${PREFIX}_001"
+    SAMPLE_DIR="${SECTOR_DIR}/sample/${SECTOR}_${PREFIX}_${VERSION}"
     IMPORT_DIR="${SECTOR_DIR}/import/${SECTOR}_${PREFIX}_${VERSION}"
     NETFLOW_DIR="${SECTOR_DIR}/netflow/${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
     EXPORT_DIR="${SECTOR_DIR}/export/${SECTOR}_${NVISITS}_${PREFIX}_${VERSION}"
@@ -90,17 +90,23 @@ for SECTOR in 'm33_W'; do
             ${EXTRA_OPTIONS}
     fi
 
-    # rm -Rf "${EXPORT_DIR}"
-    # if [ ! -d "${EXPORT_DIR}" ]; then
-    #     ga-export \
-    #         --in "${NETFLOW_DIR}" \
-    #         --out "${EXPORT_DIR}" \
-    #         --input-catalog-id ${INPUT_CATALOG_ID} \
-    #         --proposal-id "${PROPOSAL_ID}" \
-    #         --nrepeats ${NREPEATS} \
-    #         --nframes ${NFRAMES} \
-    #         --obs-run "${OBS_RUN}" \
-    #         ${EXTRA_OPTIONS}
-    # fi
+    rm -Rf "${EXPORT_DIR}"
+    if [ ! -d "${EXPORT_DIR}" ]; then
+        ga-export \
+            --in "${NETFLOW_DIR}" \
+            --out "${EXPORT_DIR}" \
+            --input-catalog-id ${INPUT_CATALOG_ID} \
+            --proposal-id "${PROPOSAL_ID}" \
+            --nrepeats ${NREPEATS} \
+            --nframes ${NFRAMES} \
+            --obs-run "${OBS_RUN}" \
+            ${EXTRA_OPTIONS}
+    fi
 
 done
+
+cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/raid/pfs/spt_ssp_observation/runs/${OBS_RUN}/targets/"
+
+cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
+    | sed '/^#/d' | sed '/^ppc_code/d' \
+    >> "/raid/pfs/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"

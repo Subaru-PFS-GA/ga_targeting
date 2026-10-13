@@ -9,7 +9,7 @@
 set -e
 
 PREFIX=SSP
-VERSION=002
+VERSION=003
 
 FIELD=sculptor
 STAGES="0 1 2"        # TODO: update stages as needed, depending on number of pointings
@@ -28,8 +28,7 @@ EXTRA_OPTIONS="--skip-notebooks"
 FIELD_DIR=$PFS_TARGETING_DATA/data/targeting/dSph/${FIELD}
 
 PMAP_DIR=${FIELD_DIR}/pmap/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
-# SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
-SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_001
+SAMPLE_DIR=${FIELD_DIR}/sample/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 IMPORT_DIR=${FIELD_DIR}/import/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 
@@ -38,7 +37,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #       the NB model magnitudes are off. Refer to 
 #       python/pfs/ga/targeting/targets/dsph/sextans.py:189
 
-# rm -r "$PMAP_DIR"
+# rm -rf "$PMAP_DIR"
 # if [ ! -d "$PMAP_DIR" ]; then
 #     ga-pmap --dsph ${FIELD} \
 #         --config ./configs/pmap/${PREFIX}/dSph/${FIELD}.py \
@@ -51,7 +50,7 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 #       also make sure the NB cut is the correct one, use the
 #       revised NB cut for Sextans here.
 
-# rm -r "$SAMPLE_DIR"
+# rm -rf "$SAMPLE_DIR"
 # if [ ! -d "$SAMPLE_DIR" ]; then
 #     ga-sample --dsph ${FIELD} \
 #         --config ./configs/sample/${PREFIX}/dSph/${FIELD}.py \
@@ -63,17 +62,17 @@ EXPORT_DIR=${FIELD_DIR}/export/${PREFIX}/${FIELD}_${PREFIX}_${VERSION}
 # NOTE: input files to ga-import are listed in the netflow config file
 #       make sure the file path matches the version number!
 
-# rm -rf "$IMPORT_DIR"
-# if [ ! -d "$IMPORT_DIR" ]; then
-#     ga-import --dsph ${FIELD} \
-#         --config \
-#             ./configs/netflow/${PREFIX}/dSph/_common.py \
-#             ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
-#         --exp-time ${EXP_TIME} \
-#         --obs-time "${OBS_TIME}" \
-#         --out ${IMPORT_DIR} \
-#         ${EXTRA_OPTIONS}
-# fi
+rm -rf "$IMPORT_DIR"
+if [ ! -d "$IMPORT_DIR" ]; then
+    ga-import --dsph ${FIELD} \
+        --config \
+            ./configs/netflow/${PREFIX}/dSph/_common.py \
+            ./configs/netflow/${PREFIX}/dSph/${FIELD}.py \
+        --exp-time ${EXP_TIME} \
+        --obs-time "${OBS_TIME}" \
+        --out ${IMPORT_DIR} \
+        ${EXTRA_OPTIONS}
+fi
 
 indir=$IMPORT_DIR
 for stage in $STAGES; do
@@ -107,8 +106,8 @@ done
 # fi
 
 
-# cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/"
+# cp -r "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA" "/raid/pfs/spt_ssp_observation/runs/${OBS_RUN}/targets/"
 
 # cat "${EXPORT_DIR}/runs/${OBS_RUN}/targets/GA/ppcList.ecsv" \
 #     | sed '/^#/d' | sed '/^ppc_code/d' \
-#     >> "/home/dobos/project/Subaru-PFS/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
+#     >> "/raid/pfs/spt_ssp_observation/runs/${OBS_RUN}/targets/GA/ppcList.ecsv"
